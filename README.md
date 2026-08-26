@@ -154,6 +154,12 @@ does ship is the skeleton of the parts that take longest to get right:
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
   and render-blocking counts — bytes and counts, never a timing, because a hand-rolled number
   from one machine disagrees with Lighthouse and nothing tells you it is wrong
+- **`npm run check:secrets`** — compares the secrets your code declares in `.dev.vars.example`
+  against what the deployed worker actually holds, and runs automatically at the end of
+  `deploy:staging` and `deploy:production`. A missing one never throws: `secret()` returns
+  `undefined`, the form still validates, still stores the lead, still returns 200 and still
+  thanks the visitor — it just emails nobody. That is weeks of enquiries found by someone
+  asking why the phone stopped ringing
 - **`npm run shots`** — before/after screenshots of a migration at a mobile and a desktop width,
   paired into one page. Both sides read the same URL inventory, so a page that did not survive
   shows as a 404 beside its old screenshot. Take the before pass while the old site is still up;

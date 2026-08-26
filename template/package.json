@@ -32,8 +32,9 @@
     "build:staging": "PUBLIC_SITE_ENV=staging PUBLIC_SITE_URL=https://new.example.com astro build && PUBLIC_SITE_ENV=staging node scripts/staging-headers.mjs && PUBLIC_SITE_ENV=staging node scripts/check-env.mjs",
     "build:production": "node scripts/tells.mjs --undecided-only && PUBLIC_SITE_ENV=production astro check && PUBLIC_SITE_ENV=production PUBLIC_SITE_URL=https://example.com astro build && PUBLIC_SITE_ENV=production node scripts/check-env.mjs && node scripts/check-sitemap.mjs",
     "preview": "wrangler dev",
-    "deploy:staging": "npm run build:staging && wrangler deploy",
-    "deploy:production": "npm run build:production && wrangler deploy"
+    "deploy:staging": "npm run build:staging && wrangler deploy && node scripts/check-secrets.mjs",
+    "deploy:production": "npm run build:production && wrangler deploy && node scripts/check-secrets.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",

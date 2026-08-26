@@ -1051,7 +1051,7 @@ const warned = results.filter((r) => !r.ok && r.warn);
 console.log(`\n${BOLD}── What this cannot see ${'─'.repeat(36)}${RESET}`);
 for (const line of [
   'One pageview per visit — a double-count is only visible in Realtime',
-  'That a valid submission stores AND emails — send one by hand, once',
+  'That a valid submission stores AND emails — send one by hand, once (`npm run check:secrets` covers whether the key is even set)',
   'Whether the analytics container is the client\'s own — fetch it and read it',
   'Whether a redirect target is the RIGHT page, only that it resolves',
   'How fast it FEELS — weight and blocking counts are the inputs, never a timing. ' +

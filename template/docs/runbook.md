@@ -505,7 +505,12 @@ In this order. Steps 1–3 happen days ahead, not on launch day.
    ```bash
    npm run verify -- "https://$PROD"
    npm run check:sitemap          # after a production build: nothing listed AND noindex
+   npm run check:secrets          # the production worker holds every declared secret
    ```
+
+   `check:secrets` already ran as part of `deploy:production`. Run it again here because
+   go-live is when it is most likely to fail: a secret set on the staging worker is not
+   automatically on this one, and the failure is silent — leads store, nothing emails.
 9. **Submit the sitemap** in [Search Console](https://search.google.com/search-console) and
    [Bing Webmaster Tools](https://www.bing.com/webmasters). If you kept the old filename, the
    existing entry keeps working and there is nothing to resubmit.

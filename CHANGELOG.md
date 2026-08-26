@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-08-27b — the secret nobody set
+
+**`npm run check:secrets`** compares the secrets declared in `.dev.vars.example` against what
+the deployed worker actually holds, and runs at the end of `deploy:staging` and
+`deploy:production` — after the deploy, not before, because a worker that does not exist yet
+cannot be missing anything and the first deploy is exactly when a secret has never been set.
+
+⚠ **A MISSING SECRET NEVER THROWS.** `secret()` in `runtime.ts` returns `undefined`. The form
+still validates, still writes the lead to KV, still returns 200, still thanks the visitor. The
+API says `{"stored":true,"emailed":false}` and nobody reads API responses. So the site collects
+enquiries and notifies no one — no error, no failed request, nothing in the deploy log. It is
+found weeks later by someone asking why the phone stopped ringing.
+
+It shipped exactly that way on the ochome build: deployed, `npm run verify` green, storing
+leads, emailing nothing. `verify` lists it under *"what this cannot see"*, which was honest and
+did not help. **A note in a report nobody re-reads is not a gate.**
+
+The list comes from `.dev.vars.example` rather than being hardcoded in the script, so adding a
+secret to the code extends the check for free — you have to add it there anyway or local
+`wrangler dev` breaks. A hardcoded list would go stale in silence, which is precisely how
+`check-env.mjs` spent a whole project matching nothing.
+
+Verified against a live worker rather than a fixture: it caught ochome's genuinely-unset
+`BREVO_API_KEY`, reported a never-deployed worker as nothing-to-check rather than
+everything-missing, and passed when the declared list matched.
+
 ## 2026-08-27 — 0.1.4, because a rewritten history orphans an attestation
 
 **npm showed a red banner on the package page:** *Unable to find the source commit for

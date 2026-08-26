@@ -45,6 +45,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `npm run check:secrets` | A deploy that captures leads and silently cannot email them — `secret()` returns `undefined`, the form returns 200, nobody is notified |
 | Inverse check in `audit:docs` | A feature that ships and is documented nowhere — the audit was green through two README drifts because it only checked that references *resolve* |
 | Legal content collection | Three near-identical page files, and an editor who cannot change an effective date without a developer |
 | Weight + blocking in `verify` | `build.md` §2 said measure and named no tool, so nobody did until a client asked |
