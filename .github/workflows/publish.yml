@@ -39,10 +39,20 @@ jobs:
           node-version-file: template/.node-version
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing needs a recent npm; the runner's bundled version
-      # predates OIDC support on some images.
+      # Trusted publishing needs npm 11.5.1+; the runner shipped 11.3.0.
+      #
+      # ⚠ NOT `npm@latest`. That is npm 12, which requires Node
+      # `^22.22.2 || ^24.15.0 || >=26.0.0` — and `template/.node-version` pins
+      # 24.2.0, which is below the 24.15 floor. So `npm install -g npm@latest`
+      # fails with EBADENGINE before any gate runs, which is how this workflow
+      # failed on its first release.
+      #
+      # npm 11.19 supports OIDC and needs only `>=22.9.0`. When .node-version
+      # moves past 24.15, this can become npm@latest.
       - name: npm with OIDC support
-        run: npm install -g npm@latest
+        run: |
+          npm install -g npm@11
+          npm --version
 
       # The same gates the Kit workflow runs. A version cannot be taken back,
       # so nothing is published that has not built.
