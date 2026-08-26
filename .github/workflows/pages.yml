@@ -12,6 +12,16 @@
 
 name: Pages
 
+# ⚠ ON A FRESHLY RECREATED REPOSITORY, workflow_dispatch DOES NOT WORK YET.
+# GitHub registers a workflow the first time it RUNS, and `gh workflow run
+# pages.yml` answers `HTTP 404: workflow pages.yml not found on the default
+# branch` until then — while the file is plainly sitting on the default branch.
+# Kit and Publish register themselves because a push and a release fire them.
+# This one only fires on its own paths, so it never gets a first run, and the
+# Pages site stays 404 with nothing obviously wrong.
+#
+# The way out is a push touching one of the paths below. This comment was it.
+
 on:
   push:
     branches: [master]
