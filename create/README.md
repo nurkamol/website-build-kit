@@ -45,9 +45,20 @@ Bricks — the extractable copy is the rendered HTML, never the database.
 
 ## The method
 
-The template is half of it. The other half is a Claude Code skill and the written method
-behind it, including a file of failures that were **green in a build**: clean build, clean
-types, clean deploy, wrong result.
+The template is half of it. The other half is a Claude Code skill that runs the whole job —
+discovery, stack and provider decisions, the build, then verification against the deployed
+site:
+
+```
+/plugin marketplace add nurkamol/website-build-kit
+/plugin install website-build@website-build-kit
+```
+
+Then just ask: *"Rebuild https://acmeplumbing.com on Astro and Cloudflare — we're migrating
+off Elementor."*
+
+Behind it is the written method, including a file of failures that were **green in a build**:
+clean build, clean types, clean deploy, wrong result.
 
 **https://github.com/nurkamol/website-build-kit**
 
