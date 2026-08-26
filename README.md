@@ -1,8 +1,25 @@
-# website-build-kit
+<p align="center">
+  <!-- GitHub honours prefers-color-scheme in a <picture>. Without it the mark
+       is drawn in near-black and disappears for anyone reading in dark mode. -->
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/brand/mark-dark.png">
+    <img src="site/brand/mark-light.png" width="72" height="72" alt="">
+  </picture>
+</p>
 
-[![npm](https://img.shields.io/npm/v/create-website-build-kit?label=create-website-build-kit)](https://www.npmjs.com/package/create-website-build-kit)
-[![CI](https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml/badge.svg)](https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml)
-[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+<h1 align="center">website-build-kit</h1>
+
+<p align="center">
+  <em>Your build was green. The site was wrong.</em><br>
+  <a href="https://nurkamol.github.io/website-build-kit/">nurkamol.github.io/website-build-kit</a>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/create-website-build-kit"><img src="https://img.shields.io/npm/v/create-website-build-kit?label=create-website-build-kit" alt="npm version"></a>
+  <a href="https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml"><img src="https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-blue" alt="MIT licence"></a>
+</p>
+
 
 A method and a starter for shipping production marketing sites: discovery → stack and
 provider decisions → build → verify against the deployed thing → hand over.

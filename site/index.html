@@ -3,14 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Website Build Kit — the failures that pass every check</title>
-<meta name="description" content="A method for building production marketing sites: an Astro + Cloudflare Workers template, a WordPress migration playbook, and 46 silent failures documented from real rebuilds.">
+<title>Website Build Kit — Astro + Cloudflare marketing sites</title>
+<meta name="description" content="Build production marketing sites on Astro and Cloudflare Workers: a WordPress migration playbook, a Claude Code skill, and 46 failures documented from real rebuilds.">
 <link rel="canonical" href="https://nurkamol.github.io/website-build-kit/">
+<meta name="author" content="Nurkamol Vakhidov">
+<meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131211" media="(prefers-color-scheme: dark)">
+
 <meta property="og:type" content="website">
-<meta property="og:title" content="Website Build Kit">
-<meta property="og:description" content="46 documented failures that were green in a build. Clean build, clean types, clean deploy, wrong result.">
+<meta property="og:site_name" content="Website Build Kit">
+<meta property="og:title" content="Your build was green. The site was wrong.">
+<meta property="og:description" content="46 failures that passed every check on the way out — and the method that catches them. Astro on Cloudflare Workers, with a WordPress migration playbook.">
 <meta property="og:url" content="https://nurkamol.github.io/website-build-kit/">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9873;</text></svg>">
+<!-- JPEG, not WebP or SVG: Facebook and LinkedIn still fail to render a WebP
+     og:image and no scraper accepts SVG, so a shared post unfurls with no
+     picture at all. Absolute URL — scrapers do not resolve relative ones. -->
+<meta property="og:image" content="https://nurkamol.github.io/website-build-kit/brand/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Website Build Kit — your build was green, the site was wrong.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Your build was green. The site was wrong.">
+<meta name="twitter:description" content="46 failures that passed every check on the way out — and the method that catches them.">
+<meta name="twitter:image" content="https://nurkamol.github.io/website-build-kit/brand/og.jpg">
+
+<link rel="icon" href="brand/mark.svg" type="image/svg+xml">
+<link rel="icon" href="brand/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "Website Build Kit",
+  "description": "A method and starter for building production marketing sites on Astro and Cloudflare Workers, with a WordPress migration playbook and 46 documented silent failures.",
+  "codeRepository": "https://github.com/nurkamol/website-build-kit",
+  "url": "https://nurkamol.github.io/website-build-kit/",
+  "programmingLanguage": ["JavaScript", "TypeScript", "Astro"],
+  "runtimePlatform": "Cloudflare Workers",
+  "license": "https://opensource.org/licenses/MIT",
+  "image": "https://nurkamol.github.io/website-build-kit/brand/og.jpg",
+  "author": { "@type": "Person", "name": "Nurkamol Vakhidov", "url": "https://github.com/nurkamol" },
+  "keywords": "astro, cloudflare workers, wordpress migration, marketing website, web accessibility, WCAG, SEO, claude code"
+}
+</script>
 <style>
   :root {
     --bg: #fbfaf8;
@@ -79,7 +115,11 @@
     z-index: 5;
   }
   .top .wrap { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
-  .brand { font-weight: 660; letter-spacing: -0.015em; text-decoration: none; margin-right: auto; }
+  .brand {
+    font-weight: 660; letter-spacing: -0.015em; text-decoration: none; margin-right: auto;
+    display: inline-flex; align-items: center; gap: 0.55rem;
+  }
+  .brand__mark { inline-size: 1.35rem; block-size: 1.35rem; flex: none; }
   .brand span { color: var(--accent); }
   .top nav { display: flex; gap: 1.35rem; font-size: 0.925rem; }
   .top nav a { color: var(--ink-2); text-decoration: none; }
@@ -186,7 +226,16 @@
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/website-build-kit/">website<span>-</span>build<span>-</span>kit</a>
+    <a class="brand" href="/website-build-kit/">
+      <svg class="brand__mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <g fill="none" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 13 L11 13 L11 51 L22 51" stroke="currentColor"/>
+          <path d="M42 13 L53 13 L53 51 L42 51" stroke="currentColor"/>
+          <path d="M22.5 33.5 L29.5 40.5 L43 25" stroke="var(--accent)"/>
+        </g>
+      </svg>
+      website<span>-</span>build<span>-</span>kit
+    </a>
     <nav aria-label="Sections">
       <a href="#failures">The failures</a>
       <a href="#install">Install</a>

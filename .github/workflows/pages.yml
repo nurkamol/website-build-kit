@@ -89,6 +89,25 @@ jobs:
             process.exit(bad?1:0);
           });"
 
+      # Every asset the <head> promises must actually resolve. A 404 og:image is
+      # invisible on the page and breaks every share; a broken favicon or
+      # sitemap is the same class of thing — declared, never fetched, never
+      # noticed.
+      - name: SEO assets resolve
+        run: |
+          for f in brand/mark.svg brand/favicon-32.png brand/apple-touch-icon.png \
+                   brand/og.jpg sitemap.xml robots.txt; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8099/$f")
+            echo "  $code  $f"
+            [ "$code" = "200" ] || { echo "::error::$f returned $code"; exit 1; }
+          done
+          node -e "
+            const x = require('fs').readFileSync('site/sitemap.xml','utf8');
+            if (!x.includes('http://www.sitemaps.org/schemas/sitemap/0.9'))
+              { console.error('sitemap namespace is wrong — crawlers reject it'); process.exit(1); }
+            console.log('  sitemap namespace ok');
+          "
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

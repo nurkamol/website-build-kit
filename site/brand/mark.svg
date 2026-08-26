@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="website-build-kit">
+  <title>website-build-kit</title>
+  <!--
+    Brackets around a check: code, verified. The kit's claim is that a green
+    build is not the same as a right site, so the mark is a verification sitting
+    inside the source rather than a tick on its own.
+
+    ⚠ The colours are declared HERE, not inherited. A favicon has no CSS context,
+    so `currentColor` resolves to black and the mark vanishes against dark
+    browser chrome. The media query below is the only way an SVG icon adapts.
+  -->
+  <style>
+    .ink { stroke: #171614 }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #f2efe9 } }
+  </style>
+  <g fill="none" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+    <path class="ink" d="M22 13 L11 13 L11 51 L22 51"/>
+    <path class="ink" d="M42 13 L53 13 L53 51 L42 51"/>
+    <path d="M22.5 33.5 L29.5 40.5 L43 25" stroke="#8a3324"/>
+  </g>
+</svg>

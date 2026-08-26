@@ -1,0 +1,13 @@
+# ⚠ Crawlers only read robots.txt at a DOMAIN root. This is a GitHub Pages
+# project site, so the file that actually governs crawling is
+# https://nurkamol.github.io/robots.txt — which this repository does not own.
+#
+# It ships anyway because it becomes live the moment a custom domain is
+# pointed here, and because an absent file is indistinguishable from an
+# oversight. Submit the sitemap directly in Search Console and Bing Webmaster
+# Tools; do not rely on the line below being read.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://nurkamol.github.io/website-build-kit/sitemap.xml
