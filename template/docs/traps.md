@@ -969,3 +969,38 @@ export removed the guesswork — prose never collides with a real export.
 
 **A checker with false positives gets switched off, and then its silence means
 "nobody looked" rather than "nothing wrong".**
+
+### A checker that counts source AND build output counts everything twice
+
+**Symptom:** `npm run tells` reports *"3 auto-fill/auto-fit minmax grids"* on a
+project whose entire source contains **one**. The threshold is "more than
+twice", so a single grid fails the check. Removing grids does not help — the
+count only drops when you get to zero.
+
+`tells.mjs` reads `allCss = [...styleFiles, ...distCss]`, and including the
+built stylesheets is deliberate and right *for presence tests*: a rule that
+never reaches the build is not a rule the site has. It is wrong for **counting**.
+Astro inlines shared CSS into every entry bundle, so one rule in `project.css`
+is read once from source and again from each built stylesheet:
+
+```
+1×  src/styles/project.css
+1×  dist/client/_astro/Base.U1P5p-HP.css
+1×  dist/client/_astro/contact.D3DAZGAV.css
+```
+
+One rule, three matches, against a threshold of two.
+
+**Fix:** count from source only. `tells.mjs` now builds a separate `sourceCss`
+for the three tells that count rather than test presence — the grid count, the
+long-animation count and the stripped-focus-ring count. The presence tests keep
+reading the built CSS, because for those the build output is the point.
+
+**Why it hid for so long:** the other two counting tells threshold at `> 0`, so
+duplication inflated their *reported number* without ever changing the verdict.
+Only the grid tell compares against a number greater than one, and only that one
+gave a wrong answer. The bug was in all three the whole time.
+
+The general shape is worth keeping: **a checker that reads both a source and a
+generated copy of that source is counting the same thing more than once.** If
+its threshold is anything other than "any", it is wrong.

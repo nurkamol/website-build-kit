@@ -64,6 +64,19 @@ const componentCss = componentFiles
   .flatMap((source) => [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]))
   .join('\n');
 const everyCss = allCss + '\n' + componentCss;
+
+/*
+ * ⚠ SOURCE ONLY, FOR ANYTHING THAT COUNTS. `allCss` deliberately includes the
+ * built stylesheets, which is right for presence tests — a rule that never
+ * reaches the build is not a rule the site has. It is wrong for counting: Astro
+ * inlines the same CSS into every entry bundle, so ONE rule in project.css is
+ * read once from source and again from each built stylesheet.
+ *
+ * That made the auto-fill grid tell fire on a single grid — 1 rule counted as
+ * 3, against a threshold of "more than twice". The tell was telling the truth
+ * about its own arithmetic and nothing about the site.
+ */
+const sourceCss = styleFiles.map(read).join('\n') + '\n' + componentCss;
 /**
  * Raw component source, not just its <style> blocks. Inline `style=`
  * attributes are exactly where a card grid gets written when someone is
@@ -144,7 +157,7 @@ tell(
 // "three equal cards, centred, more than twice on one page"
 {
   const grids = [
-    ...(everyCss + componentSource).matchAll(/repeat\(\s*auto-(fill|fit)\s*,\s*minmax/g),
+    ...(sourceCss + componentSource).matchAll(/repeat\(\s*auto-(fill|fit)\s*,\s*minmax/g),
   ].length;
   tell(
     'the auto-fill card grid, more than twice',
@@ -185,7 +198,7 @@ tell(
 
 // "any animation runs longer than ~400ms"
 {
-  const slow = [...everyCss.matchAll(/(?:transition|animation)(?:-duration)?:[^;]*?(\d{3,4})ms/g)]
+  const slow = [...sourceCss.matchAll(/(?:transition|animation)(?:-duration)?:[^;]*?(\d{3,4})ms/g)]
     .map((m) => Number(m[1]))
     .filter((ms) => ms > 400);
   tell(
@@ -197,7 +210,7 @@ tell(
 
 // "focus rings are the browser default, or removed"
 {
-  const stripped = [...everyCss.matchAll(/outline:\s*(none|0)\b/g)].length;
+  const stripped = [...sourceCss.matchAll(/outline:\s*(none|0)\b/g)].length;
   const restored = /:focus-visible[^{]*\{[^}]*outline:/.test(everyCss);
   tell(
     'focus ring removed and not replaced',
