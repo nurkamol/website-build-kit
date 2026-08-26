@@ -127,6 +127,24 @@ clock — and grep for the shape.
 and passed happily while testing pages that did not exist. Scripts discover routes through
 `scripts/lib/routes.mjs`; if you add one that needs a route list, use that.
 
+## After changing a script
+
+```bash
+npm run check:refs
+```
+
+A script can use a name nothing imported and still pass `node --check` — an
+undefined identifier is valid syntax. `npm run recon` shipped that way and threw
+`ReferenceError: PRESERVED is not defined` on line 302, after the whole crawl,
+on a user's first command. `astro check` does not read `.mjs`, and CI cannot run
+`recon` because it needs a live site.
+
+**Windows is a supported target and is easy to break from a Mac.** `execFileSync`
+cannot resolve `npx` there — it is `npx.cmd` — so anything spawning it needs
+`shell: process.platform === 'win32'`, and a `brew install` hint is a dead end
+rather than a hint. Both shipped and both are fixed; the pattern is what to
+watch for.
+
 ## After changing any documentation
 
 ```bash

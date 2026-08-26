@@ -89,6 +89,14 @@ const runners = config.defaults?.runners ?? ['htmlcs'];
  * was tested when half of it was not is the thing somebody hands to a lawyer.
  * See scripts/lib/schemes.mjs.
  */
+/*
+ * ⚠ `shell: true` ON WINDOWS, and it is not optional there. `npx` is
+ * `npx.cmd`, and execFileSync does not resolve .cmd without a shell — it
+ * fails ENOENT, which reads as "npx is not installed" on a machine where it
+ * plainly is. Left off on POSIX, where a shell buys nothing and costs quoting.
+ */
+const WIN = process.platform === 'win32';
+
 const tmp = mkdtempSync(join(tmpdir(), 'a11y-evidence-'));
 
 const runScheme = (scheme) => {
@@ -104,7 +112,9 @@ const runScheme = (scheme) => {
   try {
     /* pa11y-ci exits non-zero when it finds errors, and still prints the JSON.
        A non-zero exit here is a RESULT, not a failure to run. */
-    return JSON.parse(execFileSync('npx', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+    return JSON.parse(
+      execFileSync('npx', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: WIN }),
+    );
   } catch (error) {
     const out = error.stdout?.toString() ?? '';
     try {

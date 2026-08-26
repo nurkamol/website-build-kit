@@ -29,6 +29,13 @@ jobs:
       - name: Documentation audit
         run: npm run audit:docs
 
+      # `npm run recon` shipped throwing ReferenceError: PRESERVED is not
+      # defined, on line 302, after all its network work — and nothing here
+      # could see it. node --check parses only, astro check does not read .mjs,
+      # and CI never runs recon because recon needs a live site.
+      - name: Lib exports are imported where used
+        run: npm run check:refs
+
       # The promise: the template builds green from a clean checkout with no
       # content, no images and no secrets.
       - name: Install the template from the lockfile

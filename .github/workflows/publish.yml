@@ -58,6 +58,9 @@ jobs:
       - name: Documentation audit
         run: npm run audit:docs
 
+      - name: Lib exports are imported where used
+        run: npm run check:refs
+
       - name: Template builds from clean
         working-directory: template
         run: npm ci && CI=true npm run build:staging

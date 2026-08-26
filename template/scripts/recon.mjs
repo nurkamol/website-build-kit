@@ -28,6 +28,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { GONE_TAG } from './lib/inventory.mjs';
+import { PRESERVED } from './lib/preserved.mjs';
 
 const RESET = '[0m';
 const RED = '[31m';
@@ -299,11 +300,9 @@ if (goneList.length) {
 /* ── 3. Paths other systems point at ──────────────────────────────────── */
 section('Preserved paths');
 
-const PRESERVE = PRESERVED;
-
 /* Manual redirects again: "serves a feed" and "301s to a feed" are different
    facts, and only the first means the path must be reproduced. */
-const preserved = await pool(PRESERVE, async ([path, why]) => {
+const preserved = await pool(PRESERVED, async ([path, why]) => {
   const r = await req(`${ORIGIN}${path}`, { method: 'HEAD', redirect: 'manual' });
   return { path, why, status: r?.status ?? 0, location: r?.headers.get('location') ?? '' };
 });

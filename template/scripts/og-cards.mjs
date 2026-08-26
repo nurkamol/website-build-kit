@@ -64,6 +64,14 @@ function have(bin, args = ['--version']) {
   }
 }
 
+/** The install line for the platform this is actually running on. */
+const hint = (brew, winget, apt) =>
+  process.platform === 'win32'
+    ? `winget install ${winget}`
+    : process.platform === 'linux'
+      ? `sudo apt install ${apt}`
+      : `brew install ${brew}`;
+
 function preflight() {
   const missing = [];
 
@@ -83,9 +91,12 @@ function preflight() {
   }
 
   const tools = [
-    ['magick', ['-version'], 'ImageMagick', 'brew install imagemagick'],
-    ['rsvg-convert', ['--version'], 'rsvg-convert', 'brew install librsvg'],
-    ['python3', ['--version'], 'Python 3', 'brew install python'],
+    /* Per-platform. "brew install" on Windows is not a hint, it is a dead
+       end — and this preflight exists precisely so a missing tool names its
+       own fix. */
+    ['magick', ['-version'], 'ImageMagick', hint('imagemagick', 'ImageMagick.ImageMagick', 'imagemagick')],
+    ['rsvg-convert', ['--version'], 'rsvg-convert', hint('librsvg', 'GNOME.Librsvg', 'librsvg2-bin')],
+    ['python3', ['--version'], 'Python 3', hint('python', 'Python.Python.3.12', 'python3')],
   ];
   for (const [bin, args, label, install] of tools) {
     if (!have(bin, args)) {

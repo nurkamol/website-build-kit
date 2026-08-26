@@ -28,6 +28,14 @@ const GREEN = '\x1b[32m';
 const DIM = '\x1b[2m';
 const BOLD = '\x1b[1m';
 
+/*
+ * ⚠ `shell: true` ON WINDOWS, and it is not optional there. `npx` is
+ * `npx.cmd`, and execFileSync does not resolve .cmd without a shell — it
+ * fails ENOENT, which reads as "npx is not installed" on a machine where it
+ * plainly is. Left off on POSIX, where a shell buys nothing and costs quoting.
+ */
+const WIN = process.platform === 'win32';
+
 const CONFIG = '.pa11yci.json';
 if (!existsSync(CONFIG)) {
   console.error(`${RED}✗${RESET} ${CONFIG} not found — run this from the site root.`);
@@ -58,7 +66,7 @@ for (const scheme of schemes) {
 
   console.log(`${BOLD}${scheme}${RESET}`);
   try {
-    execFileSync('npx', ['pa11y-ci', '--config', file], { stdio: 'inherit' });
+    execFileSync('npx', ['pa11y-ci', '--config', file], { stdio: 'inherit', shell: WIN });
     console.log(`  ${GREEN}✓${RESET} ${scheme} clean\n`);
   } catch {
     failed++;

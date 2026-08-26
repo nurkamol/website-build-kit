@@ -3,7 +3,8 @@
   "description": "Kit-level tooling. The site template has its own package.json in template/.",
   "type": "module",
   "scripts": {
-    "audit:docs": "node scripts/audit-docs.mjs"
+    "audit:docs": "node scripts/audit-docs.mjs",
+    "check:refs": "node scripts/check-refs.mjs"
   },
   "license": "MIT"
 }

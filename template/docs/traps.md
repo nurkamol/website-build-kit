@@ -930,3 +930,42 @@ Worth knowing before you go hunting: this got *more* visible when the run starte
 covering both colour schemes, because that doubles the number of Chrome sessions
 and so doubles the chances of hitting the race. The change that surfaced it was
 not the change that caused it.
+
+### A script throws `ReferenceError` for something nothing ever imported
+
+**Symptom:** `npm run recon` runs the whole crawl, prints its sitemap and URL
+sections, and then dies at the last one:
+
+```
+const PRESERVE = PRESERVED;
+                 ^
+ReferenceError: PRESERVED is not defined
+```
+
+The file imports two things and uses a third. It shipped in a published package
+and a user hit it on a real migration, on Windows, on the first command the
+documentation tells you to run.
+
+**Why nothing caught it.** This is the important part, because the instinct is
+that surely *something* would have:
+
+| | |
+| --- | --- |
+| `node --check` | Parses. An undefined identifier is **valid syntax** |
+| `astro check` | Types `.astro` and `.ts`. The scripts are standalone `.mjs` |
+| CI | Runs the build. `recon` needs a live site, so CI never runs it |
+| Smoke-running it | The throw is on line 302, reached only after the crawl — tested, and a `--help` load-check passes the broken file |
+
+**Fix:** import it. The real fix is the gate — `npm run check:refs` cross-checks
+every name `scripts/lib/*.mjs` exports against every script that uses one, and
+fails when a use has no import.
+
+**The first version of that gate was worse than none.** It flagged every
+SCREAMING_CASE identifier that was never bound, and produced seven false
+positives on a clean tree: `WCAG` and `CAA` in prose, `ERR_ABORTED` inside a
+regex literal, `AND` in a comment. Stripping comments and strings with regexes
+is a losing game without a parser. Narrowing it to names the libs actually
+export removed the guesswork — prose never collides with a real export.
+
+**A checker with false positives gets switched off, and then its silence means
+"nobody looked" rather than "nothing wrong".**
