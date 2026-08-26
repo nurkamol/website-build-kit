@@ -1,10 +1,19 @@
 {
   "name": "create-website-build-kit",
-  "version": "1.0.0",
-  "description": "Scaffold a production marketing site — Astro on Cloudflare Workers, with the gates, the migration playbook and the accessibility work already wired.",
+  "version": "0.1.0",
+  "description": "Scaffold a production marketing site \u2014 Astro on Cloudflare Workers, with the gates, the migration playbook and the accessibility work already wired.",
   "keywords": [
-    "astro", "cloudflare-workers", "marketing-site", "starter", "template",
-    "wordpress-migration", "scaffold", "create", "accessibility", "wcag", "seo"
+    "astro",
+    "cloudflare-workers",
+    "marketing-site",
+    "starter",
+    "template",
+    "wordpress-migration",
+    "scaffold",
+    "create",
+    "accessibility",
+    "wcag",
+    "seo"
   ],
   "homepage": "https://github.com/nurkamol/website-build-kit#readme",
   "bugs": "https://github.com/nurkamol/website-build-kit/issues",
@@ -16,9 +25,16 @@
   "license": "MIT",
   "author": "Nurkamol Vakhidov",
   "type": "module",
-  "bin": { "create-website-build-kit": "index.mjs" },
-  "files": ["index.mjs", "template"],
-  "engines": { "node": ">=22.12.0" },
+  "bin": {
+    "create-website-build-kit": "index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "template"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "prepack": "node prepack.mjs",
     "postpack": "node -e \"require('fs').rmSync('template',{recursive:true,force:true})\""
