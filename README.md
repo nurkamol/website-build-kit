@@ -1,10 +1,21 @@
 # website-build-kit
 
+[![npm](https://img.shields.io/npm/v/create-website-build-kit?label=create-website-build-kit)](https://www.npmjs.com/package/create-website-build-kit)
+[![CI](https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml/badge.svg)](https://github.com/nurkamol/website-build-kit/actions/workflows/kit.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+
 A method and a starter for shipping production marketing sites: discovery → stack and
 provider decisions → build → verify against the deployed thing → hand over.
 
 Not a theme. The value is the accumulated set of decisions and the list of things that fail
 **silently** — clean build, clean types, clean deploy, wrong result.
+
+```bash
+/plugin marketplace add nurkamol/website-build-kit
+/plugin install website-build@website-build-kit
+```
+
+Or clone and symlink, if you would rather not add a marketplace:
 
 ```bash
 git clone https://github.com/nurkamol/website-build-kit.git
@@ -36,6 +47,7 @@ ready before you begin, and what the first ten minutes should look like.
 | `template/` | Astro + Cloudflare starter that builds from a clean clone |
 | `docs/` | How to use it, and how to extend it |
 | `install.sh` | Symlinks skills and commands into `~/.claude` |
+| `.claude-plugin/` | Plugin and marketplace manifests, so `/plugin install` works |
 | `create/` | The `npm create website-build-kit` scaffolder. Packs `template/` at publish time |
 | `CLAUDE.md` | Applies when working **on the kit** — house style, where things go |
 | `template/CLAUDE.md` | Ships with each new site — that site's conventions |

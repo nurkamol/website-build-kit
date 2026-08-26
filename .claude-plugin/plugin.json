@@ -1,0 +1,23 @@
+{
+  "name": "website-build",
+  "displayName": "Website Build",
+  "version": "0.1.0",
+  "description": "Build or rebuild a production marketing website — discovery, stack and provider selection, then the build. Covers migrating off WordPress, Elementor, Divi, Webflow, Squarespace, Wix and Shopify onto Astro, Next.js or SvelteKit on Cloudflare Workers, with forms, lead storage, SEO parity, WCAG 2.2 AA compliance and verification against the deployed site.",
+  "author": {
+    "name": "Nurkamol Vakhidov",
+    "url": "https://github.com/nurkamol"
+  },
+  "homepage": "https://github.com/nurkamol/website-build-kit#readme",
+  "repository": "https://github.com/nurkamol/website-build-kit",
+  "license": "MIT",
+  "keywords": [
+    "website",
+    "astro",
+    "cloudflare-workers",
+    "wordpress-migration",
+    "accessibility",
+    "wcag",
+    "seo",
+    "marketing-site"
+  ]
+}

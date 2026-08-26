@@ -1,0 +1,15 @@
+{
+  "name": "website-build-kit",
+  "owner": {
+    "name": "Nurkamol Vakhidov",
+    "url": "https://github.com/nurkamol"
+  },
+  "description": "A method for building production marketing sites: discovery, stack decisions, the build, and verification against the deployed thing.",
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "website-build",
+      "source": "./"
+    }
+  ]
+}
