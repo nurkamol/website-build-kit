@@ -37,8 +37,16 @@ jobs:
         with:
           node-version-file: template/.node-version
 
+      # Installed once, at the root, and shared by both gates below. The reflow
+      # check `import`s puppeteer, which resolves from node_modules and not from
+      # `npx` — running it without this failed ERR_MODULE_NOT_FOUND while the
+      # same command worked locally, because locally it ran from template/ where
+      # puppeteer arrives with pa11y-ci.
+      - name: Install the gate tools
+        run: npm install --no-save pa11y-ci puppeteer serve wait-on
+
       - name: Serve the page
-        run: npx --yes serve site -l 8099 &
+        run: npx serve site -l 8099 &
 
       # ⚠ BOTH COLOUR SCHEMES, and that is the whole point of running it twice.
       #
@@ -50,7 +58,7 @@ jobs:
       # about the other.
       - name: Accessibility — WCAG 2.2 AA, light and dark
         run: |
-          npx --yes wait-on http://localhost:8099 -t 30000
+          npx wait-on http://localhost:8099 -t 30000
           for scheme in light dark; do
             echo "── $scheme ──"
             cat > /tmp/pa11y-$scheme.json <<JSON
@@ -59,12 +67,11 @@ jobs:
                 "chromeLaunchConfig": { "args": ["--no-sandbox", "--force-prefers-color-scheme=$scheme"] } },
               "urls": ["http://localhost:8099/"] }
           JSON
-            npx --yes pa11y-ci --config /tmp/pa11y-$scheme.json || exit 1
+            npx pa11y-ci --config /tmp/pa11y-$scheme.json || exit 1
           done
 
       - name: Reflow — no second scroll axis at 320px
         run: |
-          npx --yes puppeteer@24 browsers install chrome >/dev/null 2>&1 || true
           node -e "
           import('puppeteer').then(async ({default:p})=>{
             const b=await p.launch({args:['--no-sandbox']});
