@@ -1,6 +1,6 @@
 {
   "name": "create-website-build-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Scaffold a production marketing site \u2014 Astro on Cloudflare Workers, with the gates, the migration playbook and the accessibility work already wired.",
   "keywords": [
     "astro",
@@ -15,7 +15,7 @@
     "wcag",
     "seo"
   ],
-  "homepage": "https://github.com/nurkamol/website-build-kit#readme",
+  "homepage": "https://nurkamol.github.io/website-build-kit/",
   "bugs": "https://github.com/nurkamol/website-build-kit/issues",
   "repository": {
     "type": "git",

@@ -1,13 +1,21 @@
-# create-website-build-kit
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nurkamol/website-build-kit/master/site/brand/mark-light.png" width="72" height="72" alt="">
+</p>
 
-Scaffold a production marketing site: **Astro, static, on Cloudflare Workers** — with the
-gates, the migration playbook and the accessibility work already wired.
+<h1 align="center">create-website-build-kit</h1>
+
+<p align="center"><em>Your build was green. The site was wrong.</em></p>
 
 ```bash
 npm create website-build-kit@latest my-site
 ```
 
+Scaffold a production marketing site: **Astro, static, on Cloudflare Workers** — with the
+gates, the migration playbook and the accessibility work already wired.
+
 Node 22.12+. It builds green immediately, with no content, no images and no secrets.
+
+**[The method, the traps and the docs →](https://nurkamol.github.io/website-build-kit/)**
 
 ## What you get
 
@@ -60,6 +68,7 @@ off Elementor."*
 Behind it is the written method, including a file of failures that were **green in a build**:
 clean build, clean types, clean deploy, wrong result.
 
-**https://github.com/nurkamol/website-build-kit**
+- **Site:** <https://nurkamol.github.io/website-build-kit/>
+- **Source:** <https://github.com/nurkamol/website-build-kit>
 
 MIT.
