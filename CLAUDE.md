@@ -195,6 +195,10 @@ got through review and were caught only by running those:
   review* on every row. The fix was to stop making a decorative marker a DOM text node at all
 - `minmax(21rem, 1fr)` in a `repeat(auto-fit, …)` track is wider than a 320px viewport, so the
   page gained a second scroll axis. `minmax(min(21rem, 100%), 1fr)` is the form that shrinks
+- a muted grey passed contrast locally and failed in CI, because local Chrome was in **dark**
+  mode and the runner was in light: 4.83:1 dark, **3.91:1 light**. A palette with two schemes
+  has two sets of contrast pairs, and testing one proves nothing about the other. The workflow
+  now runs pa11y twice with `--force-prefers-color-scheme`
 
 And one that only **looking** caught, after both gates were green: `display: grid` on a list
 item makes every inline child its own grid item, so an `<em>` mid-sentence is torn out of the

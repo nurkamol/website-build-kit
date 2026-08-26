@@ -40,15 +40,27 @@ jobs:
       - name: Serve the page
         run: npx --yes serve site -l 8099 &
 
-      - name: Accessibility — WCAG 2.2 AA
+      # ⚠ BOTH COLOUR SCHEMES, and that is the whole point of running it twice.
+      #
+      # The first run of this workflow failed on contrast that had passed
+      # locally, because local Chrome happened to be in DARK mode and the runner
+      # was in light. `--ink-3` measured 4.83:1 dark and 3.91:1 light — a real AA
+      # failure, invisible to a one-scheme test. A site with a light and a dark
+      # palette has two sets of contrast pairs and testing one proves nothing
+      # about the other.
+      - name: Accessibility — WCAG 2.2 AA, light and dark
         run: |
           npx --yes wait-on http://localhost:8099 -t 30000
-          cat > /tmp/pa11y.json <<'JSON'
-          { "defaults": { "standard": "WCAG2AA", "runners": ["axe", "htmlcs"],
-              "timeout": 30000, "chromeLaunchConfig": { "args": ["--no-sandbox"] } },
-            "urls": ["http://localhost:8099/"] }
+          for scheme in light dark; do
+            echo "── $scheme ──"
+            cat > /tmp/pa11y-$scheme.json <<JSON
+            { "defaults": { "standard": "WCAG2AA", "runners": ["axe", "htmlcs"],
+                "timeout": 30000,
+                "chromeLaunchConfig": { "args": ["--no-sandbox", "--force-prefers-color-scheme=$scheme"] } },
+              "urls": ["http://localhost:8099/"] }
           JSON
-          npx --yes pa11y-ci --config /tmp/pa11y.json
+            npx --yes pa11y-ci --config /tmp/pa11y-$scheme.json || exit 1
+          done
 
       - name: Reflow — no second scroll axis at 320px
         run: |
