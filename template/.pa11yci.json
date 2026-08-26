@@ -1,19 +1,32 @@
 {
   "defaults": {
     "standard": "WCAG2AA",
-    "runners": ["axe", "htmlcs"],
+    "runners": [
+      "axe",
+      "htmlcs"
+    ],
     "timeout": 30000,
-    "concurrency": 4,
+    "concurrency": 1,
     "hideElements": "iframe[src*='google.com/maps'], iframe[src*='youtube.com']",
-    "chromeLaunchConfig": { "args": ["--no-sandbox"] }
+    "chromeLaunchConfig": {
+      "args": [
+        "--no-sandbox"
+      ]
+    }
   },
   "//": [
-    "One URL per template family, not every page — a homepage-only pass misses",
+    "One URL per template family, not every page \u2014 a homepage-only pass misses",
     "everything the blog does differently. Point these at `wrangler dev`",
     "(localhost:8788) while building, or at the deployed staging host.",
     "Staging emits no sitemap on purpose, which is why these are explicit.",
     "Against production you can instead run:",
-    "  npx pa11y-ci --sitemap https://example.com/sitemap-index.xml --standard WCAG2AA"
+    "  npx pa11y-ci --sitemap https://example.com/sitemap-index.xml --standard WCAG2AA",
+    "",
+    "concurrency is 1 DELIBERATELY. Above 1, pa11y intermittently reports",
+    "'Failed to run \u2014 Protocol error (Target.closeTarget)' on a random URL, which",
+    "reads as an accessibility failure and is Chrome tearing down targets.",
+    "Measured on this template: 4/5 runs failed at concurrency 4, 5/5 at 2, 0/5 at 1.",
+    "A gate that is wrong most of the time is a gate people learn to ignore."
   ],
   "urls": [
     "http://localhost:8788/",

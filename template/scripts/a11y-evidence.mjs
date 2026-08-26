@@ -28,8 +28,12 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
+
+import { SCHEMES, configForScheme } from './lib/schemes.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -72,45 +76,75 @@ const config = JSON.parse(readFileSync('.pa11yci.json', 'utf8'));
 const standard = config.defaults?.standard ?? 'WCAG2AA';
 const runners = config.defaults?.runners ?? ['htmlcs'];
 
-const args = host
-  ? ['pa11y-ci', '--sitemap', `${host}/sitemap-index.xml`, '--standard', standard, '--json']
-  : ['pa11y-ci', '--config', '.pa11yci.json', '--json'];
+/*
+ * ⚠ EVERY SCHEME, because the pack is a COMPLIANCE ARTEFACT.
+ *
+ * pa11y drives Chrome, and Chrome picks a colour scheme from the machine it
+ * runs on. A site with a light and a dark palette has two sets of contrast
+ * pairs, so a single run measures one and says nothing about the other —
+ * measured on the kit's own landing page at 4.83:1 dark and **3.91:1 light**,
+ * a real AA failure in the half nobody tested.
+ *
+ * A red CI step from that is a nuisance. A dated evidence pack claiming a site
+ * was tested when half of it was not is the thing somebody hands to a lawyer.
+ * See scripts/lib/schemes.mjs.
+ */
+const tmp = mkdtempSync(join(tmpdir(), 'a11y-evidence-'));
 
-let report;
-try {
-  /* pa11y-ci exits non-zero when it finds errors, and still prints the JSON.
-     A non-zero exit here is a RESULT, not a failure to run. */
-  const out = execFileSync('npx', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  report = JSON.parse(out);
-} catch (error) {
-  const out = error.stdout?.toString() ?? '';
+const runScheme = (scheme) => {
+  const file = join(tmp, `${scheme}.json`);
+  writeFileSync(file, JSON.stringify(configForScheme(config, scheme), null, 2));
+
+  /* --config supplies the forced-scheme defaults either way; --sitemap only
+     replaces where the URL list comes from. */
+  const args = host
+    ? ['pa11y-ci', '--config', file, '--sitemap', `${host}/sitemap-index.xml`, '--standard', standard, '--json']
+    : ['pa11y-ci', '--config', file, '--json'];
+
   try {
-    report = JSON.parse(out);
-  } catch {
-    console.error(
-      `${RED}✗${RESET} pa11y-ci could not run.\n` +
-        `  ${DIM}Start the site first: npm run build:staging && npx wrangler dev${RESET}\n` +
-        `  ${(error.stderr?.toString() ?? '').slice(0, 400)}`,
+    /* pa11y-ci exits non-zero when it finds errors, and still prints the JSON.
+       A non-zero exit here is a RESULT, not a failure to run. */
+    return JSON.parse(execFileSync('npx', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+  } catch (error) {
+    const out = error.stdout?.toString() ?? '';
+    try {
+      return JSON.parse(out);
+    } catch {
+      console.error(
+        `${RED}✗${RESET} pa11y-ci could not run.\n` +
+          `  ${DIM}Start the site first: npm run build:staging && npx wrangler dev${RESET}\n` +
+          `  ${(error.stderr?.toString() ?? '').slice(0, 400)}`,
+      );
+      process.exit(1);
+    }
+  }
+};
+
+const passes = SCHEMES.map((scheme) => {
+  const report = runScheme(scheme);
+  const rows = Object.entries(report.results).map(([url, issues]) => ({
+    url,
+    errors: issues.filter((i) => i.type === 'error'),
+    warnings: issues.filter((i) => i.type === 'warning'),
+    notices: issues.filter((i) => i.type === 'notice'),
+  }));
+  return { scheme, rows };
+});
+
+for (const { scheme, rows: schemeRows } of passes) {
+  console.log(`  ${BOLD}${scheme}${RESET}`);
+  for (const r of schemeRows) {
+    const mark = r.errors.length ? `${RED}✗${RESET}` : `${GREEN}✓${RESET}`;
+    const path = new URL(r.url).pathname;
+    console.log(
+      `    ${mark} ${path.padEnd(26)} ${String(r.errors.length).padStart(2)} error(s)   ` +
+        `${DIM}${r.warnings.length} warning(s)${RESET}`,
     );
-    process.exit(1);
   }
 }
 
-const rows = Object.entries(report.results).map(([url, issues]) => ({
-  url,
-  errors: issues.filter((i) => i.type === 'error'),
-  warnings: issues.filter((i) => i.type === 'warning'),
-  notices: issues.filter((i) => i.type === 'notice'),
-}));
-
-for (const r of rows) {
-  const mark = r.errors.length ? `${RED}✗${RESET}` : `${GREEN}✓${RESET}`;
-  const path = new URL(r.url).pathname;
-  console.log(
-    `  ${mark} ${path.padEnd(28)} ${String(r.errors.length).padStart(2)} error(s)   ` +
-      `${DIM}${r.warnings.length} warning(s)${RESET}`,
-  );
-}
+/* Kept for the sections below that report per-URL rather than per-scheme. */
+const rows = passes[0].rows;
 
 /* ── 2. Reflow, which pa11y does not cover ───────────────────────────────── */
 
@@ -152,14 +186,17 @@ if (reviewed) {
 
 /* ── 4. The pack ─────────────────────────────────────────────────────────── */
 
-const totalErrors = rows.reduce((n, r) => n + r.errors.length, 0);
+const totalErrors = passes.reduce(
+  (n, pass) => n + pass.rows.reduce((m, r) => m + r.errors.length, 0),
+  0,
+);
 const target = host ?? 'http://localhost:8788 (wrangler dev)';
 
-const issueLines = rows
-  .filter((r) => r.errors.length)
+const issueLines = passes
+  .flatMap((pass) => pass.rows.filter((r) => r.errors.length).map((r) => ({ ...r, scheme: pass.scheme })))
   .map(
     (r) =>
-      `### ${new URL(r.url).pathname}\n\n` +
+      `### ${new URL(r.url).pathname} — ${r.scheme}\n\n` +
       r.errors
         .map(
           (e) =>
@@ -189,18 +226,23 @@ Standard: **${standard}** · runners: ${runners.join(', ')}
 
 ---
 
-## 1. Automated — one URL per template family
+## 1. Automated — one URL per template family, in both colour schemes
 
-| Page | Errors | Warnings | Notices |
-| --- | --- | --- | --- |
-${rows
-  .map(
-    (r) =>
-      `| \`${new URL(r.url).pathname}\` | ${r.errors.length} | ${r.warnings.length} | ${r.notices.length} |`,
+Each page is measured twice, with \`prefers-color-scheme\` forced. A light and a dark
+palette are two sets of contrast pairs, and a single run measures one of them.
+
+| Page | Scheme | Errors | Warnings | Notices |
+| --- | --- | --- | --- | --- |
+${passes
+  .flatMap((pass) =>
+    pass.rows.map(
+      (r) =>
+        `| \`${new URL(r.url).pathname}\` | ${pass.scheme} | ${r.errors.length} | ${r.warnings.length} | ${r.notices.length} |`,
+    ),
   )
   .join('\n')}
 
-**${totalErrors} error(s) across ${rows.length} page(s).**
+**${totalErrors} error(s) across ${rows.length} page(s) × ${passes.length} scheme(s).**
 
 ${issueLines || '_No errors at this standard._'}
 

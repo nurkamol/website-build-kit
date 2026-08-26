@@ -901,3 +901,32 @@ grep -rnE '[a-z](https?://|[A-Z][a-z])' src/content/ | grep -vE 'iPhone|YouTube|
 ```
 
 Expect a few false positives from camelCase and brand names; read them.
+
+### The accessibility gate fails on a random URL, and it is not accessibility
+
+**Symptom:** `npm run a11y` reports `Failed to run` against one URL, a different
+one each time, with `Error: Protocol error (Target.closeTarget): No target with
+given id found`. It reads as an accessibility failure on that page. The page is
+fine, and a re-run usually blames a different page — or passes.
+
+It is Chrome tearing down browser targets while another is still closing, and it
+is driven entirely by pa11y's `concurrency`. Measured on this template, five runs
+at each setting:
+
+| `concurrency` | Runs that failed |
+| --- | --- |
+| 4 | **4 / 5** |
+| 2 | **5 / 5** |
+| 1 | **0 / 5** |
+
+Note that 2 was no better than 4 — this is a race in target teardown, not a
+resource limit, so lowering the number without going to 1 buys nothing.
+
+**Fix:** `"concurrency": 1` in `.pa11yci.json`. Four URLs sequentially is a few
+seconds; a gate that is wrong four times in five is a gate the team learns to
+ignore, and then it is worse than no gate because its silence means nothing.
+
+Worth knowing before you go hunting: this got *more* visible when the run started
+covering both colour schemes, because that doubles the number of Chrome sessions
+and so doubles the chances of hitting the race. The change that surfaced it was
+not the change that caused it.

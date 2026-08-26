@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "astro dev",
     "check": "astro check",
-    "a11y": "pa11y-ci --config .pa11yci.json",
+    "a11y": "node scripts/check-a11y.mjs",
     "a11y:evidence": "node scripts/a11y-evidence.mjs",
     "reflow": "node scripts/check-reflow.mjs",
     "console": "node scripts/check-console.mjs",

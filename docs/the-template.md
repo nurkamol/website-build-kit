@@ -38,6 +38,8 @@ scripts/verify.mjs             the deployed site, as a gate. exits non-zero.
                                recon/urls.txt, page weight and blocking counts
 scripts/extract.mjs            recon/html → recon/extracted/*.md. real converter,
                                portable image paths, flags what needs a person
+scripts/check-a11y.mjs         pa11y-ci at WCAG2AA, in BOTH colour schemes
+scripts/lib/schemes.mjs        the scheme list, and the forced-scheme config
 scripts/lib/inventory.mjs      the one parser for recon/urls.txt. paths or
                                absolute URLs; tags already-dead ones
 scripts/shots.mjs              before/after screenshots, both sides off recon/urls.txt,
