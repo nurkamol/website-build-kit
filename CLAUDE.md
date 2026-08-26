@@ -119,6 +119,17 @@ heating company to Google. The lead-notification email carried a green palette a
 `America/Los_Angeles` — so every enquiry was stamped in a previous client's timezone, which is
 a plausible wrong time nobody re-reads.
 
+**Then check for a client's data as a *directory*, not a string.** Every grep above reads
+`src` and `scripts`. Testing `recon` or `shots` means running them, and both write a real
+client's material into `template/` — 18 crawled pages carrying a postal address, a phone
+number and a contact email were committed to this public repo and published that way. No
+pattern above looks where they landed.
+
+```bash
+git ls-files template/ | grep -E '^template/(recon|shots)/' | head   # must print nothing
+git status --porcelain --ignored template/ | grep -E 'recon|shots'   # ignored, not tracked
+```
+
 The lesson is the method, not the list: **a denylist tests for the mistakes you already made.**
 Ask instead what shape a client's data takes — a colour, a face, a place, a number, a claim, a
 clock — and grep for the shape.
