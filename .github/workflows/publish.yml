@@ -1,0 +1,69 @@
+# Publish create-website-build-kit to npm, without a token.
+#
+# ── WHY OIDC AND NOT AN AUTOMATION TOKEN ───────────────────────────────────
+# The first publish of this package failed with `E404 Not Found - PUT`, which
+# is npm's disguise for "not authenticated" — it returns 404 rather than 401 so
+# publish cannot be used to probe which package names exist. The cause was a
+# long-lived token in ~/.npmrc that had expired. Nothing reported it until a
+# release was being attempted.
+#
+# Trusted publishing removes the class: npm trusts this repository and this
+# workflow filename over OIDC, so there is no token to expire, leak or rotate.
+# Configure it at npmjs.com → the package → Settings → Trusted Publisher, with
+# this exact workflow filename.
+#
+# ⚠ THE GATES RUN FIRST, DELIBERATELY. A published version cannot be replaced —
+# `npm unpublish` is refused after 72 hours and republishing the same number is
+# never allowed. So the build, the types and the scaffold test all have to pass
+# before anything reaches the registry.
+
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for npm trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: template/.node-version
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs a recent npm; the runner's bundled version
+      # predates OIDC support on some images.
+      - name: npm with OIDC support
+        run: npm install -g npm@latest
+
+      # The same gates the Kit workflow runs. A version cannot be taken back,
+      # so nothing is published that has not built.
+      - name: Documentation audit
+        run: npm run audit:docs
+
+      - name: Template builds from clean
+        working-directory: template
+        run: npm ci && CI=true npm run build:staging
+
+      - name: Scaffolder packs and scaffolds
+        run: |
+          cd create && npm pack --silent && cd ..
+          mkdir -p /tmp/scaffold && tar -xzf create/*.tgz -C /tmp/scaffold
+          node /tmp/scaffold/package/index.mjs /tmp/scaffold/site --no-install --no-git
+          test -f /tmp/scaffold/site/.gitignore || { echo "no .gitignore — .dev.vars would be committable"; exit 1; }
+          grep -q '^\.dev\.vars$' /tmp/scaffold/site/.gitignore || { echo ".gitignore does not cover .dev.vars"; exit 1; }
+          rm -rf /tmp/scaffold create/*.tgz create/template
+
+      # No NODE_AUTH_TOKEN. npm exchanges the workflow's OIDC identity for a
+      # short-lived credential, and provenance is attested automatically.
+      - name: Publish
+        working-directory: create
+        run: npm publish

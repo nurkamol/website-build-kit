@@ -165,6 +165,21 @@ it back. That is not cosmetic: the template's `.gitignore` is what keeps `.dev.v
 `.dev.vars`, `node_modules` or `dist` reach the staging copy, and the CLI exits rather than leave
 a scaffolded site without a `.gitignore`.
 
+## Publishing to npm
+
+Releases go out through `.github/workflows/publish.yml` on a published GitHub release, using
+**npm trusted publishing** — OIDC, no token. That is not a preference: the first publish failed
+with `E404 Not Found - PUT`, which is npm's disguise for "not authenticated" (it returns 404
+rather than 401 so publish cannot probe which names exist), and the cause was an expired token
+in `~/.npmrc` that nothing had reported.
+
+The gates run **before** the publish step in that workflow, because a published version cannot
+be replaced — `npm unpublish` is refused after 72 hours and the same version number can never
+be reused.
+
+To publish by hand instead, the tree must be clean: `prepack` copies `template/` in and
+`postpack` removes it, so a dirty tree ships whatever is on disk at that moment.
+
 ## After changing a skill
 
 `./install.sh` symlinks by default, so edits are live immediately — no reinstall. Check the
