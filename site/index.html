@@ -183,6 +183,25 @@
   /* A grid/flex child defaults to min-width:auto, so `overflow-x: auto` alone
      does not stop a long command line pushing its track wider. */
   .card, .trap { min-inline-size: 0; }
+
+  /* The button sits on the WRAPPER, not inside <pre>. An absolutely positioned
+     child of a scrolling container scrolls away with the content. */
+  .code { position: relative; }
+  .copy {
+    position: absolute; inset-block-start: 0.45rem; inset-inline-end: 0.45rem;
+    font: inherit; font-size: 0.72rem; font-weight: 560; letter-spacing: 0.02em;
+    padding: 0.28rem 0.55rem; border-radius: 6px; cursor: pointer;
+    color: var(--ink-2); background: var(--surface); border: 1px solid var(--line);
+  }
+  .copy:hover { color: var(--ink); border-color: var(--ink-3); }
+  .copy[data-done="true"] { color: var(--green); border-color: var(--green); }
+  /* Room for the button so a long line never runs under it. */
+  .code pre { padding-inline-end: 4.5rem; }
+
+  .sr-only {
+    position: absolute; inline-size: 1px; block-size: 1px;
+    padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
   pre {
     margin: 0; padding: 0.9rem 1rem; overflow-x: auto; max-inline-size: 100%;
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
@@ -223,6 +242,9 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<!-- ⚠ In the DOM from the start. A live region injected at announce time is
+     not observed by assistive tech and announces nothing. -->
+<div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>
 
 <header class="top">
   <div class="wrap">
@@ -315,13 +337,13 @@
       <div class="card">
         <h3>Scaffold a site</h3>
         <p>Astro, static, on Cloudflare Workers. Builds green immediately, with no content, no images and no secrets.</p>
-        <pre><code>npm create website-build-kit@latest <span class="p">my-site</span></code></pre>
+        <div class="code"><pre><code>npm create website-build-kit@latest <span class="p">my-site</span></code></pre></div>
       </div>
       <div class="card">
         <h3>Install the skill</h3>
         <p>For Claude Code. Then just ask — it matches on description, so there is no command to remember.</p>
-        <pre><code><span class="c">/</span>plugin marketplace add <span class="p">nurkamol/website-build-kit</span>
-<span class="c">/</span>plugin install <span class="p">website-build@website-build-kit</span></code></pre>
+        <div class="code"><pre><code><span class="c">/</span>plugin marketplace add <span class="p">nurkamol/website-build-kit</span>
+<span class="c">/</span>plugin install <span class="p">website-build@website-build-kit</span></code></pre></div>
       </div>
     </div>
   </div>
@@ -373,5 +395,59 @@
   </div>
 </footer>
 
+<script>
+/*
+ * Copy buttons.
+ *
+ * ⚠ CREATED HERE, NOT HIDDEN BY CSS. The page must work with JavaScript off,
+ * and a button in the markup that only JS can make functional is a control that
+ * looks live and does nothing. Anything that reveals an element has to be the
+ * same thing that makes it work.
+ *
+ * The clipboard API needs a secure context, so it is absent on plain http://.
+ * The button is only added when it can actually do its job.
+ */
+(function () {
+  if (!navigator.clipboard) return;
+
+  var status = document.getElementById('copy-status');
+
+  document.querySelectorAll('.code').forEach(function (wrap) {
+    var code = wrap.querySelector('code');
+    if (!code) return;
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy';
+    btn.textContent = 'Copy';
+    /* The visible word is "Copy" on both blocks, so the accessible name says
+       WHICH one — otherwise a screen reader hears the same button twice. */
+    btn.setAttribute('aria-label', 'Copy command: ' + code.textContent.trim().split('\n')[0]);
+
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(code.textContent.trim()).then(
+        function () {
+          btn.textContent = 'Copied';
+          btn.dataset.done = 'true';
+          status.textContent = 'Copied to clipboard';
+          setTimeout(function () {
+            btn.textContent = 'Copy';
+            delete btn.dataset.done;
+          }, 2000);
+        },
+        function () {
+          /* Permission denied, or a browser that refuses outside a user
+             gesture it recognises. Say so rather than showing a false tick. */
+          btn.textContent = 'Press ⌘C';
+          status.textContent = 'Copy failed — select the text and copy it manually';
+          setTimeout(function () { btn.textContent = 'Copy'; }, 3000);
+        }
+      );
+    });
+
+    wrap.appendChild(btn);
+  });
+})();
+</script>
 </body>
 </html>

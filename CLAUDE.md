@@ -200,6 +200,12 @@ got through review and were caught only by running those:
   has two sets of contrast pairs, and testing one proves nothing about the other. The workflow
   now runs pa11y twice with `--force-prefers-color-scheme`
 
+The copy buttons follow the same two rules the template does. They are **created by the
+script**, never present in the markup and revealed by CSS — a control that looks live with
+JavaScript off is worse than no control. And the live region they announce into is **in the DOM
+from first paint**, because a region injected at announce time is not observed and announces
+nothing (`traps.md` has the entry).
+
 And one that only **looking** caught, after both gates were green: `display: grid` on a list
 item makes every inline child its own grid item, so an `<em>` mid-sentence is torn out of the
 text flow and the words render overlapping.
