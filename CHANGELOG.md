@@ -1,5 +1,65 @@
 # Changelog
 
+## 2026-08-26c — public, MIT, and `npm create`
+
+**The repository is public under MIT, published from a single clean commit.**
+
+Not from a force-push. `master` was rewritten to one commit and verified clean, and the old
+commits were **still retrievable through the GitHub API by SHA** — including the one holding a
+client's phone number and the one holding live GA4 and GTM container ids. Both had been
+deliberately redacted from the working tree months earlier, and publishing would have undone
+both redactions. Force-pushing does not delete anything; it moves a ref.
+
+So the repository was deleted and recreated. All five sensitive commits now return 404 from the
+public API, verified after the fact rather than assumed. The 45 commits of development history
+are kept locally on the `pre-public-history` tag — that is now the only copy.
+
+`npx degit nurkamol/website-build-kit/template` has been in `README.md` and `SKILL.md` since the
+first version and **had never worked**, because the repository was private the whole time. It
+works now; it was run against the live public repo before this entry was written.
+
+## `npm create website-build-kit`
+
+`create/` — no dependencies, so `npm create` does not pay for a package tree before it can do
+anything.
+
+It refuses two things before writing a single file. **A Node older than 22.12**, because Astro's
+own failure is a version notice buried in a build log, which is a confusing way to learn it —
+and the directory is not created when it refuses. And **a non-empty directory**, because
+scaffolding over an existing project cannot be undone without git.
+
+**⚠ npm strips `.gitignore` from published packages.** Long-standing documented behaviour, and
+the reason every scaffolder carries the same workaround — but here it is load-bearing rather
+than cosmetic. The template's `.gitignore` is what keeps `.dev.vars` out of the repository, and
+`.dev.vars` holds `BREVO_API_KEY` and the leads export token. Without the workaround every
+scaffolded site would invite its first `git add -A` to commit live secrets, and nothing would
+report it. It ships renamed, the CLI restores it, and the CLI **exits** rather than leave a site
+without one. Tested by scaffolding from the packed tarball, writing a `.dev.vars`, and asserting
+git ignores it.
+
+**The template is not duplicated in the repository.** `prepack` copies it in, `postpack` deletes
+it again, and `prepack` refuses to pack if `.dev.vars`, `node_modules` or `dist` reach the
+staging copy. A committed second copy would be a second thing to keep in step, and it is the
+copy that goes stale silently.
+
+CI now packs the scaffolder and scaffolds from the tarball on every push, asserting the
+`.gitignore` is restored and covers `.dev.vars` — the first command a new user runs, tested the
+way they will run it.
+
+## The pre-release audit
+
+Ran every CI step locally, `npm ci` from the lockfile, and a standalone build of the template
+with no parent repository. Three real fixes came out of it, all first-user breaks:
+
+- `git clone git@github.com:…` used **SSH**, which fails for any visitor without GitHub keys
+  configured — a broken first line in the README of a public repo
+- the install snippet hardcoded a personal path
+- `.claude/settings.local.json` was ignored only by the author's **global** gitignore, which a
+  fresh clone does not inherit, so a contributor would have committed their local permissions
+
+Also confirmed clean: no absolute paths, no real Cloudflare account or KV ids, no analytics ids,
+no secrets, no TODO leftovers, and `npm audit --omit=dev` at zero.
+
 ## 2026-08-26b — something finally reads what recon captured
 
 **`npm run extract`** — captured HTML in, clean markdown out, one file per page.

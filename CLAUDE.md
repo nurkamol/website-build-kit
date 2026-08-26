@@ -149,6 +149,22 @@ a mention. It stays advisory rather than a gate because what belongs in the READ
 judgement — a bullet that cannot say what failure the script prevents is padding, and a gate
 would demand it anyway. If it fires, either write the bullet or decide the omission is right.
 
+## After changing the template, if you are publishing the scaffolder
+
+`create/` has no committed copy of `template/` — `prepack` copies it in and `postpack` deletes
+it again, so the package cannot ship a stale duplicate. Publishing is therefore always from a
+clean tree:
+
+```bash
+cd create && npm publish        # prepack copies template/, postpack removes it
+```
+
+**npm strips `.gitignore` from published packages.** It ships as `gitignore` and the CLI renames
+it back. That is not cosmetic: the template's `.gitignore` is what keeps `.dev.vars` — holding
+`BREVO_API_KEY` and the leads export token — out of the repository. `prepack` refuses to pack if
+`.dev.vars`, `node_modules` or `dist` reach the staging copy, and the CLI exits rather than leave
+a scaffolded site without a `.gitignore`.
+
 ## After changing a skill
 
 `./install.sh` symlinks by default, so edits are live immediately — no reinstall. Check the

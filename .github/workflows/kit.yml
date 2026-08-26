@@ -92,3 +92,19 @@ jobs:
       - name: Template ships undecided
         working-directory: template
         run: npm run tells
+
+      # The scaffolder is the first command a new user runs, so it is tested the
+      # way they will use it: packed, then scaffolded from the tarball.
+      #
+      # ⚠ The .gitignore assertion is the load-bearing one. npm strips
+      # .gitignore from published packages, so it ships renamed and the CLI
+      # restores it — and if that ever breaks, every scaffolded site can commit
+      # its .dev.vars, which holds BREVO_API_KEY and the leads export token.
+      - name: Scaffolder packs and scaffolds
+        run: |
+          cd create && npm pack --silent && cd ..
+          mkdir -p /tmp/scaffold && tar -xzf create/*.tgz -C /tmp/scaffold
+          node /tmp/scaffold/package/index.mjs /tmp/scaffold/site --no-install --no-git
+          test -f /tmp/scaffold/site/.gitignore || { echo "no .gitignore — .dev.vars would be committable"; exit 1; }
+          grep -q '^\.dev\.vars$' /tmp/scaffold/site/.gitignore || { echo ".gitignore does not cover .dev.vars"; exit 1; }
+          test ! -e /tmp/scaffold/site/gitignore || { echo "stray unrenamed gitignore"; exit 1; }

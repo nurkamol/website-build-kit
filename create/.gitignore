@@ -1,0 +1,4 @@
+# Copied from ../template by prepack, deleted by postpack. Never committed —
+# a second copy of the template in the repo is a second thing to keep in step,
+# and this one would go stale silently.
+template/

@@ -36,6 +36,7 @@ ready before you begin, and what the first ten minutes should look like.
 | `template/` | Astro + Cloudflare starter that builds from a clean clone |
 | `docs/` | How to use it, and how to extend it |
 | `install.sh` | Symlinks skills and commands into `~/.claude` |
+| `create/` | The `npm create website-build-kit` scaffolder. Packs `template/` at publish time |
 | `CLAUDE.md` | Applies when working **on the kit** — house style, where things go |
 | `template/CLAUDE.md` | Ships with each new site — that site's conventions |
 
@@ -166,9 +167,13 @@ does ship is the skeleton of the parts that take longest to get right:
   rather than a developer, rendered to PDF by `npm run handover`
 
 ```bash
-npx degit nurkamol/website-build-kit/template my-site
-cd my-site && npm install && npm run build:staging
+npm create website-build-kit@latest my-site
 ```
+
+It checks your Node version before writing anything, restores the `.gitignore` npm strips from
+published packages, names the project after the directory, and installs. `npx degit
+nurkamol/website-build-kit/template my-site` still works if you would rather not run a
+scaffolder.
 
 Node 22.12+. It builds green with no content, no images and no secrets. Fill in
 `src/data/business.ts` first — everything else reads from it. Then `npm run tells` will tell
