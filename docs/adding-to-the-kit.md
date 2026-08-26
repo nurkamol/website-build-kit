@@ -122,7 +122,13 @@ After any template change:
 cd template && rm -rf node_modules dist .astro && npm install && CI=true npm run build:staging
 PUBLIC_SITE_ENV=staging npm run check      # 0 errors
 npm run tells                              # must say "fresh template"
+cd .. && npm run test:gates                # every gate still refuses bad input
 ```
+
+**A new gate ships with its refusal case.** `test:gates` runs each one against a fixture
+carrying the failure and asserts it exits 1 — not only that clean input exits 0. A gate
+proven to pass and never proven to fail is indistinguishable from one that cannot fail,
+which is what `check-env.mjs` was for a whole client project.
 
 It must build green from a clean clone with no content, no images and no secrets.
 

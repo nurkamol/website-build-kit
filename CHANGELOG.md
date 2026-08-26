@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-27d — proving the gates can still fail
+
+**`npm run test:gates`.** The kit is gates: eighteen template scripts exit non-zero to stop a
+bad build, and nothing checked that any of them still does. Three had already shipped broken.
+
+| | what shipped | how it surfaced |
+| --- | --- | --- |
+| `recon.mjs` | `ReferenceError` on line 302, after the whole crawl | a user, on Windows |
+| `check-env.mjs` | regex matched nothing, so it passed **every** deploy for a whole project | by accident, deploying a client site |
+| `tells.mjs` | counted `dist` CSS as well as source, so one rule counted three times and `> 2` could never be cleared | by accident |
+
+⚠ **A GATE THAT ALWAYS PASSES IS WORSE THAN NO GATE**, because it reads as a check that ran.
+`check:refs` exists because of the first row, but it only proves an identifier is imported — not
+that the check does anything.
+
+So every case asserts **both directions**: clean input exits 0, and a fixture carrying the
+failure exits 1. **The second half is the whole point.** 21 cases across `check-env`,
+`check-secrets`, `check-sitemap` and `tells --undecided-only`; 12 of them prove a refusal.
+
+**The suite was then mutation-tested, because a suite that passes on first run is the same
+disease.** Reintroducing the exact `check-env` bug — a hostname constant that matches nothing —
+turned 5 cases red. Replacing `check-sitemap`'s meta-tag regex with a bare `/noindex/i` turned
+exactly one red: the case that exists because the accessibility page *explains* noindex in prose
+and a substring search reports it as noindexed.
+
+`check-secrets` gets a stubbed `npx` on `PATH`, so the comparison logic is tested with no
+network, no account and no deployed worker — and the stub is skipped on Windows and **says it
+skipped**, rather than counting as a pass.
+
+Fixtures are written to a temp directory at run time, not committed: a tree of `site.ts`,
+`wrangler.jsonc` and `dist/` files inside this repo is indistinguishable from real config to
+every other sweep run over it.
+
+**Deliberately not covered:** `verify`, `recon`, `shots`, `console`, `reflow`, `a11y` and `dns`
+need a deployed site, and a stub convincing enough to exercise them would need more maintenance
+than the scripts do. `audit:docs` and `check:refs` read the whole repository, so a fixture means
+a fake repository — and they run on every commit, which is its own coverage. The script says all
+of this in its own header.
+
 ## 2026-08-27c — dynamic routes, as a decision rather than a capability
 
 **`features.md` §7.** "Can Astro do dynamic?" is the wrong question — the template already ships

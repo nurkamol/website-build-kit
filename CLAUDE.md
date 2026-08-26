@@ -142,7 +142,22 @@ and passed happily while testing pages that did not exist. Scripts discover rout
 
 ```bash
 npm run check:refs
+npm run test:gates
 ```
+
+`check:refs` proves an identifier is imported. `test:gates` proves the check still
+**does** something — it runs each gate against a fixture carrying the failure and
+asserts it exits 1, not just that a clean fixture exits 0.
+
+That second half is the point. `check-env.mjs` passed every deploy on a client project
+while matching nothing, and `tells.mjs` counted `dist` CSS as well as source, so one
+rule counted three times and a `> 2` threshold could never be cleared. Both were valid,
+importable, working-looking code, and both read as checks that ran.
+
+**If you add a gate, add its refusal case.** A gate with only a passing test is the
+state this catches. `verify`, `recon`, `shots`, `console`, `reflow` and `dns` are
+deliberately not covered — they need a deployed site, and a stub convincing enough to
+exercise them would need more maintenance than the scripts do.
 
 A script can use a name nothing imported and still pass `node --check` — an
 undefined identifier is valid syntax. `npm run recon` shipped that way and threw

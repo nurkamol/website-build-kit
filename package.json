@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "audit:docs": "node scripts/audit-docs.mjs",
-    "check:refs": "node scripts/check-refs.mjs"
+    "check:refs": "node scripts/check-refs.mjs",
+    "test:gates": "node scripts/test-gates.mjs"
   },
   "license": "MIT"
 }

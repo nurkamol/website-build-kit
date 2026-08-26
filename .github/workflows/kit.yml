@@ -36,6 +36,17 @@ jobs:
       - name: Lib exports are imported where used
         run: npm run check:refs
 
+      # check:refs proves an identifier is imported. It cannot prove the check
+      # DOES anything — check-env.mjs passed every deploy on a client project
+      # while matching nothing, and tells.mjs counted dist CSS so a threshold
+      # could never be cleared. Both were valid, importable, working-looking code.
+      #
+      # Every case here asserts both directions, and the direction that matters
+      # is a fixture carrying the failure: the gate must exit 1. A gate that
+      # always passes reads as a check that ran.
+      - name: Gates still refuse
+        run: npm run test:gates
+
       # The promise: the template builds green from a clean checkout with no
       # content, no images and no secrets.
       - name: Install the template from the lockfile
