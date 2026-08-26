@@ -6,6 +6,10 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # Manual trigger, because a push during a GitHub Actions outage creates no run
+  # and none is created retroactively when the service recovers — the commit
+  # simply never gets tested, and the badge keeps showing the last result.
+  workflow_dispatch:
 
 permissions:
   contents: read
