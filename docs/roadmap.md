@@ -45,7 +45,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
-| `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip |
+| `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 29 cases, 15 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |
 | `npm run check:secrets` | A deploy that captures leads and silently cannot email them — `secret()` returns `undefined`, the form returns 200, nobody is notified |
 | Inverse check in `audit:docs` | A feature that ships and is documented nowhere — the audit was green through two README drifts because it only checked that references *resolve* |
 | Legal content collection | Three near-identical page files, and an editor who cannot change an effective date without a developer |

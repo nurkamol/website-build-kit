@@ -32,12 +32,17 @@
  * worth, and a stub convincing enough to exercise them would need maintaining
  * more carefully than the scripts do. They stay covered by running them.
  *
+ * That list once read as though it covered everything uncovered. It did not:
+ * `staging-headers.mjs` is entirely offline, has three refusal paths, and had
+ * simply been missed. An exclusion list that does not describe what is actually
+ * excluded is the same failure as a gate that does not gate.
+ *
  * `audit:docs` and `check:refs` read this whole repository, so a fixture for
  * them means a fake repository. They are also the two gates that run on every
  * commit, which is its own kind of coverage.
  */
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -73,7 +78,7 @@ function fixture(files) {
  * 1 means it must refuse. `contains` additionally pins the reason, so a gate
  * that fails for an unrelated reason is not counted as catching the bug.
  */
-function gate(label, { script, files, env = {}, args = [], expect, contains }) {
+function gate(label, { script, files, env = {}, args = [], expect, contains, then }) {
   const dir = fixture(files);
   try {
     const run = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, script), ...args], {
@@ -84,15 +89,23 @@ function gate(label, { script, files, env = {}, args = [], expect, contains }) {
     const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
     const codeOk = run.status === expect;
     const textOk = !contains || out.includes(contains);
+    /* `then` inspects what the script WROTE. Two of staging-headers' shipped
+       bugs — a duplicate `/*` block that dropped the CSP, and a `#` comment
+       that became part of the header value — were invisible in the exit code
+       and in a casual read of the file. Only an assertion on the result
+       catches them. Returns null when satisfied, else why not. */
+    const thenErr = codeOk && textOk && then ? then(dir) : null;
     results.push({
       gate: currentGate,
       label,
-      ok: codeOk && textOk,
+      ok: codeOk && textOk && !thenErr,
       detail: !codeOk
         ? `exit ${run.status}, wanted ${expect}`
         : !textOk
           ? `exit ${expect} but did not mention ${JSON.stringify(contains)}`
-          : `exit ${expect}`,
+          : thenErr
+            ? `exit ${expect}, but ${thenErr}`
+            : `exit ${expect}`,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -360,6 +373,128 @@ gate('half-decided — brand set, no typeface — must refuse', {
   },
   expect: 1,
   contains: 'half-decided',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * staging-headers — writes X-Robots-Tag into _headers on a NON-production
+ * build. Entirely offline, three refusal paths, and two of its own bugs are
+ * only visible in the file it leaves behind.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const STAR = '/' + '*';
+
+/** What the adapter plus public/_headers actually leave in dist. */
+const headersFile = [
+  STAR,
+  '  Referrer-Policy: strict-origin-when-cross-origin',
+  '  Permissions-Policy: geolocation=(), camera=()',
+  "  Content-Security-Policy: default-src 'self'",
+  '',
+  '/_astro/' + '*',
+  '  Cache-Control: public, max-age=31536000, immutable',
+  '',
+].join('\n');
+
+const readHeaders = (dir, rel = 'dist/client/_headers') =>
+  readFileSync(join(dir, rel), 'utf8');
+
+describe('staging-headers');
+
+gate('production build — refuses, and writes NOTHING', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/_headers': headersFile },
+  env: { PUBLIC_SITE_ENV: 'production' },
+  expect: 1,
+  contains: 'refusing to write noindex',
+  then: (dir) =>
+    readHeaders(dir) === headersFile ? null : 'it modified _headers on a production build',
+});
+
+gate('no _headers yet — refuses', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/index.html': '<!doctype html>' },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 1,
+  contains: 'no _headers',
+});
+
+gate('no ' + STAR + ' block to merge into — refuses', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/_headers': '/_astro/' + '*\n  Cache-Control: immutable\n' },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 1,
+  contains: 'merge into',
+});
+
+gate('staging — writes the header', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/_headers': headersFile },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 0,
+  then: (dir) =>
+    /X-Robots-Tag:\s*noindex/.test(readHeaders(dir)) ? null : 'no X-Robots-Tag was written',
+});
+
+// The shipped bug: appending a SECOND block for the same path silently replaced
+// the first, dropping Referrer-Policy, Permissions-Policy and the CSP from every
+// response — while the file still visibly contained them all.
+gate('merges into the existing block — security headers survive', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/_headers': headersFile },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 0,
+  then: (dir) => {
+    const out = readHeaders(dir);
+    const blocks = out.split('\n').filter((l) => l.trim() === STAR).length;
+    if (blocks !== 1) return `left ${blocks} ${STAR} blocks — a later one REPLACES the earlier`;
+    for (const h of ['Referrer-Policy', 'Permissions-Policy', 'Content-Security-Policy']) {
+      if (!out.includes(h)) return `${h} was dropped`;
+    }
+    return null;
+  },
+});
+
+// The other shipped bug: _headers does not strip an inline `#`, so a trailing
+// comment is sent as part of the header VALUE. Crawlers received
+// "noindex, nofollow, noarchive   # staging only …" for two builds.
+gate('the note is its own line, never inline on the value', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/client/_headers': headersFile },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 0,
+  then: (dir) => {
+    const line = readHeaders(dir)
+      .split('\n')
+      .find((l) => l.includes('X-Robots-Tag'));
+    if (!line) return 'no X-Robots-Tag line';
+    return line.includes('#') ? `the value carries a comment: ${JSON.stringify(line.trim())}` : null;
+  },
+});
+
+gate('already present — idempotent, exits 0 without a second copy', {
+  script: 'staging-headers.mjs',
+  files: {
+    'dist/client/_headers': headersFile.replace(
+      '  Referrer-Policy',
+      '  X-Robots-Tag: noindex, nofollow, noarchive\n  Referrer-Policy',
+    ),
+  },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 0,
+  contains: 'already present',
+  then: (dir) => {
+    const n = readHeaders(dir).split('\n').filter((l) => l.includes('X-Robots-Tag')).length;
+    return n === 1 ? null : `${n} X-Robots-Tag lines after a second run`;
+  },
+});
+
+gate('dist/_headers, without a client/ subdirectory', {
+  script: 'staging-headers.mjs',
+  files: { 'dist/_headers': headersFile },
+  env: { PUBLIC_SITE_ENV: 'staging' },
+  expect: 0,
+  then: (dir) =>
+    /X-Robots-Tag/.test(readHeaders(dir, 'dist/_headers')) ? null : 'nothing written to dist/_headers',
 });
 
 /* ────────────────────────────────────────────────────────────────────────

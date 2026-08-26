@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-08-27e — staging-headers, and an exclusion list that lied
+
+`test:gates` shipped with a "what this does not cover" list justifying every omission as
+*needs a deployed site*. That was not true of `staging-headers.mjs`, which is entirely offline,
+has three refusal paths, and had simply been missed. **An exclusion list that does not describe
+what is actually excluded is the same failure as a gate that does not gate** — so the list now
+says so, in the file.
+
+Eight cases, and the harness gained a `then` hook because **two of this script's own shipped
+bugs are invisible in an exit code**:
+
+- **A duplicate path in `_headers` does not combine — the later block REPLACES the earlier.**
+  Appending a second block with only `X-Robots-Tag` silently dropped Referrer-Policy,
+  Permissions-Policy and the CSP from every response, while the build still reported "Parsed 5
+  valid header rules" and the file still visibly contained all of them. The case asserts one
+  block survives *and* all three headers are still there.
+- **`_headers` does not strip an inline `#`,** so a trailing comment is sent as part of the
+  header **value**. Crawlers received `noindex, nofollow, noarchive   # staging only …` for two
+  builds — visible only by reading the response, never by reading the file.
+
+It also asserts the production refusal writes **nothing**, not merely that it exits 1: writing
+`noindex` into a production deploy is the most expensive mistake in the kit and it is silent.
+
+Mutation-tested, all three reintroduced as they originally shipped — append-instead-of-merge,
+inline comment, and dropping the production guard. Each turned red **exactly one case**, the one
+written for it, rather than a scattering. Restored byte-clean.
+
+**29 cases across 5 gates; 15 of them prove a refusal.**
+
 ## 2026-08-27d — proving the gates can still fail
 
 **`npm run test:gates`.** The kit is gates: eighteen template scripts exit non-zero to stop a
