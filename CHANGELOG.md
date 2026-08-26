@@ -1,0 +1,764 @@
+# Changelog
+
+## 2026-08-26b — something finally reads what recon captured
+
+**`npm run extract`** — captured HTML in, clean markdown out, one file per page.
+
+`recon` has captured rendered HTML since it was written and **nothing consumed it**.
+`build.md` phase 1 said *"pull copy, media and metadata into structured files"* and named no
+tool, so every migration hand-rolled an extractor at the point in a project where there is least
+time to write one carefully. On one build that left 18 pages of captured HTML sitting in
+`recon/html/` while the site shipped with a home page and nothing else.
+
+It writes to `recon/extracted/`, **not** `src/content/`. What the collections are, which pages
+collapse into template + data, and which of them should exist at all are phase-2 decisions and
+project-shaped. This produces reviewable markdown; a person places it.
+
+**It takes a dependency, deliberately.** `traps.md` gained the entry this morning:
+`html.replace(/<[^>]+>/g, '')` glues the text either side of every tag it removes, so a heading
+runs into its paragraph — but only where the source markup had no newline between tags, which is
+every page builder's minified output. The hand-rolled version is therefore right on the
+pretty-printed pages and wrong on the rest, which reads as a content problem rather than a
+converter one. Whitespace, nesting and list indentation *are* the job, and turndown already does
+them. Hand-rolling it here would have contradicted the trap in the same commit.
+
+**What it flags is the point.** Run against a real 18-page capture it recovered 9,731 words and
+22 images, and then said what needed a person:
+
+- `headings` — **on all 18 pages.** The builder used heading tags as type styles: the lede
+  paragraph is an `<h5>`, section titles are `<h6>`, and one page runs `h1 → h3 → h5 → h6` with
+  **no `h2` at all**. It survives every automated check — `verify` counts h1s and there is
+  exactly one — reads correctly to a sighted visitor, and is both an accessibility failure and
+  the outline Google reads
+- `alt-filename` — alt text the CMS generated from the filename (`"pic 11"`,
+  `"service-maintenance-worker-repairing"`). Passes every automated check, reads as described,
+  tells a screen-reader user nothing
+- plus `thin`, `no-h1`, `region` (no `<main>`, so chrome may have survived) and `glued`
+
+Lazy-load placeholders are resolved to the real file rather than migrated as a transparent gif,
+`srcset` is dropped because it points at sizes the new site will not have, and image paths are
+made portable — WordPress's `-300x200` derivatives and `-scaled`, and Elementor's thumbnail
+crops, all resolve back to the original.
+
+**MY OWN DETECTOR CRIED WOLF ON THE FIRST RUN.** Every one of the 18 pages reported `glued:2`,
+which is exactly the uniformity that means a checker is broken rather than a site is. It was
+matching inside URLs — `goo.gl/uQxkSHWN1XKNFz6y7` — because a link target is not prose. Link
+targets and code spans are stripped before the scan now, and the real run came back clean.
+
+Two smaller things. Flags are deduped with a count, so four images with filename alt text is one
+line to read rather than four. And `audit:docs` now skips `recon/` and `shots/` — running the
+new script inside `template/` while developing the kit put 18 extracted pages into the
+documentation audit and took it from 26 files to 44.
+
+## 2026-08-26 — the check that asks whether the migration finished
+
+**`npm run verify` now compares `recon/urls.txt` against the deployed site, and fails on a page
+that did not survive.**
+
+`SKILL.md`'s first non-negotiable is *"Preserve every URL. Inventory before designing routes."*
+`recon` built that inventory from the beginning. **Nothing ever compared it to what the new site
+serves.** Every check in this kit asked whether what EXISTS resolves; none asked whether what
+should exist is there.
+
+Found on a real migration. recon had inventoried 18 URLs, the build had emitted 3, and `verify`
+reported green — correctly, by its own rules, because all three of those returned 200. The
+Routes section only sees routes the new site emits. Preserved paths is `/feed/`, `robots.txt`,
+`ads.txt` and `/.well-known/*`, not pages. The only thing reading the inventory at all was
+`redirects`, which proposes and never gates, and only if somebody runs it.
+
+That is the same blind spot `audit:docs` had two entries ago — **the third time this shape has
+turned up**: everything verified that references resolve, nothing verified that the thing was
+there at all. It is worth treating as a standing question rather than a bug that keeps recurring.
+
+A dropped page is unambiguous, so this fails rather than warns. The two things that would make
+it cry wolf are handled. URLs that were **already 404 before the migration** are excluded —
+`recon` computed that set from the start and only ever printed it, so it now tags them in the
+file. And a path that **301s to a real page counts as kept**: redirects are followed rather than
+any 3xx being accepted, because a 301 pointing at something that itself 404s is a loss wearing a
+redirect's clothes. Landing on the **homepage** is a separate warning — it resolves, so the main
+check passes it, which is exactly why `SKILL.md` calls it out as a soft 404.
+
+**One parser for the inventory, because there were two and both were wrong.**
+
+`redirects` kept every line that was not blank or a comment. `shots` kept every line starting
+with `/`. Both are correct only while the file holds bare paths — and a real inventory turned up
+holding **absolute URLs**, hand-made rather than written by `recon`. `redirects` then compared
+`https://site.com/about/` against `/about/`, matched nothing, and proposed an empty map.
+`shots` found zero paths and silently reported the migration as **greenfield with no before
+side** — on exactly the migration it exists for. Neither said anything was wrong.
+
+`scripts/lib/inventory.mjs` is now the only thing that parses that file, accepting both forms,
+for the same reason `lib/routes.mjs` and `lib/preserved.mjs` exist.
+
+## Extraction: the run-together text
+
+**A new trap, from every migration this kit has done.** A heading glued to its paragraph
+(`AreasWe cover Irvine.`) or a sentence glued to its link (`Call ustoday`), on some pages and
+not others.
+
+One line causes it — `html.replace(/<[^>]+>/g, '')` joins the text either side of every tag it
+removes — and whether it shows depends on whether the source markup happened to have a newline
+between the tags. Page builders emit minified HTML, so often it does not. The same extractor is
+therefore right on the pretty-printed pages and wrong on the rest, which reads as a content
+problem rather than a converter one. Collapsing whitespace afterwards hides the good case and
+leaves the bad one.
+
+`traps.md` carries the mechanism, the fix, and the grep that finds it after the fact.
+`build.md` phase 1 now says plainly: use a real HTML-to-markdown converter, do not hand-roll the
+tag stripping, and spot-read two pages before calling extraction done.
+
+## 2026-08-21e — the README names everything now
+
+**All 17 template scripts are in the README, and the audit's advisory block is silent.**
+
+The entry below built that advisory on an argument: what belongs in the README is a judgement,
+`cards` and `lastmod` and `indexnow` are occasional, and the list is there to be read rather
+than driven to zero. It was driven to zero deliberately, which is a fair call — the counter-case
+is that a reader cannot run a command nobody told them exists, and "occasional" is a reason to
+put a script late in the list rather than to leave it out.
+
+`redirects` and `console` went in first, as the two that were arguably gaps rather than
+omissions: `redirects` is a migration's highest-traffic-risk step, and `console` is a
+definition-of-done row that `verify` cannot cover, because `verify` uses only `fetch` by design.
+
+Then the remaining six. Each one leads with the failure it prevents, because that is the only
+thing that earns a line in that list — a bullet that cannot name a failure is padding:
+
+| | |
+| --- | --- |
+| `reflow` | Keeps the testing claim on `/accessibility` honest. On one build that sentence was true when written and false a day later, because a redesign rebuilt every route |
+| `a11y:evidence` | Writes the manual layers in as **unchecked** every time — a pack listing a clean automated run reads as a finished audit, and it is the floor |
+| `cards` | JPEG, because Facebook and LinkedIn still fail to render a WebP `og:image` and no scraper accepts SVG. A shared post would unfurl with no picture at all |
+| `lastmod` | Committed as data. The first version read `git log` during the build and emitted nothing in production, because Cloudflare shallow-clones |
+| `indexnow` | Prints that **Google does not participate**, because reading a green result as "submitted to search engines" is how a site goes weeks with nobody asking why Google missed something |
+| `media` | Extended the existing **Media pipeline** bullet rather than adding a second one — that bullet already described the feature and only failed to name the command |
+
+**A correction this forced.** `CLAUDE.md` had just been written to say `cards`, `lastmod` and
+`indexnow` were deliberately absent from the README, and that became false within the hour. It
+now says why the check stays advisory rather than which scripts are exempt — a rule about the
+*shape* of a decision does not go stale when the decision changes, and a list of exempt names
+does.
+
+**The check itself is unchanged and still advisory.** Not because the README happens to be
+complete today, but because the reason was never about which scripts were missing: a gate on a
+judgement demands a bullet even where there is nothing to say, and gets deleted rather than
+argued with. Silence there is now a real signal — it fires again the moment a script ships
+without a mention.
+
+## 2026-08-21d — checking the inverse
+
+**`npm run audit:docs` now checks that a feature is described, not only that its references
+resolve.**
+
+The audit has been green through two README drifts, and it was right to be: every rule in it
+verifies that a `§`, a path, a script name or a data field *resolves*. Nothing asked the
+opposite question — is this thing described anywhere at all? So `npm run dns` and the staging
+badge both shipped, were documented in `docs/the-template.md`, and were absent from the file
+most people read first, with a green audit either side of it.
+
+Two new failures, both narrow: a template script named in no builder-facing doc, and a
+`references/*.md` that `SKILL.md` never points at. The second matters more than it looks — a
+reference nothing points at is one the model never loads, so it is invisible rather than untidy.
+`CHANGELOG.md` and `roadmap.md` are excluded: a feature named only in a history file or a Done
+table has not been explained to anybody.
+
+**Whether the README is COMPLETE is printed and never failed.** It is a curated account of what
+the kit ships, not an index — `cards`, `lastmod` and `indexnow` are deliberately absent because
+they are occasional. A gate that goes red on a judgement is a gate somebody deletes rather than
+argues with. But it is still the file people read first and it has now fallen behind twice, so
+the audit refuses to be silent without pretending to know the answer. It prints the list; a
+person decides. Modelled on `verify`'s "what this cannot see".
+
+**THE FIRST VERSION SILENTLY PASSED EVERYTHING.**
+
+A doc may reasonably name the script rather than the command — the README explains
+`check-sitemap` by filename — so the matcher fell back to the bare filename. As a substring.
+Which meant a script called `orphan` counted as documented because `traps.md` contains the word
+"orphaned"; `console` would have matched every `console.log` in a code fence and `media` every
+mention of social media. Caught by adding a deliberately undocumented script and watching the
+audit pass. It is anchored now to the two forms docs actually use — `scripts/<file>.mjs`, or the
+name in backticks — and both failures were re-tested by sabotage.
+
+A check that always passes is worse than no check: its silence reads as "looked at".
+
+Acting on what it printed, the README now carries `npm run shots`, the weight and blocking
+counts in `verify`, and the legal collection.
+
+## 2026-08-21c — legal pages as content, and a date that was wrong for half the world
+
+**`src/content/legal/`** — privacy, terms and house rules as markdown through one route.
+
+The last item on the roadmap, and the one the roadmap argued against: it is project-shaped, and
+the template ships no page layouts by design. What tipped it is that a legal page is the one
+page type with genuinely nothing to art-direct — a heading, a date and prose — so shipping the
+route ships no design. The collection is empty in a fresh clone and emits nothing until somebody
+writes a file, which is the same shape the blog collection already had.
+
+**The footer derives its links from the collection.** `nav.ts` had carried a comment explaining
+why privacy and terms were never listed there by hand: *a footer link to a page that does not
+exist yet is a 404 on every page of the site, which nothing will report to you.* That is now
+structural rather than a warning — add the file and the link appears, delete it and the link
+goes, and the two cannot disagree because there is only one of them.
+
+**The route sits at the root and guards itself.** `/privacy/` is the URL clients have and
+migrations must preserve; `/legal/privacy/` would be a redirect to write and a link everyone
+else has wrong. That makes it a catch-all, and Astro gives a static route precedence over a
+dynamic one — so `src/content/legal/contact.md` would not break `/contact/`, it would silently
+do nothing, leaving a page in the collection, a link in the footer, and the contact form served
+at that URL. `getStaticPaths` now throws, naming both files. Verified by building the collision.
+
+## The date bug this uncovered, which was already shipping
+
+**A frontmatter date rendered one day early on any build machine west of Greenwich.**
+
+Astro's frontmatter parser turns an unquoted `2026-08-21` into a **Date** — midnight *UTC* —
+and `toLocaleDateString` with no `timeZone` formats that instant in the **build machine's**
+zone. Measured: US Pacific and US Eastern both shift it to 20 August, London and Tokyo do not.
+
+This was live in the template's own `src/lib/posts.ts`, so every site built from this kit that
+ran its build in a US timezone published every blog date a day early — clean build, clean types,
+correct markdown, and the same commit rendering differently depending on who deployed it. This
+kit's provenance is US local-business rebuilds, so the wrong half was the common half.
+
+`formatDate` now pins `timeZone: 'UTC'`; the locale still decides order and wording. The legal
+schema goes further and keeps these as **strings** end to end, normalising whatever the parser
+produced back to `YYYY-MM-DD` at the schema boundary — an effective date is a calendar date, not
+an instant, and removing the class beats handling it. Both trap files carry the entry.
+
+## Two smaller things, both found by running it
+
+`getStaticPaths` is hoisted into its own scope, so the collision guard read as
+`ReferenceError: RESERVED is not defined` at build time rather than a lint error. It is declared
+inside the function now, with a note saying why.
+
+`getCollection` on an **empty** collection logs *"The collection legal does not exist or is
+empty"* — and the footer runs on every page, so a fresh template printed that line once per route
+on every build. Nothing was wrong: an empty legal collection is the correct state of a site
+nobody has written a privacy policy for yet. A build-time `import.meta.glob` check skips the call
+when the directory is empty. A starter that shouts about the correct state is a starter whose
+output people stop reading.
+
+One integration worth naming: a legal page with `noindex: true` would otherwise sit in the
+sitemap, which `npm run check:sitemap` correctly reports as an error. `check-sitemap.mjs`
+explains why the sitemap's exclusion list is hand-kept in general — inclusion is decided in
+`astro.config.mjs` before any page renders. Legal pages are the exception, because their
+`noindex` is frontmatter on disk rather than a rendered tag, so that half derives now.
+`src/lib/legal-routes.mjs` reads it at config time, alongside `lastmod.mjs` which already did.
+
+**The roadmap's Open list is now empty.**
+
+## 2026-08-21b — the half of performance a script can own
+
+**Weight and render-blocking, inside `npm run verify`.**
+
+`build.md` §2 has said *measure before you defend a design opinion* since the first version and
+named no tool for it, so nobody measured until a client asked why the site felt slow.
+
+**Nothing in it is a timing, deliberately.** The same section of build.md warns against
+hand-rolling a `PerformanceObserver` against one machine: it produces a confident number that
+disagrees with Lighthouse and there is nothing to tell you it is wrong. Bytes and counts do not
+have that problem — they are identical on every machine and every connection, they are the
+inputs a timing is made of, and they are the half a script can own honestly. Lighthouse on the
+deployed URL, mobile, simulated throttling, two samples per variant, is still the number. The
+blind-spot list at the end of `verify` now says so, so the two cannot get confused.
+
+Four checks: page weight against a budget, render-blocking stylesheets, render-blocking
+`<script src>` in `<head>`, and text assets served uncompressed. Plus the heaviest image on the
+site, named — on a marketing site that is almost always the LCP element, and naming it is
+actionable without claiming a millisecond.
+
+Only the compression check fails the run. Text served uncompressed is a configuration error and
+unambiguous. The rest warn: the right page weight is a design decision, a photography-led site is
+legitimately heavier, and a consent script sometimes genuinely has to run first. A gate that goes
+red on a judgement call is a gate somebody deletes rather than argues with.
+
+It costs no extra page requests. The link crawl already pulls every page's HTML and the meta
+sweep already rides along on it; this is one more pass over the same strings.
+
+**TWO WRONG BUILDS BEFORE THE RIGHT ONE, BOTH FOUND BY RUNNING IT.**
+
+The first version flagged *the heaviest image on the page* when it was `loading="lazy"`. That is
+wrong in a way that would have got the check deleted in a week: on a page with a modest hero and
+a large photograph near the bottom, the heaviest image is the gallery one and lazy is exactly
+right there. It now takes the first **substantial** image in document order — document order
+approximates above-the-fold, size does not — with a 20 KB floor so a logo cannot trip it. Both
+cases were built as fixtures and checked: the hero page warns, the gallery page stays silent.
+
+The second was worse because it would never have shown up locally. Sizes came from `HEAD` with
+`accept-encoding: identity`, falling back to a full `GET` when there was no `content-length`.
+Against `wrangler dev` that is fine. Against a real CDN, **`HEAD` returns no `content-length` at
+all** — measured on two live hosts — so every run would have fallen through and downloaded every
+image on the site, turning a twenty-second check into tens of megabytes. It now issues the `GET`,
+reads the header and **cancels the body before it transfers**: 11ms for a 1.6 MB image instead of
+the whole file. Range requests were the other candidate and are not reliable — the hosts tested
+answered `200` with no `content-range` rather than `206`.
+
+Where a size cannot be established at all, the run says the totals are floors rather than totals.
+A weight report that silently omits what it could not measure reads as complete.
+
+## 2026-08-21 — the record nobody kept
+
+**`npm run shots`** — before/after screenshots of a migration, paired.
+
+`runbook.md` §go-live and `stacks.md` §1d have both asked for a visual record since the first
+version of this kit, and nothing produced one, so it was the step that depended on somebody
+remembering to do it by hand on the one day it was still possible. Once DNS moves, the old site
+is gone; the Wayback Machine has some of it, at some widths, on some dates.
+
+Two failures, and the second is the expensive one. Six months later a client remembers the old
+site as better than it was and there is nothing to put next to that. And — quieter — a page
+comes out **worse** in the rebuild and nobody notices, because it builds clean, returns 200,
+passes every gate in this repo, and no one ever put it beside what it replaced. Every automated
+check here answers *does it work*. This is the only one that helps with *is it better*, and it
+does that by refusing to answer: it lays the pair out and a person decides.
+
+**Both sides read `recon/urls.txt`.** Capturing the new site from its own sitemap would have
+been the obvious build and the wrong one — you would photograph the pages you built and never
+the ones you dropped, which is precisely the case worth catching. A path that 301s is followed
+and still filed under the old path, so the pair lines up; a path that 404s appears in the sheet
+as a dead cell beside its old screenshot.
+
+A 4xx is reported and never fails the run. `recon` deliberately lists paths that were *already*
+dead on the old site, so failing on those would put a before-pass in the red on a migration
+where nothing is wrong — and a check that goes red for a non-reason is a check that gets
+switched off.
+
+`docs/traps.md` already carried the reason this is harder than it looks: a screenshot run
+against a flaky server invented dropped stylesheets, nav dropdowns hanging open and missing
+images, none of it real and all of it worth an afternoon. So every capture proves the harness
+before it believes the picture — failed requests recorded, transitions frozen, the page scrolled
+to force lazy images, `img.decode()` awaited, and `getComputedStyle(document.body)` checked for
+the transparent background that means the stylesheet never arrived. A shot that fails those is
+named and **not written**, because a broken screenshot filed as evidence is worse than a gap.
+
+One more that only shows up on a long page: Chrome cannot rasterise past ~16384 device pixels,
+and a `fullPage` capture past it returns **cut off, with no error and a plausible file size**. A
+tall page drops to 1x for that shot and the run says which ones did.
+
+`shots/` is gitignored. The pairs belong with the handover deliverables, not in the site's
+history, and they are regenerable right up until the old site goes away.
+
+## 2026-08-18 — what a migration loses, and what staging leaks
+
+**`npm run dns`** — the zone, captured before you touch it and diffed after.
+
+MX appeared **nowhere in this kit** before this. Neither did CAA, and the go-live document
+contained no DNS record types at all. That was the largest hole left, and it is not a website
+problem: a rebuild moves the apex, every other record in that zone belongs to somebody else's
+service, and **losing MX kills the client's email silently** — the bounce goes to the sender,
+so the people who find out cannot tell the client. A dead site gets a phone call in minutes;
+dead email looks like a quiet week until an invoice does not arrive.
+
+CAA is the launch-day one: a record naming no CA your host issues through blocks certificate
+issuance, so the deploy succeeds, DNS cuts over, and the site serves a TLS error nothing in the
+repo can fix.
+
+It records and warns and never fails — DNS lives outside the repo — and it says plainly that it
+reads **public** DNS, so a record that exists but is not published is invisible to it.
+
+**Staging is marked and actually blocked.** A standing badge on every non-production build,
+driven by `site.indexable` so it cannot be left on in production. It **reads the live DOM
+rather than printing the build variable**: a badge saying `STAGING · NOINDEX` from a constant
+only repeats what you know, so this one checks the real `<meta robots>` and the real analytics
+tags and alarms with `NOT NOINDEX` or `ANALYTICS LIVE` when the page disagrees with its
+environment. `pointer-events: none`, so it can never intercept a click during a demo.
+
+Underneath it, a correction: staging served `Disallow: /` **and** `noindex`, which cancel each
+other out. A blocked crawler never fetches the page, so it never reads the noindex, and a linked
+staging URL can still be indexed as a bare URL competing with production. **Cloudflare Access is
+the answer** and is now the documented default — with the discovery vectors people miss, chiefly
+**Certificate Transparency logs**, which publish every staging hostname within minutes of the
+certificate being issued. "Nobody knows the URL" is not a plan.
+
+`X-Robots-Tag: noindex` on every non-production response covers what the meta tag cannot: a PDF
+has no `<head>`, nor does an image or a CSV export, so those were indexable while the pages
+around them were not.
+
+**`npm run seo`** *(optional)* wires in [seo-audit](https://github.com/nurkamol/seo-audit) —
+`npx`-able with zero dependencies, so it adds nothing to the tree. Documented as a **baseline**
+rather than a report: capture the old site before migrating, then run the new one with
+`--fail-on new`, which separates regressions you introduced from a backlog the client already
+had. Explicitly not a required gate.
+
+**The pre-migration capture is now three commands** — `recon`, `dns`, `seo` — all writing to
+`recon/`, all committed, together the rollback artefact.
+
+**Also:** `npm audit fix` cleared five `undici` advisories that arrived through wrangler. Six
+remain, all `extract-zip` under puppeteer, and they stay: npm's fix downgrades `pa11y-ci` a
+major version and takes axe-core backwards. What matters is that none of it ships —
+`npm audit --omit=dev` reports zero, and **that** is the CI gate, because a check nobody can
+make green is a check everyone learns to ignore.
+
+**Four traps, three of them from bugs in this week's own additions:** a second `/*` block in
+`_headers` replacing rather than merging and silently dropping the CSP; an inline `#` in that
+file going out as part of the header value; `Disallow` plus `noindex` cancelling out; and moving
+an apex taking the email with it.
+
+## 2026-08-16 — checks that check themselves
+
+Thirteen commits, and the thread through them is that every new check found something the
+moment it first ran. That is the argument for writing them: none of these were suspected.
+
+**`npm run verify` grew three sections.** It crawls the **links inside pages** now — everything
+before it checked URLs something *else* pointed at, so a nav change orphaning a page was
+invisible. It sweeps **titles, descriptions and canonicals** for absence, duplication and
+shape, comparing across pages because a template that forgets to override the default gives
+twenty pages one description and each looks correct alone. And it re-checks the **preserved
+paths** `recon` found on the old site — the inventory said `/feed/` had to keep working and
+nothing confirmed it had.
+
+**`npm run console`** closes the one definition-of-done row nothing could: *zero console errors
+and zero failed requests*. The row states its own reason — a blocked script or a 404 asset is
+invisible to a status-code check — and `verify` uses only `fetch`, so it never could. On its
+first run a fresh template made **three failed requests on every page**: the layout advertised
+a favicon, an SVG icon and an apple-touch icon it does not ship. Icons are declared in
+`site.ts` now, the same rule already applied to analytics IDs, `logoPath` and `og:image`.
+
+**`npm run redirects`** proposes a migration's redirect map from `recon/urls.txt` and **never
+writes `public/_redirects`**. Slug similarity is a guess, and a wrong 301 is worse than a 404:
+the 404 shows up in the log and gets fixed, the wrong redirect looks like it works. It refuses
+the homepage as a target, holds admin paths back as must-404 and machine-readable paths back as
+regenerate-in-place.
+
+**`npm run audit:docs`** tests the kit's own documentation — every `§`, every `npm run`, every
+quoted path and data field. Its first run found `kickoff.md`, the file discovery reads first,
+pointing at `prompts/website-build.md`, from a structure that has not existed for months. Then
+it caught itself twice, which is the useful proof.
+
+**`npm run a11y:evidence`** writes the dated pack `build.md` phase 9 requires, and is built not
+to look complete: the keyboard, screen-reader and forms passes are written in blank every time,
+because automation catches roughly a third of issues and a pack that stopped at a clean axe run
+would read as a finished audit.
+
+**AVIF alongside WebP**, measured rather than asserted — 26% smaller at *better* quality than
+`webp q78`, with quality picked by RMSE parity. `effort` stays at 4 because effort 9 costs
+thirty times the time and produces a **larger** file than effort 6.
+
+**`npm run build` was a footgun.** It produced a development build in silence — canonical
+`http://localhost:4321/`, exit 0, deployable — while the README claimed a guard. The guard was
+real and keyed on `CI`, so it covered the machine where nobody types anything and left the hole
+open where muscle memory lives. It keys on the command now.
+
+**Two more silent failures, both caught by the new checks.** A fresh template emitted an
+`og:image` pointing at a file that does not exist until `npm run media` runs — a well-formed tag
+pointing at nothing is worse than no tag, because scrapers cache the failure. And the kit's own
+CI failed once with *"Unable to load your Astro config"*, which was not a config error: workerd
+ships its binary as a per-platform **optional** dependency, and a failed optional dependency
+does not fail `npm ci`. The retry passed with nothing changed. CI asserts the binary now.
+
+**Also:** neutral locale defaults, because the template was US-locked in seven places while its
+own compliance reference covers the EAA and AODA — a 10-digit phone rule silently rejected every
+UK, Irish and Australian visitor. `design.md` now says which `tells` invocation gates what, and
+which two of its ⚙ rows promise more than the code delivers. `docs/roadmap.md` carries what is
+queued *and what was rejected*, with reasons. A `LICENSE` that reserves the kit and deliberately
+does not follow the template into client work.
+
+## 2026-08-15 — the gaps a backport exposed
+
+A third site went to production and sent back a document of what to merge into the kit. Porting
+it was an afternoon. What the port *exposed* took the rest of the week, because most of it was
+in the kit already and had never been run.
+
+**The two ends of the job were prose.** Every reference file named "the inventory" — the input
+to the redirect map, the go-live route check and week-one 404 triage — and nothing produced it.
+`runbook.md` §2 read a `urls.txt` that no command wrote. Eleven references named "the handover"
+and no such document existed, while `md-to-pdf.mjs` sat in the repo as a renderer with nothing
+to render.
+
+**`npm run recon -- https://old-site.com`** writes the inventory: URLs from the sitemap plus the
+ones only the Wayback Machine remembers, which sitemap filename is canonical, preserved paths,
+and the integrations visible in the markup. It probes with `redirect: manual`, because following
+redirects makes every alias report 200 and hides the one fact the step exists to establish. A
+failed archive lookup is never reported as "0 archived URLs" — that reads as a finding when it
+means the lookup did not happen.
+
+**`npm run verify -- https://…`** is `runbook.md` §2 as a gate that exits non-zero: routes, a
+real 404, every literal rule in `_redirects` *and* whether its target resolves, security
+headers, the staging noindex/analytics split, sitemap `lastmod` variance, and the three form
+submissions the API is meant to refuse. It reads `_redirects` and the deployed sitemap rather
+than a list inside the script, so it cannot drift. It prints what it *cannot* see, because a
+check silent about its blind spots reads as "everything is fine".
+
+**`docs/handover.md`** is the only doc written for the client rather than a developer: what they
+own and where — named to a real person, because "the agency" is not an answer once the agency
+has moved on — what it costs, what breaks first if a payment fails, what was deliberately not
+built, and how long enquiry data is kept.
+
+**Writing the verifier found what the verifier was for.** There was **no cross-origin check at
+all**, while `runbook.md` had asserted a 403 since the beginning. And that runbook's honeypot row
+posted `website=filled` while the code checked `company` — so the documented spam test submitted
+a complete, valid lead, stored it, emailed it, and reported success. A verification row that
+quietly does the opposite of what it claims is worse than an unchecked box.
+
+**The honeypot 303'd caught spam to `?sent=1`** — the conversion URL. Inert only because the
+no-JavaScript conversion did not exist yet, which is precisely what the backport document told
+you to add next. Fixed first, so the two land together.
+
+**Leads never expired.** No `expirationTtl`, so KV held personal data forever, and
+"indefinitely" is not a retention period any regulator accepts. `site.leadRetentionDays` is now
+180 days on production, 30 on staging, enforced by the store. Name and email were also
+duplicated into KV metadata, which `list()` returns without reading values — and nothing
+consumed it.
+
+**There was no `tsconfig.json`.** Every `interface Props` in the template was decorative:
+`Astro.props` was `any`, so nothing was checked. `astro check` could not run at all — it
+prompted to install itself and hung — so the project had never been type-checked. Adding both
+surfaced `HVACBusiness` hardcoded in the organisation schema, a `schemaType` prop passed on
+every page and read by nothing, and a `platformProxy` option the Cloudflare adapter had stopped
+accepting and was dropping in silence.
+
+**The provenance gate was a denylist of past client names, and it had been passing.** While it
+passed, the template shipped a heating-company schema type, a green palette in the lead
+notification email, `America/Los_Angeles` stamping every enquiry in a previous client's timezone
+(11:30 AM for a 2:30 PM lead — a plausible wrong time nobody re-reads), one studio's routes
+hardcoded inside `check-reflow.mjs`, and an entire script that a single NUL byte made binary and
+therefore invisible to `grep -I`.
+
+A denylist tests for the mistakes you already made. `CLAUDE.md` now checks first that every file
+is *readable* by the sweep, then greps for the **shapes** client data takes: a colour, a face, a
+place, a number, a claim, a clock.
+
+**Also:** cache and security headers with `script-src` deliberately omitted and the reasoning
+written down; per-route `lastmod` from committed git dates rather than build time; `check-env`
+comparing `PUBLIC_SITE_ENV` against the routes in `wrangler.jsonc`; `check-sitemap` failing a
+production build when a URL is both listed and `noindex`; IndexNow that verifies its key file is
+reachable before posting and prints that Google does not participate; reflow testing at 320px
+and 200%; `.github/workflows/gates.yml`; `pa11y-ci` and `@astrojs/check` declared instead of
+`npx`-resolved; a `project.css` seam so cards and heroes stop landing in `global.css`; and an OG
+card generator split so the machinery ships and the design does not.
+
+**22 new traps**, and what the stack actually costs at the free-tier boundaries.
+
+## 2026-08-05 — the template stops shipping a design
+
+Two sites built from the kit came out looking like the site it was extracted from. The skill
+was not the problem; the template was. `CLAUDE.md` had said it for months — *"the template is
+a skeleton, not a theme; if it accumulates opinions about how a page should look, every site
+built from it starts looking the same"* — and the template had been quietly breaking that rule
+the whole time.
+
+What it was actually shipping: a brand ramp commented *"the exact values from the old Astra
+theme"*, two committed woff2 files hard-wired in `tokens.css`, a `global.css` full of `.btn`
+/ `.card` / `.eyebrow` / `.post-card`, and an `index.astro` whose own comment said *"replace
+the copy, keep the structure"* — dark hero, three-card services grid, dark why-us grid, CTA
+band. That is the exact shape `design.md` §3 names as the templated look.
+
+**The template now arrives undecided.** A grey placeholder ramp behind an `--unset` marker,
+the system stack for both faces, no typefaces in `public/fonts/`, a scaffold home page that
+says so and is `noindex` until replaced, and a `PageHero` that is breadcrumbs, an `h1` and a
+slot. `global.css` keeps the interactive **states** — hover, focus-visible, disabled, busy,
+invalid — and nothing that constitutes a look. `src/data/nav.ts` is new: routes and the one
+action that counts as a win, read by the header, menu, footer and 404.
+
+**`npm run tells`** — the mechanical half of `design.md` §3, no browser and no dependency, so
+it runs in CI. Two sections. *Undecided* passes when the placeholders are all present (fresh
+clone) or all gone (real project) and fails in between, because a project with a brand colour
+and no typeface is one that stopped halfway; `build:production` runs it as a hard gate.
+*Tells* checks measure, section rhythm, the auto-fill card grid, face pairing, headline size,
+tracking, motion duration, focus ring, raw hex in components and form states — three and the
+page is not ready. Run against the old template it reports three; the tells that need eyes are
+printed at the end rather than quietly omitted. It is now a gate in phases 3 and 4 for
+**every** build, not only a redesign — a faithful rebuild reproducing the last client's page
+shape is the failure it exists to catch.
+
+**Provenance leaks the strip turned up**, all of which had shipped: `(000) 000-0000` inside
+the form's catch block *and* the API's 502 body; the no-JavaScript path 303ing to
+`/contact-us/` and `/thank-you/`, neither of which existed in a fresh build; an `edt-`
+sessionStorage key and plugin name; a duct-testing icon set; a footer linking every page to a
+`/privacy-policy/` that was not there. Two new entries in `traps.md` — both failed silently,
+both only on a path nobody looks at.
+
+**Also:** the first-visit brand overlay moved out of the template into `features.md` §6 with
+its measured LCP numbers (+628ms at the old timings, +160ms at the tuned ones). It was costing
+every site that budget by default. `CLAUDE.md` gains the two tests a template addition must
+pass and a provenance rule with a grep to check it.
+
+## 2026-08-03 — the redesign path
+
+Full redesign was already an option in Round 3. What stood behind it was four direction rows
+and a six-item list, which is not enough to land a result that stands against studio work.
+
+**New reference** — `design.md`. The weak point was the process, not the vocabulary: designs
+get agreed **in adjectives**, and three different pictures stay in three heads until the first
+screen appears. Two fixes, both now steps rather than advice.
+
+**Gather references first.** Three to five sites they admire — not competitors — plus one they
+dislike. Then say *why* each works in specific terms: face pairing, section padding, photo
+treatment. That converts taste into decisions you can be held to.
+
+**Comp before committing.** Build the hero and one section in two or three genuinely distinct
+directions, with real copy and real photography, and deploy them to staging. Choosing from a
+screen instead of from adjectives is what stops a direction changing after twenty pages exist —
+and the token layer makes a direction a variable set rather than a rebuild, so it is an
+afternoon. It is now part of the phase 3 gate, recorded under `Locked`.
+
+Then depth on what actually separates expensive from templated, ranked — typography, space and
+photography are most of it — plus a twelve-item checklist to run against your own work, and an
+honest section on when premium is the wrong goal: emergency trades, price-led positioning, and
+briefs that need photography nobody has budgeted.
+
+
+## 2026-08-03 — features that need a decision
+
+**New reference** — `features.md`. The catalogue in `kickoff.md` §2 carried these as one-line
+checkboxes, which is right for most of it and wrong for the five where the *yes* has a shape.
+
+- **404** — the failure is not that it looks plain, it is that it returns 200. A soft 404 gets
+  indexed, and nothing reports it
+- **Search** — page versus instant are different builds, decided first. Pagefind is the
+  static-first default; it indexes `dist/` and needs no service or key
+- **Light / dark / auto** — **three** states, not two: a two-state toggle strips the ability to
+  follow the OS, which is what most people want. The flash of the wrong theme is a blocking
+  inline script in `<head>`, `color-scheme` is the line people miss, and
+  `:not([data-theme='light'])` is the second bug after the flash
+- **Multilingual** — decided before routes, never after; on a migration it re-plans every
+  redirect too. URL strategy, reciprocal hreflang, and `x-default`
+- **Keyboard shortcuts** — default no. A command palette is application furniture. The skip
+  link, Escape-closes and focus-return are the ones that are not optional
+
+Nothing here ships in the template, and `CLAUDE.md` now says why: a template that shipped these
+would decide them for every site built from it, which is the same reason it has no design.
+
+
+## 2026-08-03 — a real browser, and the prerequisites nobody wrote down
+
+**`stacks.md` §1c — use Chrome with the Claude extension.** The kit told you Wix needed "a
+headless browser" and never said which, and every verification in it was curl and status codes:
+**nothing visual was checked anywhere.** A page can build clean, return 200 and render broken,
+and the kit had no step that would notice.
+
+The browser covers three things curl cannot: JS-rendered sources where the response is an empty
+shell, computed styles for design extraction, and whether the page actually looks right. It runs
+in the user's existing Chrome session, so it also reaches authenticated dashboards — Search
+Console, GA4, the old WordPress admin — that nothing else here can read. Stated limits too: not
+a substitute for a real device, for Lighthouse, or for a screen-reader pass.
+
+**Definition of done gains visual and console/network rows.** A blocked third-party script or a
+404 asset is invisible to a status-code sweep.
+
+**Prerequisites, which were never written down.** `wrangler login` was assumed by every command
+in getting-started without being mentioned. Now split into what to install (Node 22.12+, Chrome
++ extension, a Cloudflare account, git) and what has **lead time** — DNS access proven by
+logging in, SPF/DKIM/DMARC propagation, moving Search Console verification to DNS TXT, TTL
+lowered 24h ahead. Those are the ones that become launch-day emergencies.
+
+
+## 2026-08-02 — template data leak fixed, docs completed
+
+**Fixed: the template shipped the previous client's data in 11 files**, including live GTM and
+GA4 IDs in `src/data/site.ts`. Every site built from it would have sent a real business's
+traffic to `expressducttest.com`'s properties — building green, deploying clean, reporting
+nothing wrong. Also leaked: category taxonomy, footer and CTA copy, service options, the web
+manifest, the CSV export filename, and structured-data catalogue naming.
+
+`site.ts` now emits **no tag at all** unless both IDs are set, so an unset ID can never fall
+back to someone else's container. Copy is driven from `business.ts` rather than replacing one
+hardcoded string with another.
+
+**Fixed: `template/CLAUDE.md` promised three docs that did not exist.** Now written —
+`docs/runbook.md` (setup, verification matrix with real commands, go-live order, first-week
+watch), `docs/content.md` (editing guide, including the accessibility rules a build cannot
+check) and `docs/traps.md` (seeded with this codebase's silent failures, plus a section to add
+the ones you hit). These are the handover, pre-written.
+
+**Template gains** `src/pages/accessibility.astro` — the statement as a required published
+artefact, footer-linked from every page, with the dates and known-gaps list a build cannot
+fill in for you — plus `.pa11yci.json` and `npm run a11y` over one URL per template family
+(via `npx`, not a dependency).
+
+**Build phase 8 is now "deploy and go live"** with the cutover in order — TTL down 24h ahead,
+prove DNS access, move Search Console verification to DNS TXT, verify staging, deploy, cut
+over, remove the staging route, verify production, one real enquiry end to end — plus a new
+**8b · First week**, because every post-launch failure is silent: a 301 landing on a 404, a
+changed sitemap filename, analytics recording nothing.
+
+**Docs deduplicated.** `getting-started.md` is install and mechanical setup; `how-to-start.md`
+is the real project arc, day one to a month after launch, with what actually stalls builds
+ranked by frequency.
+
+## 2026-08-02 — compliance, source import, integration inventory
+
+**New reference** — `compliance.md`. Which accessibility law binds a given client (ADA Title II
+and III, Section 508, Section 504, EAA, the Web Accessibility Directive, PSBAR, AODA, and the
+national ones clients name), the single target that satisfies all of them, what a marketing site
+actually fails, the accessibility statement as a required published artefact, what counts as
+evidence, and eight accessibility failures that survive a clean axe run.
+
+Dates verified August 2026 and sourced inline — **two US deadlines moved a full year during
+2026** (ADA Title II to April 2027/2028, HHS Section 504 to May 2027/2028), which is why §1
+carries source links and a re-verify instruction.
+
+**Target: WCAG 2.2 AA regardless of jurisdiction.** It is a superset of 2.1 and 2.0, so one
+target covers every row and survives a client entering a new market. Overlays are a documented
+no — 22.6% of US web accessibility filings in H1 2025 targeted sites that had one installed.
+
+**Discovery gains a Round 0** — *is there anything to import?* Asked on its own, before
+anything else, because the answer forks every question after it and clients forget to mention
+a site they already have. Covers a lost origin via the Wayback CDX API.
+
+**`stacks.md` §1b — the integration inventory.** The builder decides how you extract; the
+integrations decide what you must not break. Grep commands to detect analytics IDs, third-party
+origins and form actions from the crawled HTML, a table of what each integration forces you to
+preserve, and the three questions per integration — starting with *who owns the account*, which
+blocks go-live more often than anything technical.
+
+**Recon now also produces an accessibility baseline**, reported per template family rather than
+per URL, so it reads as a scope statement instead of a CSV.
+
+**Credential retrieval.** When an integration is detected but its ID is not, `stacks.md` §1b
+gives the client one message: what to fetch, the exact click path, and the official docs link —
+with the three caveats that come back a week later (live keys not test, domain-bound
+credentials must be re-registered rather than copied, never in chat or the repo).
+
+**`stacks.md` §1c — paths you must not change.** Search Console stores the sitemap URL that was
+submitted. WordPress emits `/sitemap_index.xml`; `@astrojs/sitemap` emits `/sitemap-index.xml` —
+**the underscore becomes a hyphen**, which reads as identical and is not. Same for verification
+files, `ads.txt`, `/feed/` and `/.well-known/`. Detection commands included.
+
+**`compliance.md` §10 — beyond accessibility.** What the sector and location pull in (PCI, HIPAA,
+GDPR/CCPA, ePrivacy, CAN-SPAM/CASL, COPPA, GLBA, FERPA) and, the commonly missed one, what a
+profession may *say* — bar advertising rules, medical board rules, financial promotions.
+**Offered as a choice, never assumed.**
+
+**Definition of done** gains six rows: automated a11y, contrast at the token level, reflow at
+320px and 400%, a screen-reader pass per template family, form error association, and the
+published statement.
+
+**New reference** — `archetypes.md`. Page shape for landing, local services, multi-location,
+professional services, product/SaaS, corporate and editorial/portfolio: section order, proof
+model, where conversion sits, and the failure mode for each. **Pick from the win, not the
+industry** — a clinic running one campaign is a landing page; the same clinic's main site is
+professional services.
+
+It decides structure, never appearance — the visual direction stays independent in `kickoff.md`
+Round 3, so the kit does not converge every site on one look. **E-commerce stays refused**, but
+the refusal is now actionable: four situations and what to do in each, including the
+Stripe-Payment-Links case that does stay inside the kit.
+
+**`BUILD-STATE.md`** — written at every gate, holding gates passed, locked decisions, the
+integration disposition, open items (`!` blocking, `?` question) and what is next. A build spans
+more sessions than a context window holds, and a decision that exists only in chat history is one
+that gets silently reversed. Deleted at handover; it is a working file, not a deliverable.
+
+## 2026-08-01 — initial
+
+Extracted from the expressducttest.com rebuild (WordPress/Elementor → Astro 7 + Cloudflare
+Workers), itself building on getmiohome.com.
+
+**Skill** — `website-build`, with four references: discovery, stacks and providers, build
+method, traps.
+
+**Template** — Astro + Cloudflare skeleton that builds green from a clean clone: media
+pipeline with dimensions manifest, design tokens with a semantic dark layer, form endpoint
+writing to KV before the email provider, token-protected CSV export, environment derivation
+from one build variable, CI guard against environment-less builds, SEO and JSON-LD from a
+single data file.
+
+**Traps** — 20 entries. The ones most likely to recur:
+
+- Scoped styles do not reach a class passed *into* a component
+- A persisted element's handlers outlive the elements they captured, so anything the router
+  replaces goes stale silently after one client-side navigation
+- Adapters auto-provision bindings with no id, which works exactly once
+- `justify-content: center` makes overflowing content unreachable
+- DNS negative caching outlives the fix

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.DS_Store
+
+# Per-machine Claude Code permissions. Ignored globally on the author's box,
+# which is not a thing a fresh clone inherits.
+.claude/settings.local.json
+
+# nodeterm's canvas state — viewport position, node ids, per-machine window
+# sizes. Editor furniture, not the project.
+.nodeterm/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+# ...but the example must ship. The real one never does.
+!.dev.vars.example

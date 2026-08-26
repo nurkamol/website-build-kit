@@ -1,0 +1,63 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ONE worker serves both staging and production. Which one it *is* is
+  // decided by the build (PUBLIC_SITE_ENV), never by a wrangler --env flag —
+  // the Astro adapter resolves its environment at build time and silently
+  // ignores `deploy --env`, which is how a staging deploy lands on production.
+  //
+  //   npm run deploy:staging      → builds staging, deploys this worker
+  //   npm run deploy:production   → builds production, deploys this worker
+  //
+  // Create the namespaces first:
+  //   wrangler kv namespace create "<site>-leads"
+  //   wrangler kv namespace create "<site>-leads-staging"
+  // then paste the ids below. Never leave a binding without one.
+  // ─────────────────────────────────────────────────────────────────────────
+  "name": "your-site-name",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Every unknown path must reach the worker so it can serve a real 404
+    // status rather than a 200 with 404-looking HTML.
+    "not_found_handling": "none",
+    "html_handling": "auto-trailing-slash"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // Both namespaces are declared explicitly with their existing ids.
+  // An undeclared binding gets auto-created on deploy — which works exactly
+  // once, then breaks every rebuild on a name the last incarnation left behind.
+  // The build environment picks which one the form writes to, so staging test
+  // submissions never contaminate real leads.
+  "kv_namespaces": [
+    {
+      "binding": "LEADS",
+      "id": "REPLACE-WITH-YOUR-KV-ID"
+    },
+    {
+      "binding": "LEADS_STAGING",
+      "id": "REPLACE-WITH-YOUR-KV-ID"
+    }
+  ],
+
+  // Custom domains create their own DNS records. Staging is listed first and
+  // is removed at go-live (runbook step 6) so the staging host stops answering.
+  "routes": [
+    {
+      "pattern": "new.example.com",
+      "custom_domain": true
+    }
+  ]
+
+  // Secrets — set with `wrangler secret put <NAME>`, never in this file:
+  //   BREVO_API_KEY   Brevo transactional email key
+  //   LEADS_EXPORT_TOKEN   bearer token for GET /api/leads.csv
+}

@@ -1,0 +1,94 @@
+# The kit's own gates. Distinct from template/.github/workflows/gates.yml,
+# which ships to each site built from the kit and is inert here.
+name: Kit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: template/.node-version
+
+      # Every § reference, npm script, quoted path and data field in the kit's
+      # documentation resolves. Docs rot silently and nothing else tests them.
+      - name: Documentation audit
+        run: npm run audit:docs
+
+      # The promise: the template builds green from a clean checkout with no
+      # content, no images and no secrets.
+      - name: Install the template from the lockfile
+        working-directory: template
+        run: npm ci
+
+      # ⚠ THIS STEP MUST FAIL, NOT JUST REPORT.
+      #
+      # workerd ships its binary as a per-platform optionalDependency, and a
+      # failed OPTIONAL dependency does not fail `npm ci` — that is what
+      # optional means. So a hiccup fetching a 127 MB binary is skipped in
+      # silence, npm reports success with the full package count, and the build
+      # dies later with "Unable to load your Astro config", which reads like a
+      # config error and is not one. That is exactly how this workflow failed on
+      # its first run and passed on a retry with nothing changed.
+      #
+      # Asserting here turns a misleading failure twenty lines deep into a clear
+      # one at the step that caused it.
+      - name: Platform binaries installed
+        working-directory: template
+        run: |
+          echo "$(node -p process.platform)-$(node -p process.arch), node $(node -v), npm $(npm -v)"
+          ls node_modules/@cloudflare/ || true
+          node -e '
+            const map = {
+              "linux-x64": "workerd-linux-64", "linux-arm64": "workerd-linux-arm64",
+              "darwin-x64": "workerd-darwin-64", "darwin-arm64": "workerd-darwin-arm64",
+              "win32-x64": "workerd-windows-64",
+            };
+            const pkg = "@cloudflare/" + map[`${process.platform}-${process.arch}`];
+            try {
+              console.log("ok:", require.resolve(`${pkg}/bin/workerd`));
+            } catch {
+              console.error(`\n${pkg} did not install.\n`);
+              console.error("It is an OPTIONAL dependency, so npm ci reported success anyway.");
+              console.error("Re-run the job — this is usually transient. If it repeats, the");
+              console.error("lockfile is missing this platform: npm install and commit it.\n");
+              process.exit(1);
+            }
+          '
+
+      - name: Template builds from clean
+        working-directory: template
+        run: CI=true npm run build:staging
+
+      - name: Template types
+        working-directory: template
+        run: PUBLIC_SITE_ENV=staging npm run check
+
+      # Must report "fresh template" — all placeholders present, none cleared.
+      # A half-cleared state means the template ships a design decision.
+      # Gate on the PRODUCTION tree only, which is what a deploy contains.
+      #
+      # The dev tree carries advisories that cannot be fixed without downgrading
+      # pa11y-ci a major version, which would take axe-core backwards and make
+      # the accessibility suite worse — a bad trade for a symlink issue in a zip
+      # extractor that only ever unpacks Chrome from Google. See runbook.md §1.
+      #
+      # Gating on the full tree would mean a permanently red step, and a check
+      # nobody can make green is a check everyone learns to ignore.
+      - name: No production vulnerabilities
+        working-directory: template
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Template ships undecided
+        working-directory: template
+        run: npm run tells

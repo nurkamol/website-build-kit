@@ -1,0 +1,14 @@
+/*
+ * ── THIS PROJECT'S LOOK. Everything that is not the kit. ───────────────────
+ *
+ * global.css carries interactive STATES — focus rings, disabled, hover,
+ * reduced-motion. It is not the place for a card, a hero or a section style.
+ *
+ * The seam exists because without it those land in global.css anyway, and the
+ * next site built from this kit inherits the last one's furniture.
+ *
+ * Load order: tokens.css → prose.css → global.css → this file. The first two are
+ * `@import`ed at the top of global.css, so global's own rules land after both.
+ * If a rule here needs !important to win, the rule it is fighting probably
+ * belongs here too.
+ */

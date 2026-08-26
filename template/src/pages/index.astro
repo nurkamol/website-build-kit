@@ -1,0 +1,84 @@
+---
+import Base from '../layouts/Base.astro';
+import { business } from '../data/business';
+
+/**
+ * SCAFFOLD — replace this file entirely.
+ *
+ * There is no starter home page here on purpose. A home page that arrives with
+ * the template is a page shape nobody chose, and it is what makes two sites
+ * built from the same starter look like the same site.
+ *
+ * What decides this page:
+ *   - the ONE action that counts as a win  → what the opening block must do
+ *   - the archetype it implies             → section order and proof model,
+ *                                            references/archetypes.md
+ *   - the Round 3 visual direction         → what any of it looks like
+ *
+ * The archetype fixes the order; the direction fixes the appearance; they are
+ * independent, and neither is in this repository.
+ *
+ * Delete `unbuilt` below once this is a real page — `npm run tells` fails
+ * while a scaffold marker is still in a page that also has real content.
+ */
+const unbuilt = true;
+
+const checklist = [
+  'Round 1: name the one action that counts as a win',
+  'Pick the archetype it implies (references/archetypes.md) and write the section order down',
+  'Clear --unset in src/styles/tokens.css: brand ramp, then the two faces',
+  'Fill src/data/business.ts, then src/data/nav.ts with the real routes',
+  'Build the opening block and one content section in two directions, deploy both, let the client choose',
+  'Replace this file with the chosen direction',
+];
+---
+
+<Base
+  title={`${business.name}`}
+  description={business.description}
+  canonical="/"
+  schemaType="home"
+  noindex={unbuilt}
+>
+  <section class="section under-header">
+    <div class="container container--text">
+      <h1>This page has not been built yet.</h1>
+      <p class="scaffold__lede">
+        The template ships without a home page. Section order comes from the archetype, and
+        appearance from the design direction — both are project decisions, so neither is here.
+      </p>
+
+      <ol class="scaffold__list">
+        {checklist.map((step) => <li>{step}</li>)}
+      </ol>
+
+      <p class="scaffold__note">
+        This page is <code>noindex</code> while <code>unbuilt</code> is set, so a staging deploy
+        cannot leak it. See <code>docs/design.md</code> and <code>npm run tells</code>.
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .scaffold__lede {
+    margin-block-start: var(--space-m);
+    font-size: var(--step-1);
+    color: var(--text-muted);
+    max-inline-size: var(--measure);
+  }
+
+  .scaffold__list {
+    margin-block-start: var(--space-xl);
+    padding-inline-start: var(--space-m);
+    display: grid;
+    gap: var(--space-2xs);
+    max-inline-size: var(--measure);
+  }
+
+  .scaffold__note {
+    margin-block-start: var(--space-xl);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+</style>

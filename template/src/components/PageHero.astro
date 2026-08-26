@@ -1,0 +1,88 @@
+---
+/**
+ * The opening block of an interior page: breadcrumbs, h1, optional lede.
+ *
+ * Structure only. There is no treatment here on purpose — no background, no
+ * image overlay, no gradient. What the opening of a page looks like is the
+ * single most identifying decision on the site; if it ships in the template,
+ * every site built from it opens the same way.
+ *
+ * Style it per project, or replace this component entirely. What is worth
+ * keeping is the breadcrumb markup: an ordered list inside a labelled <nav>
+ * with aria-current on the last item, which is what assistive tech and
+ * BreadcrumbList structured data both expect.
+ */
+
+interface Props {
+  title: string;
+  lede?: string;
+  breadcrumbs?: { name: string; href: string }[];
+  /** Extra classes for the section — the project's own treatment. */
+  class?: string;
+}
+
+const { title, lede, breadcrumbs, class: className = '' } = Astro.props;
+
+/* Narrowed once here rather than inside the template: a `&&` guard in an Astro
+   expression does not carry the narrowing into the callback, so `.map((crumb, i)`
+   picks up implicit `any` and stops being checked at all. */
+const crumbs = breadcrumbs ?? [];
+---
+
+<section class:list={['hero', 'under-header', 'section--tight', className]}>
+  <div class="container">
+    {
+      crumbs.length > 0 && (
+        <nav class="hero__crumbs" aria-label="Breadcrumb">
+          <ol role="list">
+            {crumbs.map((crumb, i) => (
+              <li>
+                {i < crumbs.length - 1 ? (
+                  <>
+                    <a href={crumb.href}>{crumb.name}</a>
+                    <span aria-hidden="true">/</span>
+                  </>
+                ) : (
+                  <span aria-current="page">{crumb.name}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )
+    }
+
+    <h1>{title}</h1>
+    {lede && <p class="hero__lede">{lede}</p>}
+    <slot />
+  </div>
+</section>
+
+<style>
+  .hero__crumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3xs);
+    margin-block-end: var(--space-m);
+    padding: 0;
+    list-style: none;
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+
+  .hero__crumbs li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+  }
+
+  .hero__lede {
+    margin-block-start: var(--space-m);
+    font-size: var(--step-1);
+    color: var(--text-muted);
+    /* Long-form text at full container width is the most common reason a page
+       reads as a document rather than a designed thing. */
+    max-inline-size: var(--measure);
+  }
+</style>

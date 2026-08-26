@@ -1,0 +1,463 @@
+@import './tokens.css';
+@import './prose.css';
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Reset, states and layout primitives.
+
+   What is here: things that are wrong by default in a browser, things that are
+   easy to forget (focus, reduced motion, skip link, the states an interactive
+   element needs), and the container/section scaffolding every page needs.
+
+   What is deliberately NOT here: a look. No card style, no button style beyond
+   its states, no eyebrow, no section decoration. Those are project decisions —
+   the moment they live here, every site built from this template opens the
+   same way. Add them per project, in the project's own components.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Fonts ────────────────────────────────────────────────────────────────
+   Self-hosted, variable, subset to the scripts you need. Add the @font-face
+   blocks HERE and the matching entries to src/data/fonts.ts, which drives the
+   preload tags — same-origin means a preload is the whole story.
+
+   Nothing ships. Two families, display and body; see docs/design.md for the
+   subsetting recipe and the licence check.
+
+   @font-face {
+     font-family: 'Display Face';
+     src: url('/fonts/display.woff2') format('woff2-variations');
+     font-weight: 400 800;
+     font-style: normal;
+     font-display: swap;
+     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+       U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193,
+       U+2212, U+2215, U+FEFF, U+FFFD;
+   }
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* Anchored headings must clear the sticky header. */
+  scroll-padding-top: calc(var(--header-h) + var(--space-m));
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: var(--leading-normal);
+  font-weight: var(--weight-normal);
+  color: var(--text);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+  /*
+   * NOT `overflow-x: hidden`. That makes <body> a scroll container and every
+   * viewport-rooted IntersectionObserver silently stops firing — which is how
+   * scroll-reveal animations die with a clean build and no error. Individual
+   * bleeding sections clip themselves instead.
+   */
+  overflow-x: clip;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li {
+  overflow-wrap: break-word;
+}
+
+ul[role='list'],
+ol[role='list'] {
+  list-style: none;
+  padding: 0;
+}
+
+:target {
+  scroll-margin-top: calc(var(--header-h) + var(--space-m));
+}
+
+/* ── Type ────────────────────────────────────────────────────────────────
+   The scale binding only. Sizes come from the tokens; the hierarchy a given
+   page needs is the page's business. */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+  color: var(--text);
+}
+
+h1 {
+  font-size: var(--step-5);
+  line-height: var(--leading-tight);
+}
+h2 {
+  font-size: var(--step-4);
+  line-height: 1.12;
+}
+h3 {
+  font-size: var(--step-2);
+}
+h4 {
+  font-size: var(--step-1);
+}
+h5,
+h6 {
+  font-size: var(--step-0);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+strong,
+b {
+  font-weight: var(--weight-semibold);
+}
+
+/* ── Focus ───────────────────────────────────────────────────────────────
+   Style this to match the design — do not remove it. A focus ring that is the
+   browser default, or absent, is on the tells list for a reason. */
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+
+/* Never remove the outline outright — only defer to :focus-visible. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2xs);
+  left: var(--space-2xs);
+  z-index: var(--z-skip);
+  padding: var(--space-2xs) var(--space-s);
+  background: var(--ink-900);
+  color: var(--white);
+  border-radius: var(--radius-s);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* ── Layout primitives ───────────────────────────────────────────────────── */
+
+.container {
+  width: 100%;
+  max-width: calc(var(--width-max) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.container--wide {
+  max-width: calc(var(--width-wide) + var(--gutter) * 2);
+}
+
+.container--text {
+  max-width: calc(var(--width-text) + var(--gutter) * 2);
+}
+
+/* Three rhythms, not one. Alternating them is what gives a page a structure
+   the eye can navigate; every section on --section-y is the tell that nobody
+   decided. */
+.section {
+  padding-block: var(--section-y);
+}
+
+.section--tight {
+  padding-block: var(--section-y-tight);
+}
+
+.section--loose {
+  padding-block: var(--section-y-loose);
+}
+
+/*
+ * The header is fixed, so every page's first section has to reserve its
+ * height or the heading sits behind the nav. Applied by each opening section
+ * rather than a blanket `main > :first-child` rule, which a scoped component
+ * style would out-specify.
+ */
+.under-header {
+  padding-block-start: calc(var(--header-h) + var(--space-2xl));
+}
+
+.stack > * + * {
+  margin-block-start: var(--flow, var(--space-s));
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Interactive states ──────────────────────────────────────────────────
+ * These carry the STATES, not the style.
+ *
+ * Every interactive element needs hover, focus-visible, active, disabled and
+ * busy, and the busy state is the one that gets forgotten until a visitor
+ * double-submits a form. What a button LOOKS like is a project decision —
+ * restyle these freely, override them entirely, but do not ship a control
+ * that is missing a state.
+ *
+ * They live in the global sheet on purpose: Astro stamps its scoping
+ * attribute only on elements written in a component's own template, so a
+ * class passed *into* a child as a prop — or an element created at runtime by
+ * JS — never matches the parent's scoped rule. Anything crossing a component
+ * boundary has to be global or it silently does nothing.
+ */
+
+.btn {
+  --btn-bg: var(--ink-900);
+  --btn-fg: var(--white);
+  --btn-border: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  /* 44px minimum tap target, from the padding rather than a fixed height, so
+     it still works when the label wraps. */
+  min-block-size: 2.75rem;
+  padding: 0.7em 1.4em;
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+  text-decoration: none;
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  border: 1.5px solid var(--btn-border);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+}
+
+/*
+ * ── Third-party CSS defence. Do not "simplify" this away. ──────────────────
+ *
+ * Vendor widgets — chat, booking, reviews — inject their own stylesheet into
+ * the page, and it lands on YOUR elements. Measured on a live site: enabling a
+ * chat widget took three pages from 0 accessibility errors to failing colour
+ * contrast on `.btn` and `.btn--ghost`. Proven by removing the widget and
+ * re-running — the same three pages returned to 0, nothing else changed.
+ *
+ * `.btn.btn` is the same element matched twice, purely to raise specificity
+ * above anything a vendor drops in at (0,1,0). It costs nothing and it is the
+ * only thing standing between a supplier's release and your contrast ratios.
+ *
+ * It looks exactly like something a tidy-minded person deletes. It is not.
+ */
+.btn.btn {
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  border-color: var(--btn-border);
+}
+
+
+.btn:hover {
+  --btn-bg: var(--ink-700);
+}
+
+.btn[aria-disabled='true'],
+.btn:disabled,
+.btn[data-busy] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* A second variant, because "primary and one other" is the minimum a page
+   needs and getting the borders right on an inverted section is fiddly. */
+.btn--ghost {
+  --btn-bg: transparent;
+  --btn-fg: var(--text);
+  --btn-border: var(--border-strong);
+}
+.btn--ghost:hover {
+  --btn-bg: transparent;
+  --btn-border: var(--text);
+}
+
+.on-dark .btn {
+  --btn-bg: var(--white);
+  --btn-fg: var(--ink-900);
+}
+.on-dark .btn:hover {
+  --btn-bg: var(--ink-100);
+}
+.on-dark .btn--ghost {
+  --btn-bg: transparent;
+  --btn-fg: var(--white);
+  --btn-border: var(--border-strong);
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+ * Reveal-on-scroll. The hidden state is applied by the script in Base.astro
+ * at runtime (it sets [data-reveal-ready]), NEVER by this stylesheet alone —
+ * a CSS rule that JS is expected to undo shows a blank page whenever the
+ * script fails to load. Without JS these elements are simply visible.
+ *
+ * Opt in per element with data-reveal. Nothing in the template uses it.
+ */
+
+[data-reveal-ready] [data-reveal] {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition:
+    opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+[data-reveal-ready] [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* ── Page transitions ────────────────────────────────────────────────────
+ * Cross-fade with a short lift. Deliberately quick — a navigation that takes
+ * 500ms to resolve feels broken, not designed. The header is marked
+ * `transition:persist`, so it stays put while the page beneath it changes.
+ */
+
+::view-transition-old(root) {
+  animation: page-out 180ms var(--ease-in-out) both;
+}
+
+::view-transition-new(root) {
+  animation: page-in 320ms var(--ease-out) both;
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* The persisted header must not be animated by the root transition. */
+::view-transition-group(site-header) {
+  animation-duration: 0ms;
+}
+
+/* Astro's fallback path for browsers without native view transitions. */
+[data-astro-transition-fallback='old'] main {
+  animation: page-out 180ms var(--ease-in-out) both;
+}
+
+[data-astro-transition-fallback='new'] main {
+  animation: page-in 320ms var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  [data-astro-transition-fallback='old'] main,
+  [data-astro-transition-fallback='new'] main {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  [data-reveal-ready] [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

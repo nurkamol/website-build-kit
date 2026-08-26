@@ -1,0 +1,5 @@
+Posts go here as markdown. `docs/content.md` has the frontmatter and the rules.
+
+This file exists so the directory ships. Without it Astro's glob loader warns
+"The base directory src/content/blog/ does not exist" on every single build,
+and `npm run media` threw ENOENT looking for posts to twin social cards for.

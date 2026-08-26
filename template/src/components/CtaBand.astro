@@ -1,0 +1,82 @@
+---
+import { business } from '../data/business';
+import { primaryAction } from '../data/nav';
+
+/**
+ * The conversion block, repeated at the bottom of a page.
+ *
+ * Structure only — a heading, a line of copy, and the one action that counts
+ * as a win plus the phone. Where a page's conversion sits, and what it looks
+ * like, is the archetype's decision and the design direction's respectively;
+ * neither belongs in the template.
+ *
+ * Pass a real title and body per page. A generic call to action is the
+ * cheapest thing on the page to get specific.
+ */
+
+interface Props {
+  title?: string;
+  body?: string;
+  /** Extra classes for the section — the project's own treatment. */
+  class?: string;
+}
+
+const {
+  title = `Talk to ${business.name}`,
+  body = business.tagline,
+  class: className = '',
+} = Astro.props;
+---
+
+<section class:list={['section', className]} aria-labelledby="cta-title">
+  <div class="container cta__inner">
+    <div>
+      <h2 id="cta-title">{title}</h2>
+      <p class="cta__body">{body}</p>
+    </div>
+    <div class="cta__actions">
+      <a class="btn" href={business.phone.href}>Call {business.phone.display}</a>
+      <a class="btn btn--ghost" href={primaryAction.href}>{primaryAction.label}</a>
+      <p class="cta__note">{business.hours.display}</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta__inner {
+    display: grid;
+    gap: var(--space-l);
+    align-items: start;
+  }
+
+  @media (min-width: 55rem) {
+    .cta__inner {
+      grid-template-columns: 1fr auto;
+      gap: var(--space-2xl);
+    }
+  }
+
+  .cta__body {
+    margin-block-start: var(--space-s);
+    color: var(--text-muted);
+    max-inline-size: var(--measure);
+  }
+
+  .cta__actions {
+    display: grid;
+    gap: var(--space-2xs);
+    justify-items: stretch;
+  }
+
+  @media (min-width: 30rem) {
+    .cta__actions {
+      justify-items: start;
+    }
+  }
+
+  .cta__note {
+    margin-block-start: var(--space-2xs);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+</style>

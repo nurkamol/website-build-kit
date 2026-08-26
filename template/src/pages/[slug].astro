@@ -1,0 +1,111 @@
+---
+/**
+ * Legal and policy pages: /privacy/, /terms/, /house-rules/.
+ *
+ * One route for all of them. Three near-identical .astro files is the thing
+ * this replaces, and the second cost is worse than the duplication: an editor
+ * who cannot change an effective date without a developer.
+ *
+ * ── WHY THIS SITS AT THE ROOT ──────────────────────────────────────────────
+ * Because /privacy/ is the URL, and on a migration it is a URL that already
+ * exists and must be preserved. /legal/privacy/ would be a redirect to write
+ * and a link everyone else has wrong.
+ *
+ * ── WHICH MAKES IT A CATCH-ALL, SO IT GUARDS ITSELF ────────────────────────
+ * Astro gives a static route precedence over a dynamic one, so adding
+ * src/content/legal/contact.md does NOT break /contact/ — it silently does
+ * nothing, which is worse. You would have a page in the collection, a link to
+ * it in the footer, and the contact form served at that URL. The check below
+ * turns that into a build failure naming both files.
+ *
+ * ── THERE IS NO DESIGN HERE, ON PURPOSE ────────────────────────────────────
+ * A heading, a date line and the prose. Legal pages are the one page type with
+ * genuinely nothing to art-direct, and `prose.css` already carries the
+ * long-form treatment this project chose. If this page needs a look, the look
+ * belongs in project.css.
+ */
+import { render } from 'astro:content';
+
+import PageHero from '../components/PageHero.astro';
+import Base from '../layouts/Base.astro';
+import { business } from '../data/business';
+import { getLegalPages, formatLegalDate, type LegalPage } from '../lib/legal';
+
+export async function getStaticPaths() {
+  /*
+   * Every route file that already exists, as its first path segment.
+   *
+   * import.meta.glob is resolved at build time, so this is the real directory
+   * rather than a list somebody maintains — the same reason the scripts
+   * discover routes instead of carrying an array.
+   *
+   * Declared INSIDE getStaticPaths deliberately: Astro hoists this function
+   * into its own scope for the prerender pass, so a module-level const here is
+   * `ReferenceError: RESERVED is not defined` at build time, not a lint error.
+   */
+  const reserved = new Set(
+    Object.keys(import.meta.glob('./**/*.{astro,md,ts,js}'))
+      .map((file) => file.replace(/^\.\//, '').split('/')[0])
+      .map((segment) => segment.replace(/\.(astro|md|ts|js)$/, ''))
+      .filter((segment) => !segment.startsWith('[')),
+  );
+
+  const pages = await getLegalPages();
+
+  for (const page of pages) {
+    if (reserved.has(page.id)) {
+      throw new Error(
+        `src/content/legal/${page.id}.md would be served at /${page.id}/, but src/pages/${page.id} ` +
+          `already claims that route.\n` +
+          `Astro gives the existing page precedence, so the legal page would be built, linked ` +
+          `from the footer, and never reachable.\n` +
+          `Rename the markdown file, or delete the page that shadows it.`,
+      );
+    }
+  }
+
+  return pages.map((page) => ({ params: { slug: page.id }, props: { page } }));
+}
+
+interface Props {
+  page: LegalPage;
+}
+
+const { page } = Astro.props;
+const { Content } = await render(page);
+---
+
+<Base
+  title={`${page.data.title} - ${business.name}`}
+  description={page.data.description}
+  canonical={`/${page.id}/`}
+  noindex={page.data.noindex}
+  breadcrumbs={[{ name: 'Home', href: '/' }, { name: page.data.title, href: `/${page.id}/` }]}
+>
+  <PageHero
+    title={page.data.title}
+    breadcrumbs={[{ name: 'Home', href: '/' }, { name: page.data.title, href: `/${page.id}/` }]}
+  />
+
+  <section class="section">
+    <div class="container container--text prose">
+      {/* A <time> with a machine-readable datetime: the visible string is
+          localised, the attribute stays ISO for anything that parses it. */}
+      <p>
+        <strong>Effective <time datetime={page.data.effective}>{formatLegalDate(page.data.effective)}</time></strong>
+        {
+          page.data.updated && (
+            <>
+              {' · '}
+              <span>
+                Last updated <time datetime={page.data.updated}>{formatLegalDate(page.data.updated)}</time>
+              </span>
+            </>
+          )
+        }
+      </p>
+
+      <Content />
+    </div>
+  </section>
+</Base>

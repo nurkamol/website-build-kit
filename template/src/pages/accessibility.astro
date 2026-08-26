@@ -1,0 +1,128 @@
+---
+/**
+ * Accessibility statement.
+ *
+ * A **required published artefact** under the European Accessibility Act, the
+ * UK PSBAR and the EU Web Accessibility Directive. Not required in the US, and
+ * still worth publishing everywhere: it is dated evidence of a deliberate
+ * process, which is exactly what a demand letter is fishing for the absence of.
+ *
+ * ── FILL IN AND KEEP CURRENT. ──────────────────────────────────────────────
+ *  - `reviewed` must be a real date. An undated statement reads as abandoned.
+ *  - `knownGaps` must be honest. Naming a real gap is worth more than a clean
+ *    claim — it is the difference between a documented backlog and an
+ *    undiscovered failure. If the list is genuinely empty, say so explicitly.
+ *  - Never write "fully accessible" or "fully compliant". Conformance is
+ *    per-page, per-state, at a point in time, and one content edit can break it.
+ *  - `enforcement` is required in EU/UK statements. Delete the block elsewhere.
+ */
+import Base from '../layouts/Base.astro';
+import { business } from '../data/business';
+
+const TARGET = 'WCAG 2.2 Level AA';
+const prepared = '2 August 2026';
+const reviewed = '2 August 2026';
+const responseDays = 5;
+
+/** Be specific. "Some images" is not a gap, it is a shrug. */
+const knownGaps: string[] = [
+  'Third-party embeds (map, booking widget) are outside our control and may not meet the target.',
+];
+
+/** Delete this block outside the EU and UK. */
+/*
+ * `as` rather than a plain annotation: TypeScript narrows a `const` to its
+ * initialiser, so `const x: T | null = null` is exactly `null` forever and the
+ * `enforcement &&` block below becomes unreachable `never` — the type error
+ * arrives at the fill-in, not at the empty default.
+ */
+type Enforcement = { body: string; url: string } | null;
+const enforcement = null as Enforcement;
+---
+
+<Base
+  title={`Accessibility - ${business.name}`}
+  description={`Our accessibility statement: the standard we build to, how we test, what we know is not yet right, and how to tell us about a problem.`}
+  canonical="/accessibility/"
+>
+  <section class="section under-header">
+    <div class="container container--text prose">
+      <h1>Accessibility</h1>
+
+      <p class="statement__lede">
+        {business.name} wants everyone to be able to use this website, whatever technology they
+        browse with. This page says what we aim for, how we check it, and what to do if
+        something does not work for you.
+      </p>
+
+      <h2>The standard we build to</h2>
+      <p>
+        We build and test this site against <strong>{TARGET}</strong>, the international
+        standard for web accessibility. We aim to meet it throughout, but we do not claim the
+        site is perfect — conformance is measured page by page, and content changes over time.
+      </p>
+
+      <h2>How we test</h2>
+      <ul>
+        <li>Automated checks against every page, run as part of each release</li>
+        <li>
+          A keyboard pass by hand on one page of each type — every control reachable, focus
+          visible, nothing trapped
+        </li>
+        <li>Text scaled to 200% and 400%, and a 320&nbsp;pixel-wide screen</li>
+        <li>A screen reader pass using VoiceOver and NVDA</li>
+        <li>Colour contrast checked at the design-token level, so it holds across the site</li>
+      </ul>
+
+      <h2>What we know is not yet right</h2>
+      {
+        knownGaps.length > 0 ? (
+          <ul>{knownGaps.map((gap) => <li>{gap}</li>)}</ul>
+        ) : (
+          <p>
+            We are not currently aware of any part of this site that fails the standard above.
+            That is not the same as there being none — if you find something, please tell us.
+          </p>
+        )
+      }
+
+      <h2>Tell us about a problem</h2>
+      <p>
+        If you cannot use part of this site, or you need something in a different format, please
+        contact us and we will put it right.
+      </p>
+      <ul>
+        <li>Email: <a href={business.email.href}>{business.email.display}</a></li>
+        <li>Phone: <a href={business.phone.href}>{business.phone.display}</a></li>
+      </ul>
+      <p>
+        We aim to reply within <strong>{responseDays} working days</strong>. If the fix will take
+        longer than that, we will tell you when to expect it.
+      </p>
+
+      {
+        enforcement && (
+          <>
+            <h2>If you are not happy with our response</h2>
+            <p>
+              You can raise it with <a href={enforcement.url}>{enforcement.body}</a>.
+            </p>
+          </>
+        )
+      }
+
+      <h2>About this statement</h2>
+      <p>
+        Prepared on {prepared}. Last reviewed on {reviewed}.
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .statement__lede {
+    font-size: var(--step-1);
+    color: var(--text-muted);
+    max-inline-size: var(--measure);
+  }
+</style>

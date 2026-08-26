@@ -1,0 +1,223 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import Seo from '../components/Seo.astro';
+import StructuredData from '../components/StructuredData.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import EnvBadge from '../components/EnvBadge.astro';
+import { site, icons } from '../data/site';
+import { business } from '../data/business';
+import { preloadFonts } from '../data/fonts';
+import '../styles/global.css';
+/* This project's own look. See the note at the top of the file — a card or a
+   hero style belongs here, never in global.css. */
+import '../styles/project.css';
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  image?: string;
+  imageAlt?: string;
+  type?: 'website' | 'article';
+  publishedAt?: Date;
+  updatedAt?: Date;
+  noindex?: boolean;
+  schemaType?: 'home' | 'page' | 'article' | 'blog';
+  breadcrumbs?: { name: string; href: string }[];
+  article?: Parameters<typeof StructuredData>[0]['article'];
+  faq?: { question: string; answer: string }[];
+  bodyClass?: string;
+}
+
+const {
+  title,
+  description,
+  canonical,
+  image,
+  imageAlt,
+  type,
+  publishedAt,
+  updatedAt,
+  noindex,
+  schemaType,
+  breadcrumbs,
+  article,
+  faq,
+  bodyClass,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang={business.locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Set once the brand ramp is real, and keep it in step with
+         public/site.webmanifest — the two disagreeing is what makes an
+         installed icon's splash screen the wrong colour. -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <Seo
+      title={title}
+      description={description}
+      canonical={canonical}
+      image={image}
+      imageAlt={imageAlt}
+      type={type}
+      publishedAt={publishedAt}
+      updatedAt={updatedAt}
+      noindex={noindex}
+    />
+    <StructuredData type={schemaType} breadcrumbs={breadcrumbs} article={article} faq={faq} />
+
+    <!--
+      Order matters, and so does the artwork. Browsers prefer an SVG icon over
+      the .ico when both are declared — the original /logo/favicon.svg was a
+      different mark entirely (a blue stopwatch), so the tab showed the wrong
+      logo while the .ico was perfectly correct. If this SVG is ever replaced,
+      render it and look at it before shipping.
+    -->
+    {icons.ico && <link rel="icon" href={icons.ico} sizes="32x32" />}
+    {icons.svg && <link rel="icon" href={icons.svg} type="image/svg+xml" />}
+    {icons.appleTouch && <link rel="apple-touch-icon" href={icons.appleTouch} />}
+    {icons.manifest && <link rel="manifest" href="/site.webmanifest" />}
+
+    <!-- Fonts are same-origin, so a preload here is the whole story: no DNS,
+         no TLS handshake, no third-party round trip on the critical path.
+         Empty until src/data/fonts.ts names one. -->
+    {
+      preloadFonts.map((href) => (
+        <link rel="preload" href={href} as="font" type="font/woff2" crossorigin />
+      ))
+    }
+
+    <ClientRouter />
+
+    {
+      /* Analytics is null off production, so staging HTML contains zero
+         references — not a disabled snippet, no snippet at all. */
+      site.analytics && (
+        <>
+          <script
+            is:inline
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${site.analytics.ga4Id}`}
+          />
+          <script is:inline define:vars={{ ga4Id: site.analytics.ga4Id, gtmId: site.analytics.gtmId }}>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+              dataLayer.push(arguments);
+            }
+            gtag('js', new Date());
+            gtag('config', ga4Id);
+
+            /* `l` is declared. Google's published snippet takes it as a fourth
+               parameter; dropping the parameter without adding a `var` leaks an
+               implicit global called `l` onto every page — harmless until
+               something else wants that name, and impossible to find when it
+               is not. Inline scripts are non-strict, so nothing warns. */
+            (function (w, d, s, i) {
+              var l = 'dataLayer';
+              w[l] = w[l] || [];
+              w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+              var f = d.getElementsByTagName(s)[0],
+                j = d.createElement(s);
+              j.async = true;
+              j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i;
+              f.parentNode.insertBefore(j, f);
+            })(window, document, 'script', gtmId);
+          </script>
+        </>
+      )
+    }
+
+    {
+      /* Cloudflare Web Analytics — a separate pipe from the Google tags above,
+         and deliberately not gated on them. Cookieless, so it needs no consent
+         banner, and it reports real-user Core Web Vitals from the first visitor
+         rather than waiting months for CrUX to cover a new domain. */
+      site.cfBeaconToken && (
+        <script
+          is:inline
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon={JSON.stringify({ token: site.cfBeaconToken })}
+        />
+      )
+    }
+  </head>
+
+  <body class={bodyClass}>
+    {
+      site.analytics && (
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${site.analytics.gtmId}`}
+            height="0"
+            width="0"
+            style="display:none;visibility:hidden"
+            title="Google Tag Manager"
+          />
+        </noscript>
+      )
+    }
+
+    <EnvBadge />
+
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+
+    <script>
+      /**
+       * Scroll reveal.
+       *
+       * The library adds the hidden state itself (data-reveal-ready on <html>)
+       * and only after it has confirmed it can observe. If this script never
+       * runs, every [data-reveal] element is simply visible — the page is
+       * never blank because a bundle failed.
+       *
+       * The observer is rooted at the viewport, which works because <body>
+       * uses `overflow-x: clip` rather than `hidden`; `hidden` would make body
+       * a scroll container and this would never fire.
+       */
+      function setupReveal() {
+        const targets = document.querySelectorAll<HTMLElement>('[data-reveal]');
+        if (!targets.length) return;
+
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduced || !('IntersectionObserver' in window)) {
+          document.documentElement.removeAttribute('data-reveal-ready');
+          return;
+        }
+
+        document.documentElement.setAttribute('data-reveal-ready', '');
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              entry.target.classList.add('is-revealed');
+              observer.unobserve(entry.target);
+            }
+          },
+          { rootMargin: '0px 0px -12% 0px', threshold: 0.05 },
+        );
+
+        for (const target of targets) observer.observe(target);
+      }
+
+      document.addEventListener('astro:page-load', setupReveal);
+
+      // The router leaves <html> attributes in place across navigations.
+      document.addEventListener('astro:before-swap', () =>
+        document.documentElement.removeAttribute('data-reveal-ready'),
+      );
+    </script>
+  </body>
+</html>

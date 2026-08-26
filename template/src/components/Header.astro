@@ -1,0 +1,530 @@
+---
+import { business } from '../data/business';
+import { nav, primaryAction } from '../data/nav';
+
+/**
+ * Site header and mobile menu.
+ *
+ * This component is here for its BEHAVIOUR, not its appearance. The script
+ * below is the part worth keeping: the focus trap, the persisted-header
+ * listener guard, the sticky close control, `dvh` instead of `vh`, and
+ * `margin: auto` instead of `justify-content: center` — each one is a bug that
+ * shipped before it was a rule (see docs/traps.md).
+ *
+ * The styles are the minimum that makes it usable and reachable. There is
+ * deliberately no visual treatment: no backdrop blur, no underline animation,
+ * no transparent-over-hero behaviour. Style it per project.
+ *
+ * `data-scrolled` is set on the header past 24px of scroll and carries no
+ * styling of its own — hook the design's scrolled state onto it.
+ */
+
+const path = Astro.url.pathname;
+const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+
+<header class="header no-print" data-header transition:persist="site-header" transition:name="site-header">
+  <div class="header__inner container container--wide">
+    <a class="header__brand" href="/" aria-label={`${business.name} — home`}>
+      {/* Text until there is a logo. A brand mark referenced before the file
+          exists renders as a broken image on every page, which is worse than
+          plain type — swap this for <img> once the artwork is in place, and
+          look at it on both a light and a dark background before shipping. */}
+      {business.name}
+    </a>
+
+    <nav class="header__nav" aria-label="Primary">
+      <ul role="list" class="header__list">
+        {
+          nav.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="header__link"
+                aria-current={isCurrent(item.href) ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="header__actions">
+      <a class="header__phone" href={business.phone.href}>{business.phone.display}</a>
+      <a class="btn header__cta" href={primaryAction.href}>{primaryAction.label}</a>
+      <button
+        type="button"
+        class="header__toggle"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        aria-label="Open menu"
+        data-menu-toggle
+      >
+        <span class="header__bars" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!--
+  A full-screen panel that replaces the header rather than sitting under it.
+  The bar is hidden while this is open, so the panel owns the close control —
+  otherwise the fixed header covers the top of the menu on short screens.
+
+  `hidden` in the markup, so with JavaScript off it never appears — and every
+  link inside it is duplicated in the footer, so nothing is stranded.
+-->
+<div class="menu" id="mobile-menu" data-menu-panel hidden>
+  <div class="menu__panel" role="dialog" aria-modal="true" aria-label="Menu">
+    <!--
+      Sticky, so the close control stays reachable when the links scroll on a
+      short screen.
+    -->
+    <div class="menu__bar">
+      <a class="menu__brand" href="/" aria-label={`${business.name} — home`}>{business.name}</a>
+      <button type="button" class="menu__close" data-menu-close aria-label="Close menu">
+        <span class="menu__close-bars" aria-hidden="true"><span></span><span></span></span>
+      </button>
+    </div>
+
+    <div class="menu__inner">
+      <nav>
+        <ul role="list" class="menu__list">
+          {
+            nav.map((item) => (
+              <li>
+                <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <div class="menu__foot">
+        <a class="btn" href={business.phone.href}>Call {business.phone.display}</a>
+        <a class="btn btn--ghost" href={primaryAction.href}>{primaryAction.label}</a>
+        <p class="menu__hours">{business.hours.display}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /*
+   * Fixed rather than sticky, so a full-bleed opening section can run under
+   * it. Every page's first section reserves --header-h with `.under-header`.
+   */
+  .header {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: var(--z-header);
+    background: var(--bg);
+    border-block-end: 1px solid var(--border);
+  }
+
+  /*
+   * Hidden while the menu is open. The bar is fixed and would otherwise sit
+   * over the top of the panel, covering the first nav item on short screens.
+   * The panel carries its own close button, so nothing is lost.
+   */
+  .header[data-menu-open] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .header__inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-l);
+    min-block-size: var(--header-h);
+  }
+
+  .header__brand {
+    flex: none;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    text-decoration: none;
+  }
+
+  .header__nav {
+    margin-inline-start: auto;
+  }
+
+  .header__list {
+    display: flex;
+    align-items: center;
+    gap: clamp(var(--space-xs), 1.6vw, var(--space-l));
+    margin: 0;
+  }
+
+  .header__link {
+    display: block;
+    padding-block: var(--space-2xs);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  .header__link:hover,
+  .header__link[aria-current='page'] {
+    color: var(--text);
+  }
+
+  .header__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-s);
+    flex: none;
+  }
+
+  .header__phone {
+    font-size: var(--step--1);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .header__cta {
+    font-size: var(--step--1);
+  }
+
+  /* ── Menu button ───────────────────────────────────────────────────────── */
+  .header__toggle {
+    display: none;
+    place-items: center;
+    /* 44px minimum tap target. */
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    margin-inline-end: calc(var(--space-2xs) * -1);
+  }
+
+  /* Two bars that rotate into an X. No icon swap, so there is no second glyph
+     to leak through if a style fails to match. */
+  .header__bars {
+    display: grid;
+    gap: 6px;
+    inline-size: 22px;
+  }
+
+  .header__bars span {
+    display: block;
+    block-size: 2px;
+    inline-size: 100%;
+    background: currentColor;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+
+  .header__toggle[aria-expanded='true'] .header__bars span:first-child {
+    transform: translateY(4px) rotate(45deg);
+  }
+
+  .header__toggle[aria-expanded='true'] .header__bars span:last-child {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+
+  @media (max-width: 60rem) {
+    .header__nav,
+    .header__phone {
+      display: none;
+    }
+
+    .header__actions {
+      margin-inline-start: auto;
+    }
+
+    .header__toggle {
+      display: grid;
+    }
+  }
+
+  /* ── Mobile menu ───────────────────────────────────────────────────────── */
+  .menu {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-menu);
+  }
+
+  .menu[hidden] {
+    display: none;
+  }
+
+  .menu__panel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    /*
+     * `dvh`, not `vh`. On mobile browsers `vh` is the height *without* the
+     * collapsing address bar, so a 100vh panel is taller than the visible
+     * area and the bottom call-to-action sits below the fold.
+     */
+    block-size: 100dvh;
+    padding: 0 var(--gutter) var(--space-xl);
+    background: var(--bg);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out);
+  }
+
+  .menu[data-open] .menu__panel {
+    opacity: 1;
+  }
+
+  /*
+   * Centred by `margin: auto`, NOT `justify-content: center`.
+   * On a short screen — a landscape phone, or a small device with the browser
+   * chrome expanded — centred flex content overflows equally in both
+   * directions and the top becomes unreachable, because scrolling cannot go
+   * past the container's start edge. Auto margins collapse to zero once the
+   * content is taller than the box, so it stays scrollable from the top.
+   */
+  .menu__inner {
+    inline-size: 100%;
+    max-inline-size: 26rem;
+    margin: auto;
+    display: grid;
+    gap: var(--space-xl);
+  }
+
+  /*
+   * The panel's own bar. Sticky rather than absolute: absolute inside a
+   * scrolling container scrolls away with the content, which took the close
+   * button off-screen on a landscape phone.
+   */
+  .menu__bar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-m);
+    min-block-size: var(--header-h);
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    background: var(--bg);
+  }
+
+  .menu__brand {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
+  }
+
+  .menu__close {
+    display: grid;
+    margin-inline-end: calc(var(--space-2xs) * -1);
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+  }
+
+  .menu__close-bars {
+    display: grid;
+    inline-size: 22px;
+    block-size: 22px;
+    place-items: center;
+  }
+
+  .menu__close-bars span {
+    grid-area: 1 / 1;
+    inline-size: 100%;
+    block-size: 2px;
+    background: currentColor;
+  }
+
+  .menu__close-bars span:first-child {
+    transform: rotate(45deg);
+  }
+
+  .menu__close-bars span:last-child {
+    transform: rotate(-45deg);
+  }
+
+  .menu__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+  }
+
+  .menu__list a {
+    display: flex;
+    align-items: center;
+    min-block-size: 2.75rem;
+    padding: var(--space-s) 0;
+    font-family: var(--font-display);
+    font-size: var(--step-2);
+    text-decoration: none;
+    border-block-end: 1px solid var(--border);
+  }
+
+  .menu__foot {
+    display: grid;
+    gap: var(--space-2xs);
+  }
+
+  .menu__hours {
+    margin-block-start: var(--space-2xs);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+</style>
+
+<script>
+  /**
+   * Header state and the mobile menu.
+   *
+   * Two things make this trickier than it looks:
+   *
+   * 1. With `<ClientRouter />` a module script runs on first load only, so
+   *    everything binds from `astro:page-load`.
+   * 2. The header is `transition:persist`, so it survives navigation and must
+   *    not accumulate a new set of listeners each time — hence the `bound`
+   *    guard. But the MENU is re-rendered on every navigation, so a handler
+   *    that captured it in a closure would go on mutating the previous page's
+   *    detached element while the live one stayed shut. Every handler
+   *    therefore looks the menu up at call time.
+   */
+  const menuEl = () => document.querySelector<HTMLElement>('[data-menu-panel]');
+
+  function setupHeader() {
+    const header = document.querySelector<HTMLElement>('[data-header]');
+    const toggle = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+    if (!header || !toggle) return;
+    if (header.dataset.bound === '1') return;
+    header.dataset.bound = '1';
+
+    let open = false;
+    let lastFocus: HTMLElement | null = null;
+
+    // Carries no styling of its own. Hook the design's scrolled state onto it.
+    const scrolled = () => header.toggleAttribute('data-scrolled', open || window.scrollY > 24);
+
+    const setOpen = (next: boolean) => {
+      const menu = menuEl();
+      if (!menu || next === open) return;
+      open = next;
+
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      // Hide the fixed bar so it cannot cover the panel. Set before any focus
+      // move, or focus would land on a visibility:hidden element.
+      header.toggleAttribute('data-menu-open', open);
+      document.documentElement.style.overflow = open ? 'hidden' : '';
+
+      if (open) {
+        lastFocus = document.activeElement as HTMLElement;
+        menu.hidden = false;
+        // One frame before flipping the attribute, so the browser has a start
+        // value to animate from.
+        requestAnimationFrame(() => {
+          menu.setAttribute('data-open', '');
+          // Focus the close button, not the first link — a keyboard or
+          // screen-reader user's first option should be "get out of here".
+          menu.querySelector<HTMLElement>('[data-menu-close]')?.focus();
+        });
+      } else {
+        menu.removeAttribute('data-open');
+        const panel = menu.querySelector<HTMLElement>('.menu__panel');
+        const finish = () => {
+          if (!open) menu.hidden = true;
+        };
+        if (panel && window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+          panel.addEventListener('transitionend', finish, { once: true });
+          // Belt and braces: if the transition never fires, hide anyway.
+          setTimeout(finish, 600);
+        } else {
+          finish();
+        }
+        lastFocus?.focus();
+      }
+      scrolled();
+    };
+
+    toggle.addEventListener('click', () => setOpen(!open));
+
+    // Delegated, because the menu is a different element on every page.
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-menu-panel]')) return;
+      if (target.closest('[data-menu-close]')) {
+        setOpen(false);
+        toggle.focus();
+        return;
+      }
+      if (target.closest('a')) setOpen(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!open) return;
+      const menu = menuEl();
+      if (!menu) return;
+
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggle.focus();
+        return;
+      }
+      // Keep Tab inside the open dialog.
+      if (event.key !== 'Tab') return;
+      const focusable = menu.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    window.matchMedia('(min-width: 60.0625rem)').addEventListener('change', (event) => {
+      if (event.matches) setOpen(false);
+    });
+
+    let ticking = false;
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          scrolled();
+          ticking = false;
+        });
+      },
+      { passive: true },
+    );
+    scrolled();
+
+    // Leaving the page closes the menu, so the next one never inherits a
+    // locked <html> or a hidden header.
+    document.addEventListener('astro:before-preparation', () => setOpen(false));
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    setupHeader();
+    // A persisted header keeps its scrolled state from the previous page even
+    // though the new one starts at the top. Re-derive it.
+    const header = document.querySelector<HTMLElement>('[data-header]');
+    header?.removeAttribute('data-menu-open');
+    header?.toggleAttribute('data-scrolled', window.scrollY > 24);
+    document.documentElement.style.overflow = '';
+  });
+</script>

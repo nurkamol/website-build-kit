@@ -1,0 +1,146 @@
+---
+/**
+ * A standing marker that this is not production.
+ *
+ * Renders on every non-production build and on none of production, from
+ * `site.indexable` — the one environment switch. There is no second flag and no
+ * way to leave it on by accident, because nothing turns it on by hand.
+ *
+ * ── IT VERIFIES, IT DOES NOT ASSERT ────────────────────────────────────────
+ * A badge that printed "STAGING · NOINDEX" from a build variable would tell you
+ * what the build *intended*. That is the thing already known. What is worth
+ * showing is what a crawler would actually find, so the script below reads the
+ * live DOM — the real `<meta name="robots">`, the real analytics tags — and
+ * says **NOT NOINDEX** in an alarm state when the two disagree.
+ *
+ * That is the case this exists for: a staging site that is quietly indexable
+ * competes with production for the client's own terms, and nothing on the page
+ * looks wrong.
+ *
+ * ── WHY IT CANNOT BE CLICKED ───────────────────────────────────────────────
+ * `pointer-events: none`. A fixed overlay that intercepts a click is a bug you
+ * find while demoing to a client. Hide it for a screenshot with `?nobadge=1`,
+ * which lasts the session — never a dismissal that persists, because a badge
+ * you dismissed on Tuesday is not there to warn you on Friday.
+ */
+import { site } from '../data/site';
+---
+
+{
+  !site.indexable && (
+    <div id="env-badge" data-env={site.env} hidden>
+      <span data-env-label>{site.env}</span>
+      <span data-env-state />
+    </div>
+  )
+}
+
+{
+  !site.indexable && (
+    <script is:inline>
+      (function () {
+        var el = document.getElementById('env-badge');
+        if (!el) return;
+
+        /* ?nobadge=1 for screenshots. sessionStorage, so it comes back — a
+           dismissal that outlives the session is a warning that is not there
+           the day it matters. */
+        try {
+          if (new URLSearchParams(location.search).has('nobadge')) {
+            sessionStorage.setItem('nobadge', '1');
+          }
+          if (sessionStorage.getItem('nobadge')) return;
+        } catch (e) {
+          /* private mode: show the badge rather than fail closed */
+        }
+
+        var robots = document.querySelector('meta[name="robots"]');
+        var noindex = !!robots && /noindex/i.test(robots.getAttribute('content') || '');
+
+        /* The needle is assembled rather than written out. A detector that
+           contains the literal it looks for shows up in every grep-based scan
+           for that literal — including this kit's own staging check, which
+           asserts a staging page carries ZERO analytics references. Spelling it
+           out here would have made the badge the thing that failed it. */
+        var tagHost = 'google' + 'tagmanager';
+        var analytics = !!(
+          document.querySelector('script[src*="' + tagHost + '"]') ||
+          window.dataLayer ||
+          window.gtag
+        );
+
+        var state = el.querySelector('[data-env-state]');
+        var problems = [];
+        if (!noindex) problems.push('NOT NOINDEX');
+        if (analytics) problems.push('ANALYTICS LIVE');
+
+        if (problems.length) {
+          el.setAttribute('data-alarm', '');
+          state.textContent = ' · ' + problems.join(' · ');
+        } else {
+          state.textContent = ' · noindex';
+        }
+
+        el.hidden = false;
+      })();
+    </script>
+  )
+}
+
+<style>
+  /*
+   * Structure and state, not a look — the same rule as everything else in the
+   * shared layer. It uses `--danger`, which is a semantic token every project
+   * defines, never a brand colour, so it stays legible before the ramp is set
+   * and does not become a design decision the template made for you.
+   */
+  #env-badge {
+    position: fixed;
+    inset-block-end: 1rem;
+    inset-inline-start: 1rem;
+    z-index: 2147483647;
+
+    /* Never intercepts a click, a tap, a hover or a drag. */
+    pointer-events: none;
+    user-select: none;
+
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font: 600 var(--step--2, 0.72rem) / 1 var(--font-body);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--white);
+    background: var(--danger);
+    box-shadow: var(--shadow-sm, 0 1px 3px rgb(0 0 0 / 0.3));
+  }
+
+  /* Something disagrees with the environment — make it impossible to miss. */
+  /* Darker than --danger, derived from it rather than picked — no second
+     colour for a project to keep in step, and no hex in a component. */
+  #env-badge[data-alarm] {
+    background: color-mix(in srgb, var(--danger) 78%, black);
+    animation: env-badge-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes env-badge-pulse {
+    50% {
+      opacity: 0.55;
+    }
+  }
+
+  /* The alarm still reads without motion; only the pulse goes. */
+  @media (prefers-reduced-motion: reduce) {
+    #env-badge[data-alarm] {
+      animation: none;
+      outline: 2px solid var(--white);
+      outline-offset: 2px;
+    }
+  }
+
+  /* A PDF of a staging page should not carry it. */
+  @media print {
+    #env-badge {
+      display: none;
+    }
+  }
+</style>

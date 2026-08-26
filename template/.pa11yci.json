@@ -1,0 +1,24 @@
+{
+  "defaults": {
+    "standard": "WCAG2AA",
+    "runners": ["axe", "htmlcs"],
+    "timeout": 30000,
+    "concurrency": 4,
+    "hideElements": "iframe[src*='google.com/maps'], iframe[src*='youtube.com']",
+    "chromeLaunchConfig": { "args": ["--no-sandbox"] }
+  },
+  "//": [
+    "One URL per template family, not every page — a homepage-only pass misses",
+    "everything the blog does differently. Point these at `wrangler dev`",
+    "(localhost:8788) while building, or at the deployed staging host.",
+    "Staging emits no sitemap on purpose, which is why these are explicit.",
+    "Against production you can instead run:",
+    "  npx pa11y-ci --sitemap https://example.com/sitemap-index.xml --standard WCAG2AA"
+  ],
+  "urls": [
+    "http://localhost:8788/",
+    "http://localhost:8788/contact/",
+    "http://localhost:8788/accessibility/",
+    "http://localhost:8788/404"
+  ]
+}

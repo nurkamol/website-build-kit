@@ -1,0 +1,218 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Design tokens — the only place a raw colour, size or duration is written.
+   Components reference these and nothing else, so changing one value here
+   visibly moves the whole site.
+
+   THIS FILE SHIPS UNDECIDED ON PURPOSE.
+
+   Everything in §Undecided below is a placeholder: a greyscale ramp and the
+   system font stack. It is legible, it clears contrast and it builds — and it
+   looks like nothing, because no design decision has been made yet. That is
+   the point. A template that arrives with a palette and a typeface hands every
+   project the same one.
+
+   Clear it in this order, then delete --unset:
+     1. brand ramp + accent          (Round 3 direction)
+     2. display and body faces       (src/data/fonts.ts + the @font-face block
+                                      in global.css — see docs/design.md)
+     3. radii, shadow tint, motion   (the direction decides; defaults are fine)
+
+   `npm run tells` fails while --unset is present alongside real values — a
+   half-cleared file means somebody set a colour and left the typeface.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ══ Undecided ═══════════════════════════════════════════════════════════
+     Delete this line once the ramp and the faces below are real. Nothing else
+     reads it; `npm run tells` and `build:production` do. */
+  --unset: 'brand and type not yet chosen';
+
+  /* ── Brand ─────────────────────────────────────────────────────────────
+     Placeholder: neutral grey. Replace all seven with the real ramp, sampled
+     from the brand — not approximated by eye. Keep the 50→900 shape so a
+     component that reaches for --brand-100 still gets something sensible. */
+  --brand-50: #f4f5f6;
+  --brand-100: #e6e8ea;
+  --brand-300: #b6bcc2;
+  --brand-400: #8d959d;
+  --brand-500: #6b747d;
+  --brand-600: #545c64;
+  --brand-700: #3c434a;
+
+  /* Signal accent. One, used sparingly: one call-to-action per viewport,
+     never two competing. Placeholder tracks the ramp so nothing shouts. */
+  --accent-500: #6b747d;
+  --accent-600: #545c64;
+
+  /* ── Neutrals ──────────────────────────────────────────────────────────
+     These are usually fine as shipped. Tint them toward the brand hue if the
+     direction is warm — pure grey against a warm palette reads as dirt. */
+  --ink-900: #14171a;
+  --ink-800: #1f2429;
+  --ink-700: #2f363d;
+  --ink-600: #454e56;
+  --ink-500: #5b656e;
+  --ink-400: #78838c;
+  --ink-300: #a1abb3;
+  --ink-200: #c7ced4;
+  --ink-100: #e3e8eb;
+  --ink-50: #f4f6f7;
+  --white: #ffffff;
+
+  /* ── Semantic surfaces ─────────────────────────────────────────────────
+     Components reference THESE, not the ramps above. That is what lets a
+     `.on-dark` section invert by redefining six variables. */
+  --bg: var(--white);
+  --bg-subtle: var(--ink-50);
+  --bg-inverse: var(--ink-900);
+  --surface: var(--white);
+  --surface-raised: var(--white);
+  --border: var(--ink-100);
+  --border-strong: var(--ink-200);
+
+  --text: var(--ink-800);
+  --text-muted: var(--ink-500);
+  --text-inverse: var(--white);
+  --text-inverse-muted: color-mix(in oklab, var(--white) 72%, transparent);
+
+  --focus: var(--ink-900);
+  --danger: #c8382e;
+  --danger-bg: #fdf1f0;
+  --success: #1c6b45;
+
+  /* ── Type ──────────────────────────────────────────────────────────────
+     Placeholder: the system stack for both. Two families, display and body —
+     a third is almost always a mistake.
+
+     To set them: add the woff2 to public/fonts/, an @font-face block to
+     global.css, an entry to src/data/fonts.ts so it is preloaded, then name
+     them here. Self-hosted and subset, so a preload is the whole story: no
+     DNS, no TLS handshake, no third-party round trip on the critical path. */
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
+
+  /*
+   * Fluid scale, 320px → 1440px viewport.
+   *
+   * The upper end is deliberately restrained. A pure 1.33 ratio puts the hero
+   * headline past 100px at desktop, which reads as a magazine cover rather
+   * than a business people trust with money. The top three steps are capped;
+   * if a direction genuinely wants a larger hero, raise --step-6 knowingly
+   * rather than by swapping in a bigger ratio.
+   */
+  --step--1: clamp(0.833rem, 0.81rem + 0.11vw, 0.889rem);
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  --step-1: clamp(1.125rem, 1.08rem + 0.22vw, 1.3rem);
+  --step-2: clamp(1.32rem, 1.24rem + 0.4vw, 1.65rem);
+  --step-3: clamp(1.55rem, 1.4rem + 0.72vw, 2.1rem);
+  --step-4: clamp(1.85rem, 1.62rem + 1.13vw, 2.7rem);
+  --step-5: clamp(2.1rem, 1.8rem + 1.5vw, 3.25rem);
+  --step-6: clamp(2.4rem, 2rem + 2vw, 3.9rem);
+
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+
+  /* Tighten as size increases. Display type set at body tracking is one of
+     the cheapest tells of an unconsidered page. */
+  --tracking-tighter: -0.04em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-widest: 0.14em;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Optimal measure for long-form reading. Body text that runs the full
+     container width is the most common reason a page reads as a document
+     rather than a designed thing. */
+  --measure: 68ch;
+  --measure-narrow: 46ch;
+
+  /* ── Space ─────────────────────────────────────────────────────────────── */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-s: 1rem;
+  --space-m: 1.5rem;
+  --space-l: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  /* Vertical rhythm between sections, fluid.
+     Two values, not one. Every section sharing a single padding is the tell
+     that nothing about the page rhythm was decided — vary deliberately. */
+  --section-y: clamp(3.5rem, 2rem + 7vw, 8rem);
+  --section-y-tight: clamp(2.5rem, 1.5rem + 5vw, 5rem);
+  --section-y-loose: clamp(5rem, 3rem + 9vw, 11rem);
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  --width-max: 1240px;
+  --width-wide: 1440px;
+  --width-text: 44rem;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+
+  /* ── Radii ─────────────────────────────────────────────────────────────
+     Scaled off one unit so a direction can go square in a single edit:
+     set --radius-unit to 0. */
+  --radius-unit: 1;
+  --radius-xs: calc(6px * var(--radius-unit));
+  --radius-s: calc(10px * var(--radius-unit));
+  --radius-m: calc(16px * var(--radius-unit));
+  --radius-l: calc(24px * var(--radius-unit));
+  --radius-xl: calc(32px * var(--radius-unit));
+  --radius-full: calc(999px * var(--radius-unit));
+
+  /* ── Elevation ─────────────────────────────────────────────────────────
+     Tint --shadow-rgb with the brand hue rather than leaving it neutral —
+     grey shadows on a warm palette read as dirt. */
+  --shadow-rgb: 20 23 26;
+  --shadow-xs: 0 1px 2px rgb(var(--shadow-rgb) / 0.06);
+  --shadow-s: 0 2px 8px -2px rgb(var(--shadow-rgb) / 0.08), 0 1px 2px rgb(var(--shadow-rgb) / 0.04);
+  --shadow-m: 0 8px 24px -8px rgb(var(--shadow-rgb) / 0.12), 0 2px 6px -2px rgb(var(--shadow-rgb) / 0.06);
+  --shadow-l: 0 24px 48px -16px rgb(var(--shadow-rgb) / 0.16), 0 4px 12px -4px rgb(var(--shadow-rgb) / 0.06);
+
+  --ring: 0 0 0 3px color-mix(in oklab, var(--focus) 35%, transparent);
+
+  /* ── Motion ────────────────────────────────────────────────────────────
+     Felt, not watched. Anything past ~400ms makes the visitor wait for
+     decoration, which is the most common way a good site starts feeling
+     cheap. `npm run tells` flags durations above that. */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* ── Chrome ────────────────────────────────────────────────────────────── */
+  --header-h: 4.5rem;
+  --z-header: 100;
+  --z-menu: 110;
+  --z-skip: 200;
+}
+
+/* Dark sections invert the semantic layer rather than restating raw colours,
+   so a component dropped into <section class="on-dark"> just works.
+
+   Check this inversion separately for contrast. It is where 4.5:1 usually
+   breaks, because the brand ramp that passes on white rarely passes on ink. */
+.on-dark {
+  --bg: var(--ink-900);
+  --bg-subtle: var(--ink-800);
+  --surface: color-mix(in oklab, var(--white) 6%, transparent);
+  --surface-raised: color-mix(in oklab, var(--white) 9%, transparent);
+  --border: color-mix(in oklab, var(--white) 12%, transparent);
+  --border-strong: color-mix(in oklab, var(--white) 22%, transparent);
+  --text: var(--white);
+  --text-muted: color-mix(in oklab, var(--white) 68%, transparent);
+  --focus: var(--white);
+  color: var(--text);
+  background-color: var(--bg);
+}

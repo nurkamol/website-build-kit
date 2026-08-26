@@ -1,0 +1,173 @@
+---
+/**
+ * JSON-LD, built from src/data/business.ts — the same file the visible header,
+ * footer and contact page read from. The schema physically cannot claim a
+ * phone number or an address the page does not show.
+ */
+import { business, addressOneLine } from '../data/business';
+import { services } from '../data/services';
+
+interface Props {
+  type?: 'home' | 'page' | 'article' | 'blog';
+  breadcrumbs?: { name: string; href: string }[];
+  article?: {
+    headline: string;
+    description: string;
+    image?: string;
+    publishedAt: Date;
+    updatedAt?: Date;
+    url: string;
+  };
+  faq?: { question: string; answer: string }[];
+}
+
+const { type = 'page', breadcrumbs, article, faq } = Astro.props;
+
+const siteUrl = Astro.site!.origin;
+const abs = (p: string) => new URL(p, Astro.site).href;
+
+const organizationId = `${siteUrl}/#organization`;
+const websiteId = `${siteUrl}/#website`;
+
+const organization = {
+  /* From business.ts — never hardcoded here. A subtype left in the shared
+     layer becomes every future site's industry. See the note on schemaTypes. */
+  '@type': business.schemaTypes,
+  '@id': organizationId,
+  name: business.name,
+  legalName: business.legalName,
+  url: siteUrl,
+  description: business.description,
+  foundingDate: String(business.foundedYear),
+  telephone: business.phone.e164,
+  email: business.email.display,
+  priceRange: business.priceRange,
+  /* Omitted rather than pointed at a file that may not exist — a schema logo
+     returning 404 is a Search Console warning nothing in a build would show. */
+  ...(business.logoPath ? { logo: { '@type': 'ImageObject', url: abs(business.logoPath) } } : {}),
+  image: abs('/img/social/og-default.jpg'),
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: business.address.street,
+    addressLocality: business.address.locality,
+    addressRegion: business.address.region,
+    postalCode: business.address.postalCode,
+    addressCountry: business.address.country,
+  },
+  geo: {
+    '@type': 'GeoCoordinates',
+    latitude: business.geo.latitude,
+    longitude: business.geo.longitude,
+  },
+  hasMap: business.address.mapUrl,
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: business.hours.days.map((d) => `https://schema.org/${d}`),
+      opens: business.hours.opens,
+      closes: business.hours.closes,
+    },
+  ],
+  areaServed: business.serviceAreas.map((area) => ({
+    '@type': 'City',
+    name: area,
+    containedInPlace: { '@type': 'State', name: business.address.regionName },
+  })),
+  hasOfferCatalog: {
+    '@type': 'OfferCatalog',
+    name: `${business.name} services`,
+    itemListElement: services.map((s) => ({
+      '@type': 'Offer',
+      itemOffered: { '@type': 'Service', name: s.title, description: s.short },
+    })),
+  },
+  ...(business.socials.length ? { sameAs: business.socials.map((s) => s.url) } : {}),
+};
+
+const website = {
+  '@type': 'WebSite',
+  '@id': websiteId,
+  url: siteUrl,
+  name: business.name,
+  description: business.description,
+  publisher: { '@id': organizationId },
+  inLanguage: business.locale,
+};
+
+/*
+ * The page node. `type` used to be destructured and never read — Base.astro
+ * passed `schemaType` on every page and it did nothing at all, which is the
+ * quietest kind of dead prop: the call site looks correct and the output has
+ * simply never contained it.
+ */
+const PAGE_TYPE = {
+  home: 'WebPage',
+  page: 'WebPage',
+  article: 'WebPage',
+  blog: 'CollectionPage',
+} as const;
+
+const page = {
+  '@type': PAGE_TYPE[type],
+  '@id': `${abs(Astro.url.pathname)}#webpage`,
+  url: abs(Astro.url.pathname),
+  isPartOf: { '@id': websiteId },
+  about: { '@id': organizationId },
+  inLanguage: business.locale,
+};
+
+const graph: Record<string, unknown>[] = [organization, website, page];
+
+const crumbs = breadcrumbs ?? [];
+const questions = faq ?? [];
+
+if (crumbs.length) {
+  graph.push({
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((crumb, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: crumb.name,
+      item: abs(crumb.href),
+    })),
+  });
+}
+
+if (article) {
+  graph.push({
+    '@type': 'BlogPosting',
+    headline: article.headline,
+    description: article.description,
+    ...(article.image ? { image: abs(article.image) } : {}),
+    datePublished: article.publishedAt.toISOString(),
+    dateModified: (article.updatedAt ?? article.publishedAt).toISOString(),
+    author: { '@id': organizationId },
+    publisher: { '@id': organizationId },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': abs(article.url) },
+    isPartOf: { '@id': websiteId },
+  });
+}
+
+if (questions.length) {
+  graph.push({
+    '@type': 'FAQPage',
+    mainEntity: questions.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  });
+}
+
+const jsonLd = { '@context': 'https://schema.org', '@graph': graph };
+---
+
+<script
+  type="application/ld+json"
+  is:inline
+  set:html={JSON.stringify(jsonLd)}
+/>
+<meta name="geo.placename" content={`${business.address.locality}, ${business.address.regionName}`} />
+<meta name="geo.position" content={`${business.geo.latitude};${business.geo.longitude}`} />
+<meta name="geo.region" content={`${business.address.country}-${business.address.region}`} />
+<meta name="business:contact_data:street_address" content={addressOneLine} />

@@ -1,0 +1,51 @@
+---
+import Base from '../layouts/Base.astro';
+import { business } from '../data/business';
+import { nav } from '../data/nav';
+
+/**
+ * A real 404 — the worker returns status 404 for this route, not 200.
+ *
+ * The onward links come from src/data/nav.ts so they can never point at a page
+ * that has since been removed. Offer SPECIFIC routes, not "go home": someone
+ * who landed on a dead link wanted something particular, and a link back to
+ * the homepage asks them to start the search again.
+ */
+---
+
+<Base
+  title={`Page not found - ${business.name}`}
+  description="The page you were looking for could not be found."
+  noindex
+>
+  <section class="section under-header">
+    <div class="container container--text">
+      <h1>This page doesn’t exist.</h1>
+      <p class="notfound__lede">
+        The link may be out of date, or the page may have moved. Here is where most people are
+        heading — or call and we will point you the right way.
+      </p>
+
+      <ul role="list" class="notfound__links">
+        {nav.map((link) => <li><a href={link.href}>{link.label}</a></li>)}
+      </ul>
+
+      <p><a class="btn" href={business.phone.href}>Call {business.phone.display}</a></p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .notfound__lede {
+    margin-block-start: var(--space-m);
+    font-size: var(--step-1);
+    color: var(--text-muted);
+  }
+
+  .notfound__links {
+    display: grid;
+    gap: var(--space-2xs);
+    margin-block: var(--space-xl);
+    padding: 0;
+  }
+</style>

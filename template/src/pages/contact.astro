@@ -1,0 +1,112 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import ContactForm from '../components/ContactForm.astro';
+import { business, addressOneLine } from '../data/business';
+
+/**
+ * Rendered per request, not prerendered — the API redirects back here with
+ * ?invalid=… when a no-JavaScript form POST fails validation, and a static
+ * page has no query string to read.
+ *
+ * Structure only. The layout of this page is a project decision.
+ */
+export const prerender = false;
+
+const invalidFields = (Astro.url.searchParams.get('invalid') ?? '').split(',').filter(Boolean);
+const submitFailed = Astro.url.searchParams.has('failed');
+/** The no-JavaScript success landing. Keep in step with SUCCESS in
+ *  src/pages/api/contact.ts — without this the native POST 303s to a page that
+ *  looks exactly like the one the visitor just submitted. */
+const submitted = Astro.url.searchParams.has('sent');
+---
+
+<Base
+  title={`Contact - ${business.name}`}
+  description={`Get in touch with ${business.name}. Call ${business.phone.display} or send us a message.`}
+  canonical="/contact/"
+  breadcrumbs={[{ name: 'Home', href: '/' }, { name: 'Contact', href: '/contact/' }]}
+>
+  <PageHero
+    title="Contact"
+    lede={`Send a message and we will come back to you. For anything urgent, call ${business.phone.display}.`}
+    breadcrumbs={[{ name: 'Home', href: '/' }, { name: 'Contact', href: '/contact/' }]}
+  />
+
+  <section class="section--tight">
+    <div class="container contact__grid">
+      <div>
+        <h2>Details</h2>
+        <ul role="list" class="contact__details">
+          <li><a href={business.phone.href}>{business.phone.display}</a></li>
+          <li><a href={business.email.href}>{business.email.display}</a></li>
+          <li>{addressOneLine}</li>
+          <li>{business.hours.display}</li>
+        </ul>
+      </div>
+
+      <div id="quote">
+        <h2>Send a message</h2>
+        {
+          submitted && (
+            <p role="status" class="contact__sent">
+              Thank you — your message is in. We will come back to you shortly.
+            </p>
+          )
+        }
+        {
+          invalidFields.length > 0 && (
+            <p role="alert" class="contact__alert">Please check the highlighted fields.</p>
+          )
+        }
+        {
+          submitFailed && (
+            <p role="alert" class="contact__alert">
+              Something went wrong — please call {business.phone.display} instead.
+            </p>
+          )
+        }
+        <div class="contact__form">
+          <ContactForm invalidFields={invalidFields} />
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .contact__grid {
+    display: grid;
+    gap: var(--space-2xl);
+  }
+
+  @media (min-width: 55rem) {
+    .contact__grid {
+      grid-template-columns: 1fr 1.4fr;
+    }
+  }
+
+  .contact__details {
+    display: grid;
+    gap: var(--space-2xs);
+    margin-block-start: var(--space-m);
+    padding: 0;
+    color: var(--text-muted);
+  }
+
+  .contact__alert {
+    margin-block-start: var(--space-s);
+    color: var(--danger);
+  }
+
+  .contact__sent {
+    margin-block-start: var(--space-s);
+    padding: var(--space-s) var(--space-m);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-s);
+  }
+
+  .contact__form {
+    margin-block-start: var(--space-l);
+  }
+</style>

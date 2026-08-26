@@ -1,0 +1,31 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.env
+.env.*
+.DS_Store
+media/archive/
+.dev.vars
+.dev.vars.*
+# ...but the example must ship. The real one never does.
+!.dev.vars.example
+
+# Generated from docs/handover.md by `npm run handover`. The markdown is the
+# source; a committed PDF goes stale the moment the markdown changes and there
+# is no way to tell by looking.
+docs/*.pdf
+
+# Written by `npm run shots`. PNGs of every route at two widths — heavy, and
+# regenerable from the live sites right up until the old one goes away. The
+# pairs belong WITH the handover deliverables, not in the site's history.
+shots/
+
+# og-cards.mjs working directory. Removed on a successful run; left behind
+# by a crash, which is exactly when you do not want it committed.
+.og-tmp/
+.md-pdf.*.html
+
+# Written by `npm run recon` — the old site's inventory. Commit it deliberately
+# if you want the migration's starting state in history; it is not build output.
+# recon/

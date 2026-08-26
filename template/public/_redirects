@@ -1,0 +1,39 @@
+# Legacy URL map. Hit counts are from the Rank Math redirections export
+# (e.g. dump/seo/rank-math-settings-*.json) — they are the difference between
+# "cleanup" and "deleting traffic". Nothing here points at the homepage when a
+# specific equivalent exists; search engines read that as a soft 404.
+
+# ── Carried over from Rank Math ──────────────────────────────────────────────
+# EXAMPLE, commented out because its target does not exist in a fresh template
+# and `npm run verify` correctly reports a 301 into a 404. Uncomment and point
+# it at a real route.
+#
+# Typo in an original slug, fixed later on the live site. Even at 0 recorded
+# hits the wrong spelling is still in the wild and in old sitemaps.
+#/exmaple-post-slug-with-a-typo  /example-post-slug-with-a-typo/  301
+
+# ── WordPress plumbing that no longer exists ─────────────────────────────────
+# These were live URLs on the old stack. Left to 404 they would show up in
+# Search Console as broken links from anything that ever scraped the site.
+/feed/                 /rss.xml   301
+/feed                  /rss.xml   301
+/comments/feed/        /rss.xml   301
+/sitemap_index.xml     /sitemap-index.xml   301
+/post-sitemap.xml      /sitemap-index.xml   301
+/page-sitemap.xml      /sitemap-index.xml   301
+/local-sitemap.xml     /sitemap-index.xml   301
+
+# Author archives were noindexed on the old site and have no equivalent here.
+# The blog index is the closest real page, not the homepage.
+/author/*              /blog/     301
+
+# Attachment pages. Rank Math already redirected these to the homepage
+# (`attachment_redirect_default`); the media library itself is gone. No rule
+# here on purpose — Cloudflare `_redirects` only accepts 200/301/302/303/307/308,
+# and these paths *should* 404 rather than 301 to a page that is not the image
+# someone asked for. The catch-all worker returns a real 404 for them.
+
+# ── Chrome ───────────────────────────────────────────────────────────────────
+# /projects/ and /privacy-policy/ were registered in WordPress but returned 404
+# on the live site — /privacy-policy/ now exists for real, /projects/ does not
+# and correctly 404s.

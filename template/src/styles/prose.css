@@ -1,0 +1,182 @@
+/*
+ * Long-form article body.
+ *
+ * Global, not scoped: markdown renders to elements Astro never sees in a
+ * component template, so a scoped rule would never match them.
+ */
+
+.prose {
+  font-size: var(--step-0);
+  line-height: var(--leading-relaxed);
+  color: var(--ink-700);
+  max-inline-size: var(--width-text);
+}
+
+.prose > * + * {
+  margin-block-start: var(--space-m);
+}
+
+.prose h2 {
+  margin-block-start: var(--space-2xl);
+  font-size: var(--step-3);
+  line-height: 1.15;
+  color: var(--ink-900);
+  scroll-margin-block-start: calc(var(--header-h) + var(--space-m));
+}
+
+.prose h3 {
+  margin-block-start: var(--space-xl);
+  font-size: var(--step-1);
+  color: var(--ink-900);
+  scroll-margin-block-start: calc(var(--header-h) + var(--space-m));
+}
+
+.prose h4 {
+  margin-block-start: var(--space-l);
+  font-size: var(--step-0);
+  font-family: var(--font-body);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prose h2 + *,
+.prose h3 + *,
+.prose h4 + * {
+  margin-block-start: var(--space-s);
+}
+
+.prose p {
+  text-wrap: pretty;
+}
+
+.prose a {
+  color: var(--brand-700);
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--brand-500) 45%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
+}
+
+.prose a:hover {
+  text-decoration-color: var(--brand-500);
+}
+
+.prose strong {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-900);
+}
+
+.prose ul,
+.prose ol {
+  padding-inline-start: var(--space-m);
+}
+
+.prose li + li {
+  margin-block-start: var(--space-2xs);
+}
+
+.prose li::marker {
+  color: var(--brand-500);
+}
+
+.prose ol li::marker {
+  font-weight: var(--weight-semibold);
+}
+
+.prose img {
+  inline-size: 100%;
+  border-radius: var(--radius-l);
+  margin-block: var(--space-xl);
+}
+
+.prose figure {
+  margin-block: var(--space-xl);
+}
+
+.prose figcaption {
+  margin-block-start: var(--space-2xs);
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.prose blockquote {
+  margin-block: var(--space-xl);
+  padding: var(--space-m) var(--space-l);
+  border-inline-start: 3px solid var(--brand-500);
+  background: var(--brand-50);
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+  font-size: var(--step-1);
+  line-height: var(--leading-normal);
+  color: var(--ink-800);
+}
+
+.prose blockquote p + p {
+  margin-block-start: var(--space-s);
+}
+
+.prose hr {
+  margin-block: var(--space-2xl);
+  border: 0;
+  border-block-start: 1px solid var(--border);
+}
+
+.prose code {
+  padding: 0.15em 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+}
+
+.prose pre {
+  margin-block: var(--space-l);
+  padding: var(--space-m);
+  overflow-x: auto;
+  background: var(--ink-900);
+  border-radius: var(--radius-m);
+  font-size: var(--step--1);
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/* Wide tables scroll inside their own box; the page body never does. */
+.prose .table-scroll {
+  margin-block: var(--space-l);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+}
+
+.prose table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+}
+
+.prose th,
+.prose td {
+  padding: var(--space-2xs) var(--space-s);
+  text-align: start;
+  border-block-end: 1px solid var(--border);
+}
+
+.prose th {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-900);
+  background: var(--bg-subtle);
+  white-space: nowrap;
+}
+
+.prose tr:last-child td {
+  border-block-end: 0;
+}

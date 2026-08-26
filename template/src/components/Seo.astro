@@ -1,0 +1,119 @@
+---
+/**
+ * Every <head> tag that search engines and social scrapers read.
+ *
+ * Titles and descriptions were diffed against the Rank Math export; see
+ * docs/seo-parity.md for the table and the reason behind each difference.
+ */
+import { site, isProduction } from '../data/site';
+import { business } from '../data/business';
+import manifest from '../data/image-manifest.json';
+
+type ManifestEntry = { src: string; width: number; height: number };
+const images = manifest as Record<string, ManifestEntry>;
+
+/**
+ * Resolve a page image to the JPEG twin the media pipeline emits for social.
+ *
+ * The site serves WebP everywhere, but Facebook and LinkedIn still fail to
+ * render a WebP og:image, so a shared post would unfurl with no picture at all.
+ * Anything without a twin falls back to the branded default card.
+ */
+/*
+ * Returns null when the project has no card yet, and the tags are then OMITTED.
+ *
+ * This used to emit `/img/social/og-default.jpg` regardless, reasoning that a
+ * well-formed tag was better than a missing one. It is not: the file does not
+ * exist until `npm run media` or `npm run cards` has run, so every page
+ * advertised a card that 404s. Scrapers cache that failure, the markup looks
+ * correct, and `npm run verify` was the first thing ever to notice.
+ *
+ * A missing og:image degrades to a title-and-description unfurl. A broken one
+ * is a blank rectangle plus a cached negative. Same reasoning as
+ * `business.logoPath` in the structured data.
+ */
+function socialCard(src: string | undefined): ManifestEntry | null {
+  const fallback = images['social/og-default'] ?? null;
+  if (!src) return fallback;
+  if (src.endsWith('.jpg') || src.endsWith('.jpeg')) {
+    const direct = Object.values(images).find((entry) => entry.src === src);
+    return direct ?? fallback;
+  }
+  const name = /\/img\/[^/]+\/(.+?)(?:-\d+)?\.webp$/.exec(src)?.[1];
+  return (name && images[`social/${name}`]) || fallback;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path-only canonical, e.g. "/services/". Resolved against the build host. */
+  canonical?: string;
+  image?: string;
+  imageAlt?: string;
+  type?: 'website' | 'article';
+  publishedAt?: Date;
+  updatedAt?: Date;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonical,
+  image,
+  imageAlt = business.name,
+  type = 'website',
+  publishedAt,
+  updatedAt,
+  noindex = false,
+} = Astro.props;
+
+const canonicalUrl = new URL(canonical ?? Astro.url.pathname, Astro.site).href;
+const card = socialCard(image);
+const imageUrl = card ? new URL(card.src, Astro.site).href : null;
+
+// Staging is never indexable, whatever the page asks for. This is derived from
+// the build variable, so there is no switch anyone can forget at go-live.
+const blockIndexing = noindex || !site.indexable;
+const robots = blockIndexing
+  ? 'noindex, nofollow'
+  : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta name="robots" content={robots} />
+<link rel="canonical" href={canonicalUrl} />
+
+<meta property="og:type" content={type} />
+<meta property="og:locale" content="en_US" />
+<meta property="og:site_name" content={business.name} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalUrl} />
+{
+  card && imageUrl && (
+    <>
+      <meta property="og:image" content={imageUrl} />
+      <meta property="og:image:width" content={String(card.width)} />
+      <meta property="og:image:height" content={String(card.height)} />
+      <meta property="og:image:alt" content={imageAlt} />
+    </>
+  )
+}
+
+{publishedAt && <meta property="article:published_time" content={publishedAt.toISOString()} />}
+{updatedAt && <meta property="article:modified_time" content={updatedAt.toISOString()} />}
+
+<meta name="twitter:card" content={imageUrl ? 'summary_large_image' : 'summary'} />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+{imageUrl && <meta name="twitter:image" content={imageUrl} />}
+
+{
+  isProduction && (
+    <>
+      <link rel="alternate" type="application/rss+xml" title={`${business.name} — Insights`} href="/rss.xml" />
+    </>
+  )
+}

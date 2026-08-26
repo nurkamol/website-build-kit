@@ -1,0 +1,405 @@
+---
+import { SERVICE_OPTIONS } from '../lib/lead';
+import { business } from '../data/business';
+
+/**
+ * Contact form.
+ *
+ * Here for its behaviour: server-side validation surfaced per field, a
+ * no-JavaScript path that still submits, a honeypot, a busy state that
+ * prevents double submission, and an outcome announced via role="status"
+ * without stealing focus.
+ *
+ * The styling is the STATES, not a look — hover, focus-visible, invalid,
+ * disabled, busy, succeeded. Restyle all of it; do not remove a state.
+ * The fields themselves are a project decision: ask for what you will act on,
+ * and nothing a regulator says you may not hold (compliance.md §10).
+ */
+
+interface Props {
+  /** Field names the server rejected, for the no-JavaScript path. */
+  invalidFields?: string[];
+}
+
+const { invalidFields = [] } = Astro.props;
+const invalid = (name: string) => (invalidFields.includes(name) ? '' : undefined);
+---
+
+<!--
+  The trailing slash is load-bearing. `trailingSlash: 'always'` makes
+  /api/contact 308 to /api/contact/, and a redirected POST loses the request
+  body on the Workers runtime — the endpoint then looks broken while being
+  perfectly fine. Post to the canonical URL directly.
+
+  data-phone carries the number into the script, so a failure message can name
+  it. Never hard-code a phone number in a component: one left in an error
+  string is a previous client's number in this client's worst moment.
+-->
+<form
+  class="form"
+  method="post"
+  action="/api/contact/"
+  novalidate
+  data-contact-form
+  data-phone={business.phone.display}
+>
+  <div class="form__grid">
+    <div class="field" data-invalid={invalid('name')}>
+      <label for="cf-name">Your name <span aria-hidden="true">*</span></label>
+      <input
+        id="cf-name"
+        name="name"
+        type="text"
+        autocomplete="name"
+        required
+        aria-describedby="cf-name-error"
+      />
+      <p class="field__error" id="cf-name-error" data-error-for="name" hidden></p>
+    </div>
+
+    <div class="field" data-invalid={invalid('phone')}>
+      <label for="cf-phone">Phone <span aria-hidden="true">*</span></label>
+      <input
+        id="cf-phone"
+        name="phone"
+        type="tel"
+        autocomplete="tel"
+        inputmode="tel"
+        required
+        aria-describedby="cf-phone-error"
+      />
+      <p class="field__error" id="cf-phone-error" data-error-for="phone" hidden></p>
+    </div>
+
+    <div class="field field--full" data-invalid={invalid('email')}>
+      <label for="cf-email">Email <span aria-hidden="true">*</span></label>
+      <input
+        id="cf-email"
+        name="email"
+        type="email"
+        autocomplete="email"
+        required
+        aria-describedby="cf-email-error"
+      />
+      <p class="field__error" id="cf-email-error" data-error-for="email" hidden></p>
+    </div>
+
+    {
+      SERVICE_OPTIONS.length > 0 && (
+        <div class="field field--full">
+          <label for="cf-service">What do you need?</label>
+          <select id="cf-service" name="service">
+            <option value="">Select…</option>
+            {SERVICE_OPTIONS.map((option) => (
+              <option value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+      )
+    }
+
+    <div class="field field--full" data-invalid={invalid('message')}>
+      <label for="cf-message">Message</label>
+      <textarea id="cf-message" name="message" rows="4" aria-describedby="cf-message-error"
+      ></textarea>
+      <p class="field__error" id="cf-message-error" data-error-for="message" hidden></p>
+    </div>
+  </div>
+
+  <!-- Honeypot. Hidden from sight and from assistive tech, and never focusable
+       via the keyboard, so no real person can fill it by accident. -->
+  <div class="form__trap" aria-hidden="true">
+    <label for="cf-company">Company</label>
+    <input id="cf-company" name="company" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+
+  <input type="hidden" name="page" data-page-field value="" />
+
+  <div class="form__foot">
+    <button class="btn form__submit" type="submit">
+      <span data-submit-label>Send</span>
+    </button>
+  </div>
+
+  <!-- role="status" so the outcome is announced without stealing focus. -->
+  <p class="form__result" role="status" aria-live="polite" data-form-result hidden></p>
+</form>
+
+<style>
+  .form {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .form__grid {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  @media (min-width: 34rem) {
+    .form__grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .field--full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .field {
+    display: grid;
+    gap: var(--space-3xs);
+  }
+
+  .field label {
+    font-size: var(--step--1);
+    font-weight: var(--weight-semibold);
+  }
+
+  .field input,
+  .field textarea,
+  .field select {
+    inline-size: 100%;
+    /* 44px minimum tap target, from padding so it survives a wrapped label. */
+    min-block-size: 2.75rem;
+    padding: 0.65em 0.9em;
+    font-size: var(--step-0);
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    border-radius: var(--radius-s);
+  }
+
+  .field textarea {
+    resize: vertical;
+    min-block-size: 7rem;
+  }
+
+  .field input:hover,
+  .field textarea:hover,
+  .field select:hover {
+    border-color: var(--text-muted);
+  }
+
+  /* The outline is replaced, not removed — the ring is the visible focus
+     indicator and it must stay at least as obvious as the default. */
+  .field input:focus-visible,
+  .field textarea:focus-visible,
+  .field select:focus-visible {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: var(--ring);
+  }
+
+  /* Colour is never the only cue: the error text is what carries the meaning,
+     and aria-invalid carries it to assistive tech. */
+  .field[data-invalid] input,
+  .field[data-invalid] textarea {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+  }
+
+  .field__error {
+    font-size: var(--step--1);
+    color: var(--danger);
+  }
+
+  .field__error[hidden] {
+    display: none;
+  }
+
+  .form__trap {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .form__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-s) var(--space-m);
+  }
+
+  .form__result {
+    padding: var(--space-s) var(--space-m);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    font-size: var(--step--1);
+  }
+
+  .form__result[hidden] {
+    display: none;
+  }
+
+  .form__result[data-tone='error'] {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+    color: var(--danger);
+  }
+</style>
+
+<script>
+  /**
+   * Progressive enhancement, not a requirement.
+   *
+   * Without this script the form is a plain HTML POST to /api/contact — it
+   * still submits, still stores, still emails. The script only upgrades the
+   * response to inline field errors and an in-page confirmation.
+   */
+  /**
+   * The single place a lead conversion is announced. One announcer, two pipes.
+   *
+   * ── WHY BOTH ─────────────────────────────────────────────────────────────
+   * `gtag` reaches GA4 directly; `dataLayer` reaches a Tag Manager container.
+   * A site may have either, both, or neither, and the two are independent —
+   * pushing to a dataLayer no container reads is inert, and so is a gtag call
+   * with no GA4 tag behind it.
+   *
+   * ⚠ NEVER ALSO SEND THIS CONVERSION FROM A TAG MANAGER TRIGGER. Two pipes
+   * for one event double-counts, and a doubled conversion looks like a good
+   * month rather than a bug. Nothing in a build will catch it — confirm in
+   * Realtime that one submission produces one event.
+   */
+  function announceLead() {
+    const w = window as any;
+    if (typeof w.gtag === 'function') {
+      w.gtag('event', 'generate_lead', { form: 'contact' });
+    }
+    w.dataLayer = w.dataLayer || [];
+    w.dataLayer.push({ event: 'lead_submitted', form: 'contact' });
+  }
+
+  /**
+   * The no-JavaScript conversion.
+   *
+   * Without JavaScript the form posts natively, the API 303s to `?sent=1`, and
+   * THIS page load is the only signal a lead happened. With JavaScript the
+   * fetch path calls the announcer and never navigates, so the two paths are
+   * mutually exclusive and cannot both fire.
+   *
+   * ⚠ THE OBVIOUS IMPLEMENTATION IS WRONG. A Tag Manager trigger on "URL
+   * contains sent=1" catches almost nothing here, because the enhanced path
+   * intercepts the submit and never changes the URL. It fires correctly in
+   * testing — where you click through by hand — and then reports a handful of
+   * conversions a month while looking like it works.
+   *
+   * The parameter is stripped with replaceState immediately after, so a
+   * reload, a bookmark or a shared link cannot invent a second conversion.
+   */
+  function announceNoScriptLead() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('sent')) return;
+
+    announceLead();
+
+    url.searchParams.delete('sent');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  function setupContactForm() {
+    const form = document.querySelector<HTMLFormElement>('[data-contact-form]');
+    if (!form) return;
+
+    const result = form.querySelector<HTMLElement>('[data-form-result]')!;
+    const submit = form.querySelector<HTMLButtonElement>('.form__submit')!;
+    const label = form.querySelector<HTMLElement>('[data-submit-label]')!;
+    const pageField = form.querySelector<HTMLInputElement>('[data-page-field]');
+    if (pageField) pageField.value = location.pathname + location.search;
+
+    // From the markup, which reads business.ts. Never a literal here.
+    const phone = form.dataset.phone ?? '';
+    const callUs = phone ? ` Please call us at ${phone}.` : ' Please call us instead.';
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((node) => {
+        node.hidden = true;
+        node.textContent = '';
+        node.closest('.field')?.removeAttribute('data-invalid');
+      });
+    };
+
+    const showErrors = (errors: Record<string, string>) => {
+      let first: HTMLElement | null = null;
+      for (const [field, message] of Object.entries(errors)) {
+        const node = form.querySelector<HTMLElement>(`[data-error-for="${field}"]`);
+        if (!node) continue;
+        node.textContent = message;
+        node.hidden = false;
+        const wrapper = node.closest('.field');
+        wrapper?.setAttribute('data-invalid', '');
+        const input = wrapper?.querySelector<HTMLElement>('input, textarea, select');
+        if (input) {
+          input.setAttribute('aria-invalid', 'true');
+          if (!first) first = input;
+        }
+      }
+      first?.focus();
+    };
+
+    const say = (message: string, tone: 'success' | 'error') => {
+      result.textContent = message;
+      result.dataset.tone = tone;
+      result.hidden = false;
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearErrors();
+      result.hidden = true;
+
+      submit.dataset.busy = '';
+      const original = label.textContent;
+      label.textContent = 'Sending…';
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          headers: { accept: 'application/json' },
+          body: new FormData(form),
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          errors?: Record<string, string>;
+          error?: string;
+        };
+
+        if (response.status === 422 && data.errors) {
+          showErrors(data.errors);
+          say('Please check the highlighted fields.', 'error');
+          return;
+        }
+
+        if (!response.ok || !data.ok) {
+          say(data.error ?? `Something went wrong.${callUs}`, 'error');
+          return;
+        }
+
+        form.reset();
+        say('Thank you — your message is in. We will come back to you shortly.', 'success');
+        announceLead();
+      } catch {
+        say(`We could not reach the server.${callUs}`, 'error');
+      } finally {
+        delete submit.dataset.busy;
+        label.textContent = original;
+      }
+    });
+
+    // Clear a field's error state as soon as the visitor starts fixing it.
+    form.addEventListener('input', (event) => {
+      const field = (event.target as HTMLElement).closest('.field');
+      if (!field?.hasAttribute('data-invalid')) return;
+      field.removeAttribute('data-invalid');
+      field.querySelector<HTMLElement>('[data-error-for]')!.hidden = true;
+      (event.target as HTMLElement).removeAttribute('aria-invalid');
+    });
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    setupContactForm();
+    announceNoScriptLead();
+  });
+</script>

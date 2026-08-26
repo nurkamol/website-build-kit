@@ -1,0 +1,53 @@
+{
+  "name": "site-name",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "a11y": "pa11y-ci --config .pa11yci.json",
+    "a11y:evidence": "node scripts/a11y-evidence.mjs",
+    "reflow": "node scripts/check-reflow.mjs",
+    "console": "node scripts/check-console.mjs",
+    "shots": "node scripts/shots.mjs",
+    "tells": "node scripts/tells.mjs",
+    "media": "node scripts/optimize-media.mjs",
+    "cards": "node scripts/og-cards.mjs",
+    "lastmod": "node scripts/lastmod.mjs",
+    "indexnow": "node scripts/indexnow.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check:sitemap": "node scripts/check-sitemap.mjs",
+    "recon": "node scripts/recon.mjs",
+    "extract": "node scripts/extract.mjs",
+    "dns": "node scripts/dns-snapshot.mjs",
+    "seo": "npx --yes github:nurkamol/seo-audit",
+    "redirects": "node scripts/redirects.mjs",
+    "handover": "node scripts/md-to-pdf.mjs docs/handover.md docs/handover.pdf",
+    "build": "astro build",
+    "build:staging": "PUBLIC_SITE_ENV=staging PUBLIC_SITE_URL=https://new.example.com astro build && PUBLIC_SITE_ENV=staging node scripts/staging-headers.mjs && PUBLIC_SITE_ENV=staging node scripts/check-env.mjs",
+    "build:production": "node scripts/tells.mjs --undecided-only && PUBLIC_SITE_ENV=production astro check && PUBLIC_SITE_ENV=production PUBLIC_SITE_URL=https://example.com astro build && PUBLIC_SITE_ENV=production node scripts/check-env.mjs && node scripts/check-sitemap.mjs",
+    "preview": "wrangler dev",
+    "deploy:staging": "npm run build:staging && wrangler deploy",
+    "deploy:production": "npm run build:production && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.1.7",
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^7.1.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@cloudflare/workers-types": "^5.20260815.1",
+    "pa11y-ci": "^4.1.1",
+    "sharp": "^0.35.3",
+    "turndown": "^7.2.4",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.118.0"
+  }
+}

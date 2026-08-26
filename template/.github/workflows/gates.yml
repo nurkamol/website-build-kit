@@ -1,0 +1,58 @@
+# Runs the gates that do not need a deployed site.
+#
+# This does NOT deploy. Cloudflare Workers Builds does that, running
+# `npm run build:production`, which carries its own gates — tells, astro check,
+# check-env and check-sitemap. This workflow exists so those same failures show
+# up on a pull request instead of at deploy time, and so `build:staging` is
+# proven from a clean checkout on every push.
+#
+# The gates that need a live URL — npm run verify, a11y, reflow — are not here.
+# They run against a deployed site, which this workflow does not have. See
+# docs/runbook.md §2.
+
+name: Gates
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # node-version-file, not a literal. A version pinned in two places drifts,
+      # and the failure is a build that works locally and not in CI.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      # `npm ci` not `npm install` — it installs exactly the lockfile and fails
+      # if package.json and the lock disagree, which is the point of running it
+      # here rather than trusting a local install.
+      - run: npm ci
+
+      # The kit's promise: green from a clean checkout, with no content, no
+      # images and no secrets. CI=true so Astro reports as a CI environment.
+      - name: Build (staging)
+        run: CI=true npm run build:staging
+
+      - name: Types
+        run: PUBLIC_SITE_ENV=staging npm run check
+
+      # Reports what is undecided and counts the design tells. Not a hard gate
+      # on a fresh template by design — `--undecided-only` blocks the
+      # HALF-decided state, which is the one that looks finished and is not.
+      - name: Design tells
+        run: npm run tells
+
+      # A no-op on staging, which emits no sitemap. Here so the check runs on
+      # every push rather than only inside build:production.
+      - name: Sitemap and noindex agree
+        run: npm run check:sitemap

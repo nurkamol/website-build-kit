@@ -1,0 +1,210 @@
+---
+import { business, addressOneLine } from '../data/business';
+import { nav, legalNav } from '../data/nav';
+import { getLegalLinks } from '../lib/legal';
+
+/**
+ * Site footer.
+ *
+ * Structural, not styled. What matters here and must survive any redesign:
+ *
+ *  - every primary route is reachable, so nothing in the mobile menu is
+ *    stranded when JavaScript fails
+ *  - the accessibility statement is linked from every page — required under
+ *    the EAA and the UK PSBAR
+ *  - privacy, terms and the rest come from the `legal` COLLECTION, never from
+ *    a hand-kept list. A footer link to a page nobody wrote yet is a 404 on
+ *    every page of the site and nothing reports it; deriving the links from the
+ *    pages means the link cannot exist without the page
+ *  - NAP (name, address, phone) matches src/data/business.ts exactly, because
+ *    the JSON-LD reads the same file and a local listing that disagrees with
+ *    the page is a ranking problem
+ */
+
+const year = new Date().getFullYear();
+const footerNav = nav.filter((item) => item.footer !== false);
+
+/* legalNav first — the accessibility statement is a hand-written page and
+   required — then whatever the legal collection holds, in its own order. */
+const footerLegal = [...legalNav, ...(await getLegalLinks())];
+---
+
+<footer class="footer no-print">
+  <div class="container container--wide">
+    <div class="footer__top">
+      <div>
+        <p class="footer__name">{business.name}</p>
+        <p class="footer__blurb">{business.description}</p>
+        {
+          business.credentials.length > 0 && (
+            <ul role="list" class="footer__badges">
+              {business.credentials.map((c) => (
+                <li>{c.name}</li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
+
+      <nav class="footer__col" aria-labelledby="footer-links">
+        <h2 class="footer__heading" id="footer-links">Pages</h2>
+        <ul role="list">
+          {footerNav.map((link) => <li><a href={link.href}>{link.label}</a></li>)}
+        </ul>
+      </nav>
+
+      <div class="footer__col">
+        <h2 class="footer__heading">Get in touch</h2>
+        <ul role="list">
+          <li><a href={business.phone.href}>{business.phone.display}</a></li>
+          <li><a href={business.email.href}>{business.email.display}</a></li>
+          <li>
+            <a href={business.address.mapUrl} rel="noopener noreferrer" target="_blank">
+              {addressOneLine}
+            </a>
+          </li>
+          <li>{business.hours.display}</li>
+        </ul>
+      </div>
+    </div>
+
+    {
+      business.serviceAreas.length > 0 && (
+        <div class="footer__areas">
+          <h2 class="footer__heading">Areas we serve</h2>
+          {/* A scannable list, not a run-on sentence — someone checking
+              whether you cover their town should find it without reading a
+              paragraph. Link an area only where a page exists for it. */}
+          <ul role="list" class="footer__areas-list">
+            {business.serviceAreas.map((name) => (
+              <li>{name}</li>
+            ))}
+          </ul>
+        </div>
+      )
+    }
+
+    <div class="footer__bottom">
+      <p>&copy; {year} {business.name}. All rights reserved.</p>
+      <p class="footer__meta">
+        {
+          footerLegal.map((link, i) => (
+            <>
+              {i > 0 && <span aria-hidden="true">·</span>}
+              <a href={link.href}>{link.label}</a>
+            </>
+          ))
+        }
+        {
+          business.credit.name && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>
+                Website by{' '}
+                <a href={business.credit.url} rel="noopener noreferrer" target="_blank">
+                  {business.credit.name}
+                </a>
+              </span>
+            </>
+          )
+        }
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-block-start: auto;
+    padding-block: var(--space-2xl) var(--space-l);
+    border-block-start: 1px solid var(--border);
+  }
+
+  .footer__top {
+    display: grid;
+    gap: var(--space-xl) var(--space-l);
+  }
+
+  @media (min-width: 60rem) {
+    .footer__top {
+      grid-template-columns: 2fr 1fr 1.4fr;
+    }
+  }
+
+  .footer__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: var(--weight-semibold);
+  }
+
+  .footer__blurb {
+    margin-block-start: var(--space-2xs);
+    color: var(--text-muted);
+    max-inline-size: var(--measure-narrow);
+  }
+
+  .footer__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+    margin-block-start: var(--space-m);
+    padding: 0;
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+
+  .footer__heading {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-wide);
+    margin-block-end: var(--space-s);
+  }
+
+  .footer__col ul {
+    display: grid;
+    gap: var(--space-2xs);
+    padding: 0;
+    color: var(--text-muted);
+  }
+
+  .footer__col a {
+    color: inherit;
+  }
+
+  .footer__areas {
+    margin-block-start: var(--space-xl);
+    padding-block-start: var(--space-l);
+    border-block-start: 1px solid var(--border);
+  }
+
+  .footer__areas-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3xs) var(--space-m);
+    margin: 0;
+    padding: 0;
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+
+  .footer__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-m);
+    justify-content: space-between;
+    align-items: center;
+    margin-block-start: var(--space-xl);
+    padding-block-start: var(--space-m);
+    border-block-start: 1px solid var(--border);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+
+  .footer__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+</style>

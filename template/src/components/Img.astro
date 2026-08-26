@@ -1,0 +1,129 @@
+---
+/**
+ * Responsive WebP <img> driven by the build-time manifest.
+ *
+ * Takes a *portable reference* — `photos/hero-home`, not a URL — and resolves
+ * it to a src/srcset plus intrinsic width and height. Every image therefore
+ * carries dimensions, so nothing shifts while it loads, and moving where the
+ * images are served from is one change in the manifest generator rather than a
+ * content migration.
+ */
+import manifest from '../data/image-manifest.json';
+
+interface Props {
+  /** Manifest key, e.g. "photos/hero-home". */
+  name: string;
+  alt: string;
+  /** `sizes` attribute — how wide the image renders at each breakpoint. */
+  sizes?: string;
+  /** Above-the-fold images should be eager + high priority. */
+  priority?: boolean;
+  class?: string;
+  /** Crop to a ratio via CSS, e.g. "16/9". Keeps the intrinsic box honest. */
+  ratio?: string;
+  loading?: 'lazy' | 'eager';
+  style?: string;
+}
+
+const {
+  name,
+  alt,
+  sizes = '100vw',
+  priority = false,
+  class: className,
+  ratio,
+  loading,
+  style,
+} = Astro.props;
+
+const entry = (manifest as Record<string, { src: string; srcset: string; width: number; height: number; widths?: number[]; avifSrcset?: string | null }>)[name];
+
+if (!entry) {
+  // Fail the build, not the page. A missing image is a content bug and should
+  // never reach a deploy as a silently broken <img>.
+  throw new Error(
+    `Img: no manifest entry for "${name}". Run \`npm run media\` after adding it to media/source/.`,
+  );
+}
+
+const eager = priority || loading === 'eager';
+const objectStyle = ratio ? `aspect-ratio:${ratio};object-fit:cover;` : '';
+
+/*
+ * ── THE `src` FALLBACK IS NOT THE LARGEST VARIANT ──────────────────────────
+ * The manifest's `src` points at the widest file generated. Real browsers never
+ * fetch it — `srcset` and `sizes` govern, so a phone takes the smallest that
+ * fits.
+ *
+ * But anything ignoring `srcset` takes `src` literally: crawlers, SEO auditors,
+ * feed readers and parts of Google's image pipeline. On one site that meant an
+ * audit tool correctly reporting a 380 KB homepage image that no visitor ever
+ * downloaded.
+ *
+ * So `src` is the widest variant at or under FALLBACK_WIDTH, and `srcset` stays
+ * complete. Costs real users nothing — they never use it.
+ *
+ * ⚠ Do NOT "fix" this by trimming the manifest's larger widths. Those are what
+ * a 2x or 3x display actually selects through `srcset`.
+ */
+const FALLBACK_WIDTH = 1024;
+const candidates = (entry.widths ?? []).filter((w) => w <= FALLBACK_WIDTH);
+const fallbackWidth = candidates.length ? Math.max(...candidates) : null;
+const fallbackSrc =
+  fallbackWidth && entry.srcset
+    ? (entry.srcset
+        .split(',')
+        .map((part) => part.trim())
+        .find((part) => part.endsWith(` ${fallbackWidth}w`))
+        ?.split(' ')[0] ?? entry.src)
+    : entry.src;
+
+/*
+ * <picture> only wraps; the <img> is still the element that lays out, carries
+ * the class, and holds width/height. Order matters — the browser takes the
+ * FIRST <source> it can decode, so AVIF comes before the WebP fallback, and
+ * the <img> is what anything without AVIF support gets.
+ *
+ * The `src` on the <img> stays WebP deliberately: it is the fallback, and the
+ * FALLBACK_WIDTH rule above still governs which width it points at.
+ *
+ * Written here and not as an HTML comment — `<!-- -->` in an Astro template
+ * body is emitted into every rendered page.
+ */
+---
+
+<picture>
+  {entry.avifSrcset && <source type="image/avif" srcset={entry.avifSrcset} sizes={sizes} />}
+  <img
+    src={fallbackSrc}
+    srcset={entry.srcset}
+    sizes={sizes}
+    width={entry.width}
+    height={entry.height}
+    alt={alt}
+    class={className}
+    loading={eager ? 'eager' : 'lazy'}
+    decoding={eager ? 'sync' : 'async'}
+    fetchpriority={priority ? 'high' : undefined}
+    style={[objectStyle, style].filter(Boolean).join('')}
+  />
+</picture>
+
+<style>
+  /*
+   * `display: contents` so <picture> adds no box.
+   *
+   * Without it the wrapper becomes an inline box between the layout parent and
+   * the image, and a grid or flex parent starts laying out the PICTURE instead
+   * of the img — `aspect-ratio`, `object-fit` and any `height: 100%` on the
+   * image quietly stop doing what they did. Nothing errors; the page just
+   * shifts, which is the worst way to find out.
+   *
+   * It does not rescue a direct-child selector: `.grid > img` no longer matches
+   * once there is a <picture> in between. Search for `> img` after turning AVIF
+   * on — see docs/traps.md.
+   */
+  picture {
+    display: contents;
+  }
+</style>
