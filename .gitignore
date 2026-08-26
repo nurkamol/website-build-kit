@@ -17,3 +17,14 @@ dist/
 .dev.vars.*
 # ...but the example must ship. The real one never does.
 !.dev.vars.example
+
+# ⚠ A CLIENT'S SITE CRAWL, IN A PUBLIC REPO. `npm run recon` writes here when it
+# is run inside template/ to test it — which is the only way to test it. The
+# template deliberately leaves recon/ un-ignored, because in a CLIENT repo the
+# migration's starting state is worth keeping. This repo is not that repo.
+#
+# 40 files of one client's site — postal address, phone, email — were committed
+# and published this way. The provenance sweep in CLAUDE.md greps `src` and
+# `scripts`, so a whole directory sitting beside them was invisible to it.
+template/recon/
+template/shots/
