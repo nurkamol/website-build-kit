@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website Build Kit — the failures that pass every check</title>
+<meta name="description" content="A method for building production marketing sites: an Astro + Cloudflare Workers template, a WordPress migration playbook, and 46 silent failures documented from real rebuilds.">
+<link rel="canonical" href="https://nurkamol.github.io/website-build-kit/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Website Build Kit">
+<meta property="og:description" content="46 documented failures that were green in a build. Clean build, clean types, clean deploy, wrong result.">
+<meta property="og:url" content="https://nurkamol.github.io/website-build-kit/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9873;</text></svg>">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --surface: #ffffff;
+    --line: #e5e1da;
+    --ink: #171614;
+    --ink-2: #55514a;
+    --ink-3: #837d73;
+    --accent: #8a3324;
+    --accent-soft: #fdf3f0;
+    --green: #1f6b3f;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+    --measure: 68ch;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131211;
+      --surface: #1b1a18;
+      --line: #302d29;
+      --ink: #f2efe9;
+      --ink-2: #b8b2a8;
+      --ink-3: #8d867b;
+      --accent: #e08b76;
+      --accent-soft: #2a1f1b;
+      --green: #7fc79b;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: clamp(1rem, 0.97rem + 0.15vw, 1.075rem);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: min(100% - 2.5rem, 74rem); margin-inline: auto; }
+  .narrow { max-inline-size: var(--measure); }
+
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+  code, kbd { font-family: var(--mono); font-size: 0.875em; }
+
+  .skip {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--surface); color: var(--ink);
+    padding: 0.75rem 1rem; z-index: 10; border: 1px solid var(--line);
+  }
+  .skip:focus { left: 1rem; top: 1rem; }
+
+  /* ── header ─────────────────────────────────────────────── */
+  header.top {
+    border-bottom: 1px solid var(--line);
+    padding-block: 1.1rem;
+    position: sticky; top: 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    z-index: 5;
+  }
+  .top .wrap { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+  .brand { font-weight: 660; letter-spacing: -0.015em; text-decoration: none; margin-right: auto; }
+  .brand span { color: var(--accent); }
+  .top nav { display: flex; gap: 1.35rem; font-size: 0.925rem; }
+  .top nav a { color: var(--ink-2); text-decoration: none; }
+  .top nav a:hover { color: var(--ink); }
+
+  /* ── hero ───────────────────────────────────────────────── */
+  .hero { padding-block: clamp(3.5rem, 9vw, 7rem) clamp(2.5rem, 6vw, 4.5rem); }
+  .eyebrow {
+    display: inline-block; font-family: var(--mono); font-size: 0.775rem;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    padding: 0.3rem 0.65rem; border-radius: 999px; margin-bottom: 1.5rem;
+  }
+  h1 {
+    font-size: clamp(2.3rem, 1.4rem + 4.1vw, 4.15rem);
+    line-height: 1.03; letter-spacing: -0.032em; font-weight: 660;
+    margin: 0 0 1.35rem; max-inline-size: 19ch;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { font-size: clamp(1.075rem, 1rem + 0.4vw, 1.3rem); color: var(--ink-2); margin: 0; max-inline-size: 56ch; }
+
+  .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.25rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font: inherit; font-size: 0.95rem; font-weight: 520;
+    padding: 0.7rem 1.15rem; border-radius: var(--radius);
+    text-decoration: none; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink);
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .btn:hover { border-color: var(--ink-3); }
+  .btn--primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn--primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── shared section furniture ───────────────────────────── */
+  section { padding-block: clamp(3rem, 7vw, 5.5rem); border-top: 1px solid var(--line); }
+  h2 {
+    font-size: clamp(1.5rem, 1.2rem + 1.1vw, 2.1rem); letter-spacing: -0.022em;
+    font-weight: 640; margin: 0 0 0.85rem; line-height: 1.15;
+  }
+  .section-lede { color: var(--ink-2); margin: 0 0 2.5rem; max-inline-size: 60ch; }
+
+  /* ── the failure sample ─────────────────────────────────── */
+  /* min(20rem, 100%), never a bare 20rem. A fixed minmax() floor is wider than
+     a 320px viewport, so the track refuses to shrink and the whole PAGE gains a
+     second scroll axis — WCAG 2.2 §1.4.10. Measured: 36px of overflow. */
+  .traps { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+  .trap {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 1.15rem 1.25rem;
+  }
+  .trap h3 { margin: 0 0 0.4rem; font-size: 0.975rem; font-weight: 600; line-height: 1.35; }
+  .trap p { margin: 0; font-size: 0.9rem; color: var(--ink-2); }
+  .trap code { color: var(--accent); }
+
+  /* ── install ────────────────────────────────────────────── */
+  .install { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(21rem, 100%), 1fr)); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; }
+  .card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 620; }
+  .card > p { margin: 0 0 1.1rem; color: var(--ink-2); font-size: 0.925rem; }
+  /* A grid/flex child defaults to min-width:auto, so `overflow-x: auto` alone
+     does not stop a long command line pushing its track wider. */
+  .card, .trap { min-inline-size: 0; }
+  pre {
+    margin: 0; padding: 0.9rem 1rem; overflow-x: auto; max-inline-size: 100%;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    font-family: var(--mono); font-size: 0.84rem; line-height: 1.7;
+  }
+  pre .c { color: var(--ink-3); }
+  pre .p { color: var(--accent); }
+
+  /* ── ships / doesn't ────────────────────────────────────── */
+  .cols { display: grid; gap: 2.5rem; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); }
+  .cols h3 { font-size: 0.79rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); margin: 0 0 1rem; font-weight: 620; }
+  .cols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+  /* ⚠ NOT `display: grid` on the <li>. Every inline child of a grid container
+     becomes its own grid item, so an <em> mid-sentence is torn out of the text
+     flow and laid into the next track — the words render OVERLAPPING. It looked
+     correct in markup, passed pa11y and passed the reflow check; only looking at
+     the page showed it. Absolute positioning keeps the text in normal flow. */
+  .cols li { position: relative; padding-inline-start: 1.35rem; font-size: 0.935rem; }
+  /* The marker is decorative — the two headings carry the meaning — so it is
+     generated content rather than a DOM text node. A glyph in an aria-hidden
+     <span> made axe report color-contrast as needing review on every row. */
+  .cols li::before { position: absolute; inset-inline-start: 0; top: 0; font-weight: 700; line-height: 1.6; }
+  .yes li::before { content: "\2713"; color: var(--green); }
+  .no li::before { content: "\2014"; color: var(--ink-3); }
+  .no li { color: var(--ink-2); }
+
+  /* ── footer ─────────────────────────────────────────────── */
+  footer { border-top: 1px solid var(--line); padding-block: 2.5rem 3.5rem; color: var(--ink-2); font-size: 0.9rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: baseline; }
+  footer a { color: var(--ink-2); }
+  footer p { margin: 0; }
+  footer .spacer { margin-left: auto; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/website-build-kit/">website<span>-</span>build<span>-</span>kit</a>
+    <nav aria-label="Sections">
+      <a href="#failures">The failures</a>
+      <a href="#install">Install</a>
+      <a href="#ships">What it ships</a>
+      <a href="https://github.com/nurkamol/website-build-kit">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<div class="hero wrap">
+  <p class="eyebrow">Astro · Cloudflare Workers · Claude Code</p>
+  <h1>Your build was green. The site was <em>wrong</em>.</h1>
+  <p class="lede">
+    A method for shipping production marketing sites — and a catalogue of 46 failures that
+    passed every check on the way out. Clean build, clean types, clean deploy, wrong result.
+  </p>
+  <div class="cta">
+    <a class="btn btn--primary" href="#install">Get started</a>
+    <a class="btn" href="https://github.com/nurkamol/website-build-kit/blob/master/template/docs/traps.md">Read the traps</a>
+  </div>
+</div>
+
+<section id="failures">
+  <div class="wrap">
+    <h2>Every one of these shipped</h2>
+    <p class="section-lede">
+      Not hypotheticals, and not general advice. Each failed <strong>silently</strong> on a real
+      rebuild — the compiler was happy, the deploy was clean, and nothing anywhere reported it.
+    </p>
+    <div class="traps">
+      <article class="trap">
+        <h3>A migration that dropped 15 of 18 pages</h3>
+        <p>Every route the new site emitted returned 200, so verification passed. Nothing compared the new site against the old site's inventory.</p>
+      </article>
+      <article class="trap">
+        <h3>Every blog date one day early</h3>
+        <p><code>toLocaleDateString</code> with no timezone formats in the <em>build machine's</em> zone. Correct in London, wrong in Los Angeles, same commit.</p>
+      </article>
+      <article class="trap">
+        <h3>Moving the apex killed the client's email</h3>
+        <p>MX left behind in the old zone. Bounces go to the sender, so the people who find out cannot tell the client.</p>
+      </article>
+      <article class="trap">
+        <h3>A bare CI build published <code>localhost</code> canonicals</h3>
+        <p>No environment set, no error, no warning. The bundler ran perfectly and the site told Google it lived on localhost.</p>
+      </article>
+      <article class="trap">
+        <h3>The last client's analytics on a new site</h3>
+        <p>An inherited container ID in the template sent a real business's traffic to another company's property, for weeks.</p>
+      </article>
+      <article class="trap">
+        <h3>A skip link that scrolled but never moved focus</h3>
+        <p>The page jumps, so it looks like it worked. Keyboard users land back in the navigation.</p>
+      </article>
+      <article class="trap">
+        <h3><code>Disallow: /</code> and <code>noindex</code> cancelling out</h3>
+        <p>A blocked crawler never fetches the page, so it never reads the noindex — and the staging URL gets indexed anyway.</p>
+      </article>
+      <article class="trap">
+        <h3>A duplicate <code>_headers</code> path silently dropping the CSP</h3>
+        <p>The later block replaces the earlier one rather than merging. The file still contains every header; none of them are sent.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Two halves, two commands</h2>
+    <p class="section-lede">
+      The template is the skeleton. The skill is the method that drives it — discovery, stack
+      decisions, the build, then verification against the deployed thing.
+    </p>
+    <div class="install">
+      <div class="card">
+        <h3>Scaffold a site</h3>
+        <p>Astro, static, on Cloudflare Workers. Builds green immediately, with no content, no images and no secrets.</p>
+        <pre><code>npm create website-build-kit@latest <span class="p">my-site</span></code></pre>
+      </div>
+      <div class="card">
+        <h3>Install the skill</h3>
+        <p>For Claude Code. Then just ask — it matches on description, so there is no command to remember.</p>
+        <pre><code><span class="c">/</span>plugin marketplace add <span class="p">nurkamol/website-build-kit</span>
+<span class="c">/</span>plugin install <span class="p">website-build@website-build-kit</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ships">
+  <div class="wrap">
+    <h2>A skeleton, not a theme</h2>
+    <p class="section-lede">
+      It ships no palette, no typeface and no home page — deliberately, so that two sites built
+      from it cannot look alike. What it does ship is the part that takes longest to get right
+      and is easiest to get subtly wrong.
+    </p>
+    <div class="cols">
+      <div class="yes">
+        <h3>In the box</h3>
+        <ul>
+          <li>Form endpoint with durable storage written <em>before</em> the email provider is called</li>
+          <li>One build variable deriving indexability, analytics, canonical host and lead routing</li>
+          <li>Verification against the <em>deployed</em> site, as a gate that exits non-zero</li>
+          <li>WCAG 2.2 AA as a build constraint, with a dated evidence pack</li>
+          <li>Migration path: inventory, extract to markdown, propose redirects, fail on a lost URL</li>
+          <li>AVIF and WebP per width, with a manifest so nothing shifts</li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>Deliberately absent</h3>
+        <ul>
+          <li>A palette, a typeface, a home page or a hero treatment</li>
+          <li>A component library or a design system</li>
+          <li>A CMS — one gets picked per project, not per template</li>
+          <li>Testimonials, pricing tables and galleries; those are project-shaped</li>
+          <li>Any provider recommendation that has not shipped on a real deploy</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>MIT licensed. Extracted from real WordPress rebuilds onto Astro and Cloudflare Workers.</p>
+    <p class="spacer">
+      <a href="https://github.com/nurkamol/website-build-kit">GitHub</a> ·
+      <a href="https://www.npmjs.com/package/create-website-build-kit">npm</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

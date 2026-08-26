@@ -180,6 +180,26 @@ be reused.
 To publish by hand instead, the tree must be clean: `prepack` copies `template/` in and
 `postpack` removes it, so a dirty tree ships whatever is on disk at that moment.
 
+## After changing the landing page
+
+`site/` is hand-written, self-contained HTML, and **not** built with the template. The template
+targets Cloudflare Workers — KV bindings, `_headers`, `_redirects`, an SSR adapter — none of
+which GitHub Pages serves, so dogfooding it there would mean fighting the adapter to publish one
+static page.
+
+It is still held to the kit's own bar, and `.github/workflows/pages.yml` gates on both before
+deploying: **pa11y-ci at WCAG 2.2 AA**, and **no second scroll axis at 320px**. Two things that
+got through review and were caught only by running those:
+
+- a decorative glyph in an `aria-hidden` `<span>` made axe report `color-contrast` as *needing
+  review* on every row. The fix was to stop making a decorative marker a DOM text node at all
+- `minmax(21rem, 1fr)` in a `repeat(auto-fit, …)` track is wider than a 320px viewport, so the
+  page gained a second scroll axis. `minmax(min(21rem, 100%), 1fr)` is the form that shrinks
+
+And one that only **looking** caught, after both gates were green: `display: grid` on a list
+item makes every inline child its own grid item, so an `<em>` mid-sentence is torn out of the
+text flow and the words render overlapping.
+
 ## After changing a skill
 
 `./install.sh` symlinks by default, so edits are live immediately — no reinstall. Check the

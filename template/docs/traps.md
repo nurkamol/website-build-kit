@@ -182,7 +182,7 @@ perfectly, on time, to an empty room.
 revealing everything only if the observer never fired at all — which is the
 failure the guard actually exists for.
 
-### A the booking vendor plugin that renders nothing because of a missing attribute
+### The booking vendor's plugin renders nothing, because of a missing attribute
 
 `/schedule/` was blank. The embed had been carried over from the WordPress site
 before the booking vendor's snippet gained `locale="en"`. Without it the plugin loads,
@@ -192,13 +192,13 @@ container.
 **Symptom:** no console error, no failed request, a populated network tab and
 an empty div.
 
-**Fix:** diff the embed against a freshly generated snippet from the the booking vendor
+**Fix:** diff the embed against a freshly generated snippet from the booking vendor
 dashboard rather than debugging the plugin. Any third-party embed carried
 across a migration deserves the same check.
 
 ### A third-party widget that changes your own CSS
 
-Enabling the the booking vendor webchat took three pages from 0 accessibility errors to
+Enabling the booking vendor's webchat took three pages from 0 accessibility errors to
 failing. It injects a stylesheet into the page. Separately, its fixed overlay
 makes axe report colour-contrast violations on elements it covers, which look
 identical to real failures — `htmlcs` reported nothing and the computed colours
@@ -418,7 +418,7 @@ site, which is what `docs/runbook.md` asks for.
 
 ### "It's inside a cross-origin iframe" is not the same as "it cannot be changed"
 
-The client asked twice for the the booking vendor booking panel's white ground to match
+The client asked twice for the booking vendor's panel to match
 the cream page. The white comes from `html, body, #root { background-color:
 #ffffff }` inside vendor.com's own document — cross-origin, unreachable, and
 that was reported back as "the only lever is the booking vendor's branding settings."

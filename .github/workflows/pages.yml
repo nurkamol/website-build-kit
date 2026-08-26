@@ -1,0 +1,86 @@
+# Publish site/ to GitHub Pages.
+#
+# The landing page is hand-written, self-contained HTML — not built with the
+# template, deliberately. The template targets Cloudflare Workers: KV bindings,
+# `_headers`, `_redirects` and an SSR adapter, none of which GitHub Pages
+# serves. Dogfooding it here would mean fighting the adapter to publish one
+# static page, and the honest tool for one page is one file.
+#
+# It is still held to the kit's own bar: pa11y-ci at WCAG 2.2 AA, and no second
+# scroll axis at 320px. Both run below, before anything deploys — a landing page
+# for a kit that preaches accessibility has no excuse for failing either.
+
+name: Pages
+
+on:
+  push:
+    branches: [master]
+    paths: ['site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: template/.node-version
+
+      - name: Serve the page
+        run: npx --yes serve site -l 8099 &
+
+      - name: Accessibility — WCAG 2.2 AA
+        run: |
+          npx --yes wait-on http://localhost:8099 -t 30000
+          cat > /tmp/pa11y.json <<'JSON'
+          { "defaults": { "standard": "WCAG2AA", "runners": ["axe", "htmlcs"],
+              "timeout": 30000, "chromeLaunchConfig": { "args": ["--no-sandbox"] } },
+            "urls": ["http://localhost:8099/"] }
+          JSON
+          npx --yes pa11y-ci --config /tmp/pa11y.json
+
+      - name: Reflow — no second scroll axis at 320px
+        run: |
+          npx --yes puppeteer@24 browsers install chrome >/dev/null 2>&1 || true
+          node -e "
+          import('puppeteer').then(async ({default:p})=>{
+            const b=await p.launch({args:['--no-sandbox']});
+            let bad=0;
+            for (const scheme of ['light','dark']) for (const w of [320,375,768,1440]) {
+              const pg=await b.newPage();
+              await pg.emulateMediaFeatures([{name:'prefers-color-scheme',value:scheme}]);
+              await pg.setViewport({width:w,height:800});
+              await pg.goto('http://localhost:8099/',{waitUntil:'networkidle0'});
+              const o=await pg.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
+              if(o>1){ console.error('overflow '+o+'px at '+w+'px, '+scheme); bad++; }
+              await pg.close();
+            }
+            await b.close();
+            process.exit(bad?1:0);
+          });"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

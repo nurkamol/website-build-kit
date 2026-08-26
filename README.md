@@ -48,6 +48,7 @@ ready before you begin, and what the first ten minutes should look like.
 | `docs/` | How to use it, and how to extend it |
 | `install.sh` | Symlinks skills and commands into `~/.claude` |
 | `.claude-plugin/` | Plugin and marketplace manifests, so `/plugin install` works |
+| `site/` | The landing page. Hand-written HTML — see the note in `pages.yml` |
 | `create/` | The `npm create website-build-kit` scaffolder. Packs `template/` at publish time |
 | `CLAUDE.md` | Applies when working **on the kit** — house style, where things go |
 | `template/CLAUDE.md` | Ships with each new site — that site's conventions |
