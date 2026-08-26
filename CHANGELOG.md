@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-27 — 0.1.4, because a rewritten history orphans an attestation
+
+**npm showed a red banner on the package page:** *Unable to find the source commit for
+create-website-build-kit@0.1.3.*
+
+Nothing was wrong with the tarball. A published provenance attestation names the exact commit
+it was built from, and 0.1.3's named `ce817e5` — a commit removed when this repository's
+history was rewritten to purge a client's site crawl that had been committed by accident.
+The repository was then deleted and recreated, so the SHA does not resolve at all.
+
+⚠ **AN ATTESTATION CANNOT BE REPAIRED.** It is signed over the commit id. Rewriting history
+after publishing orphans every attestation that points into the rewritten range, and the only
+remedy is a new version built from a commit that still exists. `npm unpublish` is refused
+after 72 hours, and a version number can never be reused.
+
+The order matters and nearly went wrong here: the authorship rewrite — 20 commits carrying a
+second GitHub account — was run **before** cutting 0.1.4 rather than after. Publishing first
+would have orphaned the new attestation exactly like the old one.
+
+0.1.4 is 0.1.3's content. The only change is a version number and a commit that will still be
+there.
+
 ## 2026-08-26d — npm, the plugin, and a Node pin that had gone stale
 
 **`npm create website-build-kit@latest my-site`** — published, and published through OIDC.
