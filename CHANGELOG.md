@@ -1,5 +1,64 @@
 # Changelog
 
+## 2026-08-26d — npm, the plugin, and a Node pin that had gone stale
+
+**`npm create website-build-kit@latest my-site`** — published, and published through OIDC.
+
+**`/plugin install website-build@website-build-kit`** — the skill installs in two lines instead
+of a clone and a symlink script. Neither manifest names a path: `skills/` and `commands/` are
+the auto-discovered defaults at plugin root and the repo already matches them. Declaring
+`commands` would have been actively worse than redundant — a custom path **replaces** the
+default scan rather than adding to it, which is a quiet way to lose the command later.
+
+## The Node pin had gone stale, and npm noticed before we did
+
+`.node-version` was on **24.2.0**, pinned in early August and untouched since. It went out of
+date in a way nothing checks for: `npm install -g npm@latest` in the new publish workflow failed
+with
+
+```
+npm error notsup Required: {"node":"^22.22.2 || ^24.15.0 || >=26.0.0"}
+npm error notsup Actual:   {"npm":"11.3.0","node":"v24.2.0"}
+```
+
+npm 12 had raised its floor to 24.15 and the pin was below it. Pinned to `npm@11` for one
+release to unblock, then the real fix: **24.19.0**, the active LTS (Krypton), which clears 24.15
+and let the workaround come straight back out. Every gate was run on 24.19.0 *before* the pin
+moved, not after.
+
+The floor stays at **22.12** — that is Astro's requirement and a different claim from "the
+version this is tested on". Only the tested version moved.
+
+## The publish workflow, and why the gates go first
+
+Releases go out on a published GitHub release through OIDC trusted publishing: npm trusts the
+repository and the workflow filename, so there is no token to expire, leak or rotate. The first
+manual publish had already failed with `E404 Not Found - PUT` — npm's disguise for "not
+authenticated", returned instead of 401 so publish cannot be used to probe which package names
+exist — caused by an expired token in `~/.npmrc` that nothing had reported.
+
+**The gates run before the publish step**, and that ordering paid for itself immediately. The
+EBADENGINE failure above landed on step 4 of 8 with `Publish` **skipped**: nothing reached the
+registry and no version number was burned. A published version cannot be replaced — `npm
+unpublish` is refused after 72 hours and a version number can never be reused — so this is the
+one pipeline where the order is not a stylistic choice.
+
+`0.1.1` carries a SLSA provenance attestation, which trusted publishing supplies for free and a
+manual publish does not: the package is cryptographically tied to the commit and workflow run
+that built it.
+
+## npm strips `.gitignore` from published packages
+
+Documented behaviour, and the reason every scaffolder carries the same workaround — but here it
+was load-bearing. The template's `.gitignore` is what keeps `.dev.vars` out of the repository,
+and `.dev.vars` holds `BREVO_API_KEY` and the leads export token. Without the workaround every
+scaffolded site would have invited its first `git add -A` to commit live secrets, silently.
+
+It ships renamed, the CLI restores it, and the CLI **exits** rather than leave a site without
+one. CI packs the scaffolder and scaffolds from the tarball on every push, asserting the
+`.gitignore` is restored and covers `.dev.vars` — the first command a new user runs, tested the
+way they will run it.
+
 ## 2026-08-26c — public, MIT, and `npm create`
 
 **The repository is public under MIT, published from a single clean commit.**
