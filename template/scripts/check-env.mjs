@@ -11,7 +11,8 @@
  * ── THE FAILURE THIS EXISTS FOR ────────────────────────────────────────────
  * `PUBLIC_SITE_ENV` decides indexability, canonical host, which KV namespace
  * leads land in, and whether analytics is emitted at all. `wrangler.jsonc`
- * decides which domains answer. Nothing connects the two.
+ * decides which domains answer. Nothing connects the two — this script is the
+ * only thing that does, so it needs no per-project editing to work.
  *
  * At go-live, two edits have to happen together: the routes gain
  * example.com, and the build command becomes `build:production`. Do
@@ -56,14 +57,68 @@ const patterns = (wrangler.routes ?? []).map((r) => (typeof r === 'string' ? r :
    was pointed at staging-only routes. It would have blocked the cutover. */
 const hostOf = (p) => String(p).split('/')[0];
 /*
- * ⚠ SET THIS PER PROJECT. It must match the production apex, with or without
- *   `www.` — and must NOT match the staging subdomain, which ends in the same
- *   string. Keep it in step with `PRODUCTION_HOSTS` in src/data/site.ts; those
- *   two disagreeing is the failure this whole script exists to catch.
+ * The production hostnames come from src/data/site.ts — the same list the site
+ * itself uses to decide indexability, canonicals and which KV namespace leads
+ * land in. NOT a copy of it.
+ *
+ * ── WHY THIS IS NOT A CONSTANT HERE ────────────────────────────────────────
+ * It used to be one, with a comment saying to keep it in step with site.ts.
+ * On the first real project it was not: site.ts had the client's domain, this
+ * file still had the template's example.com. So the guard matched nothing,
+ * called every deploy fine, and passed for the whole build — a guard that
+ * always passes is worse than none, because it reads as a check that ran.
+ *
+ * The drift WAS the failure this script exists to catch, reproduced inside the
+ * script. One source of truth is the only fix that holds; a sterner comment
+ * would not have survived the same afternoon.
+ *
+ * site.ts is TypeScript and imports `import.meta.env`, so node cannot import
+ * it. Read the literal out instead — same reasoning as stripping comments from
+ * wrangler.jsonc above rather than adding a parser.
  */
-const PRODUCTION_HOST = /^(www\.)?example\.com$/;
+function readProductionHosts() {
+  let src;
+  try {
+    src = readFileSync('src/data/site.ts', 'utf8');
+  } catch {
+    /* An ENOENT stack trace is not an answer to someone mid-deploy. It also
+       usually means the script is being run from the wrong directory. */
+    console.error(
+      `\n${RED}✗ src/data/site.ts not found${RESET}\n\n` +
+        '  This guard reads the production hostnames from it. Run it from the\n' +
+        '  project root — `npm run build:staging` and `build:production` do.\n',
+    );
+    process.exit(1);
+  }
+  const m = /export const PRODUCTION_HOSTS\s*=\s*\[([^\]]*)\]/.exec(src);
+  /* A guard that cannot find its own input must FAIL, never pass quietly —
+     that is the whole lesson above, and it applies to this branch too. */
+  if (!m) {
+    console.error(
+      `\n${RED}✗ cannot read PRODUCTION_HOSTS from src/data/site.ts${RESET}\n\n` +
+        '  This guard derives the production hostnames from that export. Without it\n' +
+        '  it cannot tell a production deploy from a staging one, so it refuses to\n' +
+        '  pass rather than wave the build through.\n\n' +
+        "  Expected a line like:  export const PRODUCTION_HOSTS = ['example.com'] as const;\n",
+    );
+    process.exit(1);
+  }
+  const hosts = [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((h) => h[1].toLowerCase());
+  if (!hosts.length) {
+    console.error(
+      `\n${RED}✗ PRODUCTION_HOSTS in src/data/site.ts is empty${RESET}\n\n` +
+        '  Every deploy would read as staging, including the production one.\n',
+    );
+    process.exit(1);
+  }
+  return hosts;
+}
 
-const isProdHost = (p) => PRODUCTION_HOST.test(hostOf(p));
+/* Exact membership, never a suffix match — `new.example.com` ends in
+   `example.com` and is NOT production. Same rule as isProductionHost(). */
+const PRODUCTION_HOSTS = readProductionHosts();
+
+const isProdHost = (p) => PRODUCTION_HOSTS.includes(hostOf(p).toLowerCase());
 const routesProduction = patterns.some(isProdHost);
 const routesStagingOnly = patterns.length > 0 && !routesProduction;
 

@@ -200,11 +200,11 @@ where you look at half-finished work.
       everything reads from it, and the defaults are neutral rather than correct
 - [ ] `src/data/nav.ts` — the real routes, and the one action that counts as a win
 - [ ] `src/data/site.ts` — `PRODUCTION_HOSTS`, the client's **own** analytics IDs (or empty),
-      and `leadRetentionDays` matching the privacy notice
+      and `leadRetentionDays` matching the privacy notice. `check-env.mjs` reads
+      `PRODUCTION_HOSTS` from here, so this is the only place the production hostname is written
 - [ ] Category slugs match the source CMS exactly, if this is a migration
 - [ ] `wrangler.jsonc` — worker name, real KV ids, your staging hostname
 - [ ] `package.json` — staging and production URLs in the build scripts
-- [ ] `scripts/check-env.mjs` — `PRODUCTION_HOST` matches, and excludes the staging subdomain
 
 **Design**
 

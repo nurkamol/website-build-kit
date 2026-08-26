@@ -5,6 +5,33 @@ deploy, wrong result. Check this list before debugging anything strange.
 
 ---
 
+### A trailing comment in `_redirects` rejects the whole file, at deploy
+
+`_redirects` allows a comment only on **its own line**. A hit count parked at the end of a
+rule — `/old/  /new/  301  # 20 hits, last 2026-07-26` — parses as eight whitespace-separated
+tokens where Cloudflare wants two or three.
+
+It does not drop that rule. It refuses **the entire file**, so every redirect on the site
+stops existing.
+
+*Symptom:* `astro build` is green, `_redirects` looks fine in `dist/`, and `wrangler deploy`
+fails with `Invalid _redirects configuration: Line 41: Expected exactly 2 or 3
+whitespace-separated tokens. Got 8.` — repeated once per annotated line. Nothing in the build
+touches the file, so the first sign of it is a failed deploy. On Workers Builds, that is a red
+tick some time after you stopped watching.
+
+*Fix:* move the annotation to its own `#` line above the rule, or into a block above the
+group. Keep it — on the ochome migration those counts were the evidence that fourteen
+inherited redirects were carrying live traffic rather than clutter.
+
+*Catch it early:*
+
+```bash
+awk '!/^[[:space:]]*#/ && NF { if (NF<2 || NF>3) printf "line %d: %d tokens: %s\n", NR, NF, $0 }' public/_redirects
+```
+
+---
+
 ### Astro's scoped styles do not reach a class you pass into a component
 
 **Hit three times.** A class handed to `<Icon class="menu__arrow" />` is not written in the
