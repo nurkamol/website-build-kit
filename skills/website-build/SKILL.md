@@ -173,7 +173,7 @@ Read `references/traps.md`. Entries that recur across projects:
 | `references/kickoff.md` | Source import, discovery rounds, feature catalogue, design system spec, mobile |
 | `references/stacks.md` | Migration playbook per source builder; integration inventory; every provider default |
 | `references/archetypes.md` | Page shape per site type — section order, proof model, where conversion sits |
-| `references/features.md` | 404, search, light/dark/auto, i18n, shortcuts — the features with a shape |
+| `references/features.md` | 404, search, light/dark/auto, i18n, shortcuts, dynamic routes — the features with a shape |
 | `references/design.md` | Full redesign — the comp process, and what separates expensive from templated |
 | `references/build.md` | Standing instructions, phases, stack profile, definition of done |
 | `references/compliance.md` | Which accessibility law binds this client; what to build, test, publish |

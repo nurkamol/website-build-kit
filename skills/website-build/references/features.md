@@ -265,7 +265,97 @@ Not in the template, for the same reason nothing else in this file is.
 
 ---
 
-## 7. Adjacent, and quickly
+## 7. Dynamic routes
+
+**Default: every route static.** The template is `output: 'static'` with a Cloudflare adapter,
+and individual routes opt out with `export const prerender = false`. It ships three that way —
+`contact.astro`, `api/contact.ts`, `api/leads.csv.ts`. Nothing else needs it.
+
+Astro handles dynamic perfectly well. The decision is never *can it*; it is **which routes, and
+what each one costs.**
+
+### The condition that changes it
+
+A route earns `prerender = false` when its output genuinely differs per request — it reads a
+binding, reads something about the request, or writes. Not when it merely *feels* live.
+
+| | |
+| --- | --- |
+| Form POST handler, writing to KV | ✅ dynamic — it writes |
+| Token-gated export | ✅ dynamic — it authenticates |
+| A page rendering per-visitor content | ✅ dynamic |
+| "We're open now" badge | ❌ **client-side**, not SSR. Server rendering it costs a worker invocation on every visit to move one line of text, and the answer is the visitor's clock anyway |
+| Search over your own pages | ❌ static index, queried client-side — §2 |
+| "Latest posts", pricing, anything editors change | ❌ static. Rebuild on publish, below |
+
+### ⚠ A forgotten `prerender = false` does not fail — it freezes
+
+The page renders once at build and serves that snapshot for the life of the deploy. Build green,
+types green, deploy green, and a date, a count or a "currently" that is quietly months old.
+
+There is no error to find, and no build output that hints at it. The check is manual and takes
+a second: anything on the page that answers *"as of when?"* must come from the request, the
+client, or a rebuild — never from build time by accident.
+
+*(Not in `traps.md`: that file is for failures observed on a real build, and this one has not
+bitten here yet. It is written down because it is one line away at all times.)*
+
+### `output: 'server'` is a one-line, whole-site regression
+
+Setting it inverts the default: every page becomes server-rendered unless it individually opts
+back in. A prerendered page is served straight from the edge asset layer; a dynamic one invokes
+the worker on every request. Flip the mode and a forty-page marketing site goes from static
+delivery to forty routes' worth of invocations, with no error and no visible difference in
+staging, where there is no traffic.
+
+Leave `output: 'static'`. Opt routes out one at a time.
+
+### Content that changes without a developer
+
+Two shapes, and the difference matters more than the CMS does:
+
+| | |
+| --- | --- |
+| ✅ **Rebuild on publish** | The CMS fires a webhook, CI rebuilds, the site stays static. Content is late by a build, not by a request |
+| **Fetch at request time** | Every page view depends on the CMS being up and fast. **The site's uptime becomes the CMS's uptime**, and its latency lands in your TTFB |
+
+Take the first unless the content genuinely cannot wait for a build — stock levels, seat
+availability. "The client wants it live immediately" is a two-minute build, not a reason.
+`stacks.md` §4 picks the CMS itself; this is the wiring, and it is the part that costs a rebuild
+if taken wrongly.
+
+### Two more, before you ship a dynamic route
+
+**KV is eventually consistent** — a write can take up to ~60s to be visible everywhere. A page
+that reads back what it just wrote may legitimately show the old value. It reads as a bug and is
+not one. Do not build a "your submission" confirmation page that re-reads KV; carry the value
+through the response instead.
+
+**A migrated site often arrives with a "Cache Everything" rule.** WordPress hosts set them and
+they survive a DNS move. Static pages do not care. A per-visitor SSR response under that rule can
+be cached and served to the *next* visitor.
+
+Measured on a deployed staging site, which is the whole problem in three responses:
+
+| | `cf-cache-status` | `cache-control` |
+| --- | --- | --- |
+| `/` — prerendered | `HIT` | `public, max-age=0, must-revalidate` |
+| `/_astro/*.css` — hashed | `HIT` | `public, max-age=31536000, immutable` |
+| `/contact/` — `prerender = false` | **absent** | **absent** |
+
+The dynamic route says nothing about caching. That is fine while nothing caches HTML, and it is
+the whole exposure the moment something does. Set `Cache-Control: private, no-store` explicitly
+on anything visitor-specific rather than relying on the absence of a rule you did not write.
+
+### If the count keeps growing
+
+More than a handful of dynamic routes on a marketing site usually means the archetype is wrong
+(`archetypes.md`) or this is an application rather than a marketing site. That is a different
+brief, not a bigger version of this one.
+
+---
+
+## 8. Adjacent, and quickly
 
 | | Default |
 | --- | --- |

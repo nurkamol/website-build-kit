@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-08-27c — dynamic routes, as a decision rather than a capability
+
+**`features.md` §7.** "Can Astro do dynamic?" is the wrong question — the template already ships
+three server-rendered routes. The real one is *which routes, and what each costs.*
+
+**Default stays: every route static**, `prerender = false` per route. A route earns it when its
+output genuinely differs per request — it reads a binding, reads the request, or writes. Not when
+it merely feels live. An "open now" badge is client-side; server rendering it spends a worker
+invocation on every visit to move one line of text, and the answer is the visitor's clock anyway.
+
+⚠ **A forgotten `prerender = false` does not fail, it freezes** — the page renders once at build
+and serves that snapshot for the life of the deploy. No error, no hint in the build output.
+
+⚠ **`output: 'server'` is a one-line, whole-site regression.** It inverts the default, so a forty
+page marketing site goes from edge-served to forty routes' worth of worker invocations, with no
+error and no visible difference in staging where there is no traffic.
+
+**Content that changes without a developer** is the part that costs a rebuild if taken wrongly:
+rebuild-on-publish keeps the site static and makes content late by a build; fetching at request
+time makes **the site's uptime the CMS's uptime** and puts its latency in your TTFB.
+
+Two more, both measured rather than asserted. KV is eventually consistent to ~60s, so a
+confirmation page that re-reads what it just wrote can legitimately show the old value. And the
+caching exposure, from three real responses on a deployed site:
+
+| | `cf-cache-status` | `cache-control` |
+| --- | --- | --- |
+| `/` prerendered | `HIT` | `public, max-age=0, must-revalidate` |
+| `/_astro/*.css` | `HIT` | `public, max-age=31536000, immutable` |
+| `/contact/` dynamic | **absent** | **absent** |
+
+A dynamic response says nothing about caching, which is fine until a migrated site arrives with
+the "Cache Everything" rule its WordPress host set — those survive a DNS move.
+
+**Not added to `traps.md`,** and the note says so in the file. That list is for failures observed
+on a real build; the frozen-page one has not bitten here yet. Writing it down where it belongs
+beats borrowing provenance it does not have.
+
 ## 2026-08-27b — the secret nobody set
 
 **`npm run check:secrets`** compares the secrets declared in `.dev.vars.example` against what
