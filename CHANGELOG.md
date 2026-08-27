@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-27g — 0.1.5, so a scaffolded project gets the secrets gate
+
+The scaffolder bundles `template/` at pack time, so template changes only travel with a release.
+0.1.4's tarball was checked rather than assumed, and it was behind on exactly the two things a
+new project needs first:
+
+| | published 0.1.4 | this release |
+| --- | --- | --- |
+| `scripts/check-secrets.mjs` | **absent** | present |
+| `seo` alias | `npx --yes github:nurkamol/seo-audit` | `npx --yes @nurkamol/seo-audit@1` |
+| `deploy:staging` | `build:staging && wrangler deploy` | also runs `check-secrets` |
+
+**The secrets gate matters most on a first deploy**, which is precisely what a scaffolded project
+is about to do. Until now, `npm create website-build-kit@latest` handed someone a template that
+would deploy a site capturing leads and silently emailing nobody.
+
+Nothing in the skill needed this. `marketplace.json` points the plugin at the repo itself and
+`install.sh` symlinks, so `features.md`, `stacks.md`, `kickoff.md` and `build.md` reach people the
+moment they land on `master`. **Only `template/` is gated behind a publish** — worth knowing,
+because it is the half that is easy to forget.
+
 ## 2026-08-27f — two tools offered at the moment they are decidable
 
 **`npm run seo` now comes from the registry, pinned.** It ran `npx --yes
