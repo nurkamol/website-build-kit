@@ -37,8 +37,13 @@ and correct while the developer is the only reader. The catalogue entry asks the
 decides it — *will the client read leads?* — because the honest answer costs nothing at discovery
 and a retrofit in week three.
 
-**No `npm run leads` script was added.** `leads-kit init` writes source files; it is a one-time
-fitting, not a repeatable command, and the template's script list is for things you run again.
+**No `leads` alias was added to the template.** `leads-kit init` writes source files; it is a
+one-time fitting, not a repeatable command, and the template's script list is for things you run
+again.
+
+*(Written first as a sentence naming the alias, which `audit:docs` promptly failed — it resolves
+every `npm run …` it finds, including one in prose saying the script does not exist. The audit
+was right and the sentence was wrong.)*
 
 ## 2026-08-27e — staging-headers, and an exclusion list that lied
 
