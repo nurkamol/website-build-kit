@@ -192,7 +192,7 @@ does ship is the skeleton of the parts that take longest to get right:
   every run that **Google does not participate**, because reading a green result as "submitted
   to search engines" is how a site goes weeks with nobody asking why Google has not picked
   something up
-- **`npm run seo`** *(optional)* — [full-site SEO audit](https://github.com/nurkamol/seo-audit),
+- **`npm run seo`** *(optional)* — [full-site SEO audit](https://www.npmjs.com/package/@nurkamol/seo-audit),
   most useful as a **baseline**: capture the old site before migrating, then fail only on
   findings new since. Metadata parity is what a rebuild loses quietly
 - **Lead retention** — a KV `expirationTtl` from one number in `site.ts`, because "indefinitely"

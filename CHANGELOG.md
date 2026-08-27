@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-08-27f — two tools offered at the moment they are decidable
+
+**`npm run seo` now comes from the registry, pinned.** It ran `npx --yes
+github:nurkamol/seo-audit` — the GitHub route, with no `@v1`. Two problems, and the package's own
+README names the first: that route **clones ~16 MB of application sources and tests to reach a
+115 kB crawler**. The second is worse. Unpinned, it fetches whatever is on the default branch *at
+the moment you run it*, so the tool you baseline a migration with in week one is not necessarily
+the tool you diff against in week six, and nothing anywhere records which one ran.
+
+Now `npx --yes @nurkamol/seo-audit@1`. Verified: resolves to 1.33.1, runs, and `npm run seo --`
+passes flags through.
+
+**The dedicated SEO moment existed on one side only.** `stacks.md` §7 ended with *"see `build.md`
+§3 phase 8b for where it fits after go-live"* — and **phase 8b never mentioned it**. The `§`
+reference resolved, so `audit:docs` was green; the content it promised was not there. Phase 8b now
+carries the baseline diff, with the reason it expires: once the old site is gone,
+`seo-before.json` is the only record the metadata ever looked different.
+
+Every flag in that command was checked against `--help` before it was written down —
+`--baseline`, `--settle <seconds>`, and `--fail-on new`, which the help confirms requires
+`--baseline`.
+
+**[`@nurkamol/leads-kit`](https://www.npmjs.com/package/@nurkamol/leads-kit) is offered in
+`stacks.md` §6 and at discovery in `kickoff.md` §2**, with the trade named rather than a
+recommendation:
+
+⚠ **The template's own export puts a bearer token in a URL query string.** That is an acceptable
+trade for a route a developer curls once a month, and a bad one the moment a client bookmarks it
+— URLs land in server logs, browser history, `Referer` headers and anything that proxies the
+request. leads-kit puts Cloudflare Access in front of a real list instead, with an audited delete
+and consent-aware exports.
+
+**The default does not change.** The token-protected CSV stays: one route, no UI, no dependency,
+and correct while the developer is the only reader. The catalogue entry asks the question that
+decides it — *will the client read leads?* — because the honest answer costs nothing at discovery
+and a retrofit in week three.
+
+**No `npm run leads` script was added.** `leads-kit init` writes source files; it is a one-time
+fitting, not a repeatable command, and the template's script list is for things you run again.
+
 ## 2026-08-27e — staging-headers, and an exclusion list that lied
 
 `test:gates` shipped with a "what this does not cover" list justifying every omission as

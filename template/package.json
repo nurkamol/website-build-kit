@@ -25,7 +25,7 @@
     "recon": "node scripts/recon.mjs",
     "extract": "node scripts/extract.mjs",
     "dns": "node scripts/dns-snapshot.mjs",
-    "seo": "npx --yes github:nurkamol/seo-audit",
+    "seo": "npx --yes @nurkamol/seo-audit@1",
     "redirects": "node scripts/redirects.mjs",
     "handover": "node scripts/md-to-pdf.mjs docs/handover.md docs/handover.pdf",
     "build": "astro build",

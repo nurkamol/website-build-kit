@@ -432,8 +432,28 @@ them are silent.
 | Week 2–4 | Search Performance versus the old site | Some movement is normal; a sustained drop is a redirect problem |
 | Week 4 | Core Web Vitals **field** data | Lab numbers are a proxy. This is the real one |
 
+**Diff the new site against the SEO baseline captured in phase 0.** This is the payoff for that
+capture, and it expires — once the old site is gone, `seo-before.json` is the only record that
+the metadata ever looked different.
+
+```bash
+npm run seo -- https://example.com --baseline recon/seo-before.json --fail-on new --settle 60
+```
+
+`--fail-on new` is what makes it a gate anybody will keep: the backlog the client already had
+does not block you, and a regression you introduced does. `--settle` waits for the deploy to
+reach every edge — auditing mid-rollout produces a snapshot that is wrong in a confusing way.
+Full flag notes in [`stacks.md`](stacks.md) §7.
+
 **Schedule the lead export.** The repo backs up content and code; leads in KV or D1 are the one
 thing not in git.
+
+**Decide who reads the leads, and how.** The template's token-protected CSV is fine while the
+developer is the only one fetching it. The moment the client wants to look, the token is in a URL
+— and URLs end up in logs, history and `Referer` headers. [`stacks.md`](stacks.md) §6 has the
+comparison and the `leads-kit` route, which puts Cloudflare Access in front of a real list. Decide
+it at discovery rather than in week three, when the answer is a bookmarked link with a token in
+it.
 
 ### 8c · Diff against the capture
 Once DNS has propagated:

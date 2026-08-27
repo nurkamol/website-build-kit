@@ -537,6 +537,36 @@ is both bad practice and, in the EU, unlawful.
 | **Airtable / Google Sheets** | The client wants to live in a spreadsheet. Adds an OAuth dependency |
 | **CRM direct** (HubSpot, Pipedrive) | Sales team already works there — but *still* write locally first |
 
+**Reading them back** — storage is only half of it. The template ships a token-protected CSV at
+`/api/leads.csv`, which is the right minimum: one route, no UI, no dependency. It is enough when
+the client only ever receives the notification email and nobody needs to look at the archive.
+
+It stops being enough the moment somebody does, and the reason is specific:
+
+| | Template's built-in ✅ default | [`@nurkamol/leads-kit`](https://www.npmjs.com/package/@nurkamol/leads-kit) |
+| --- | --- | --- |
+| Auth | A bearer token **in the query string** | Cloudflare Access — verifies the assertion rather than trusting a header |
+| Reading | Download a CSV and open it | Filterable list, status, summary, in the browser |
+| Delete | Not offered | Audited |
+| Export | CSV | CSV / JSON / XML / Mailchimp / Klaviyo, consent-aware |
+
+⚠ **The token is in a URL, and URLs leak.** They land in server logs, browser history, `Referer`
+headers and anything that proxies the request. That is an acceptable trade for a route the
+developer curls once a month, and a bad one for a link the client keeps in a bookmark or pastes
+into a chat. If a non-developer is going to read leads, move the auth.
+
+`npx leads-kit init` reads the framework and KV binding out of the config already in the project,
+writes the context module and routes, and **never overwrites** — an existing file is reported and
+skipped, so a second run is not an error. It touches no configuration at all: bindings, secrets
+and Access are decisions or live-account operations, and `--dry-run` prints the plan. Zero
+dependencies, framework-free, so it runs on Workers unchanged. Then `npx leads-kit doctor --url
+https://yoursite.com`.
+
+**When not to.** If nobody will ever open it, the built-in CSV is one route and this is a second
+surface to keep working. Cloudflare Access also has to be set up, which is a real-account
+operation, not a build step. Offer it at discovery — [`kickoff.md`](kickoff.md) §2 — rather than
+retrofitting it in week three.
+
 **Spam, in order of preference:**
 1. **Honeypot** — always, free, catches most bots. Accept silently when it trips
 2. **Cloudflare Turnstile** ✅ — free, privacy-preserving, usually invisible, no puzzle
@@ -577,9 +607,23 @@ while a regression you introduced does.
 | `--settle <s>` | Waits for a deploy to reach every edge. Auditing mid-rollout gives a snapshot that is wrong in a confusing way |
 | `--psi` | PageSpeed on named pages. Slow (~12s each) and sampled — the report says how many it skipped, so a sample never reads as a clean bill of health |
 
-Zero dependencies and `npx`-able, so it adds nothing to the project's tree. As a CI step it is
-[`nurkamol/seo-audit`](https://github.com/nurkamol/seo-audit) — see `build.md` §3 phase 8b for
-where it fits after go-live.
+Zero dependencies and `npx`-able, so it adds nothing to the project's tree — `npm run seo` is a
+one-line alias for it.
+
+**Take it from the registry, not from GitHub.** Both routes are the same bytes; `npx
+github:nurkamol/seo-audit` clones ~16 MB of application sources and tests to reach a 115 kB
+crawler, and — unless you remember the `@v1` — it takes whatever is on the default branch **at
+the moment you run it**. A reporting tool that changes its output mid-project, with no version
+recorded anywhere, is a slow way to lose trust in your own baseline. The template pins the major:
+
+```bash
+npx --yes @nurkamol/seo-audit@1 https://example.com
+```
+
+In CI it is also a published action — `uses: nurkamol/seo-audit@v1` with `url:` — which is worth
+it once the baseline diff is something you want on every deploy rather than once.
+
+`build.md` §3 phase 8b is where it fits after go-live.
 
 **Where it does not belong:** as a required gate before launch. It reports on things a client
 may have decided deliberately, and a check that fails on someone else's decision is the kind

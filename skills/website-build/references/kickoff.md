@@ -173,7 +173,9 @@ Offer as a checklist. Everything here is implementable inside the stack profile 
 - Durable lead storage written **before** the email provider is called
 - Transactional notification email, with the recipient env-derived so staging never mails
   the client
-- Token-protected CSV export of leads
+- Token-protected CSV export of leads — enough while a developer is the only one fetching it.
+  If the **client** will read leads, offer a console behind Cloudflare Access instead: a token in
+  a URL is one paste away from being permanent. [`stacks.md`](stacks.md) §6
 - Honeypot spam trap, silently accepted
 - Click-to-call and click-to-email everywhere the number appears
 - 404 that returns a real 404 and offers **specific** routes onward — see [`features.md`](features.md) §1
