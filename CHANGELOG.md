@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
+
+0.1.5 ships both. A project scaffolded today gets them on its first run.
+
+**`lastmod` dates the page you just edited wrongly.** The `git()` helper trimmed the whole
+output, and `git status --porcelain` lines **begin with a significant space** — ` M path`. The
+trim ate it on the first line only, `slice(3)` cut one character too far, and the path matched no
+route. So the first uncommitted file was never treated as dirty and kept its **old commit date**,
+while the script printed "1 uncommitted file(s) dated today". The sitemap then tells crawlers the
+freshest page is the stale one.
+
+**`og-cards` cannot say what is wrong with your config.** `preflight()` runs from `main()`, but
+the image-manifest read sat at module scope and executed at import. A project without that file
+got a raw ENOENT stack instead of "your config is still the stub" — the one message that would
+have told them what to do.
+
+Also in this release: `lastmod` creates `src/data/` before writing to it rather than throwing
+ENOENT on a bare checkout.
+
+Both were found by writing the tests, not by hitting the bugs — the two scripts had been excused
+from `test:gates` on reasons that turned out to be softer than they sounded.
+
 ## 2026-08-28d — covering the last two gates found two real bugs
 
 `lastmod` and `og-cards` were the last entries in the coverage ledger, excused as needing a git
