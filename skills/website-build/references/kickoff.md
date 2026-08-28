@@ -102,7 +102,7 @@ not hold. Full reasoning and alternatives in [`stacks.md`](stacks.md):
 | Target framework | Astro | There is a real application surface, not just a site |
 | Host | Cloudflare Workers | They are already committed elsewhere |
 | Media / CDN | Worker assets, R2 past ~15 MB | Image-heavy, video, or client-uploaded media |
-| CMS | None; PagesCMS if needed | Someone non-technical must publish without a deploy |
+| **Who edits the site after launch** | — | **Always ask.** See below |
 | Transactional email | Brevo | Deliverability is critical, or they have a provider |
 | Mailboxes | Google Workspace — **separate question** | Never send app mail through Workspace SMTP |
 | Analytics | GA4 if asked, else Cloudflare Web Analytics | Ask which report they actually read |
@@ -111,6 +111,35 @@ not hold. Full reasoning and alternatives in [`stacks.md`](stacks.md):
 | Local listings | GBP + Bing + Apple | Not a service-area business |
 | Accessibility target | WCAG 2.2 AA | Never lower it. Raise the *testing* effort when §1 of `compliance.md` names a deadline |
 | **Domain and DNS access** | — | **Always ask. This blocks go-live more than anything technical** |
+
+**The two rows with no default are the two you cannot infer.** Every other line here can be
+settled from recon or from the default holding. These cannot: nothing in a crawl tells you who
+holds the registrar login, and nothing tells you whether the person updating opening hours next
+March writes markdown.
+
+⚠ **THE CMS QUESTION WAS BEING SKIPPED, AND THE SKIP LOOKED LIKE A DECISION.** It used to read
+*"CMS · default None · ask when someone non-technical must publish without a deploy"* — and the
+instruction above is to ask only where the default may not hold. But whether a non-technical
+person will publish is not something the default can be tested against; it is a fact about the
+client. So the condition never tripped, the question never got asked, and sites shipped with
+markdown-in-git as an unexamined default. On one migration the word "CMS" appears nowhere in the
+build record, next to a discovery gate ticked as complete.
+
+Ask it as its own question, with the consequence attached rather than the product name:
+
+> *"After launch, who changes the opening hours or adds a service?"*
+>
+> - **You or your developer** — content stays as markdown in the repo. Nothing to maintain, no
+>   second system to break, and every edit goes through review
+> - **Someone in the business, occasionally** — a git-based CMS. They get a form, it commits to
+>   the repo, the site rebuilds. Free, and the content is still yours in git
+> - **Someone in the business, several times a week, with drafts** — the git round-trip starts to
+>   chafe. Worth pricing a headless CMS, and worth saying out loud that it adds a network
+>   dependency to every build
+
+`stacks.md` §4 picks the product once the answer is known — PagesCMS is the default on GitHub,
+Keystatic when you want typed collections, and the rule is git-based unless they publish several
+times a week or have more than a handful of editors.
 
 ### Round 3 — Design direction and mobile
 

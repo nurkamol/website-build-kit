@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-08-28h — the CMS question was never being asked
+
+Reported from a real migration: no CMS option was ever offered. Confirmed — the word "CMS"
+appears nowhere in that project's build record, beside a discovery gate ticked complete.
+
+⚠ **THE SKIP LOOKED LIKE A DECISION.** `kickoff.md` Round 2 listed *"CMS · default None · ask when
+someone non-technical must publish without a deploy"*, and `SKILL.md` says to ask only where the
+default may not hold. But **whether a non-technical person will publish is not something a default
+can be tested against** — it is a fact about the client that no crawl reveals. So the condition
+never tripped, the question never got asked, and every site shipped with markdown-in-git as an
+unexamined default.
+
+Compare the one row that always worked: **Domain and DNS access — no default, "always ask"**. Same
+shape of unknowable fact, opposite outcome, because it was marked differently.
+
+The CMS row is now **"Who edits the site after launch" · no default · always ask**, phrased by
+consequence rather than product:
+
+- *you or your developer* → markdown in the repo, nothing to maintain
+- *someone in the business, occasionally* → a git-based CMS; a form that commits, content still in git
+- *several times a week, with drafts* → price a headless CMS, and say out loud it adds a network
+  dependency to every build
+
+`stacks.md` §4 already had the full comparison — PagesCMS, Keystatic, Sveltia, Decap, Tina,
+CloudCannon, and the headless options. **The knowledge was there; the question was not.** That is
+its own kind of failure: a reference nobody reaches because nothing routes to it.
+
 ## 2026-08-28g — 0.1.7, the release that makes the kit usable on Windows
 
 Everything through 0.1.6 was unusable there. `npm create website-build-kit@latest` scaffolded a

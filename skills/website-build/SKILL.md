@@ -62,7 +62,9 @@ open-ended "what look do you want?".
 - **Round 1** — business, and *the one action that counts as a win*. Name one. It settles
   every later layout argument.
 - **Round 2** — scope, content, integrations, and the provider decisions (each has a default,
-  so ask only where the default may not hold).
+  so ask only where the default may not hold). **Two rows have no default and are always asked:
+  who edits the site after launch, and who holds DNS.** Neither is inferable from a crawl, and
+  skipping the first ships markdown-in-git to a client who cannot use it.
 - **Round 3** — design direction and mobile. This is the round that decides whether the
   result looks premium. Offer named directions and specific font pairings.
 
