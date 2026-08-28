@@ -786,6 +786,32 @@ gate('the stub config — refuses before generating anything', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * build — the wrapper that exists because inline env is POSIX-only
+ *
+ * A full run needs an installed Astro project, so what is covered here is
+ * the argument gate: the environment is not optional, and a build that does
+ * not declare one emits localhost canonicals cleanly and wrongly.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('build');
+
+gate('no environment — refuses', {
+  script: 'build.mjs',
+  files: { 'package.json': '{ "name": "fixture" }\n' },
+  expect: 1,
+  contains: 'staging|production',
+});
+
+gate('a misspelled environment — refuses rather than defaulting', {
+  script: 'build.mjs',
+  args: ['prodction'],
+  files: { 'package.json': '{ "name": "fixture" }\n' },
+  expect: 1,
+  contains: 'staging|production',
+  then: (dir) => (existsSync(join(dir, 'dist')) ? 'it started building anyway' : null),
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed

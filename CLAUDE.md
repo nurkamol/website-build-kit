@@ -178,6 +178,19 @@ cannot resolve `npx` there — it is `npx.cmd` — so anything spawning it needs
 rather than a hint. Both shipped and both are fixed; the pattern is what to
 watch for.
 
+**A third shipped and was found by reading, not by running.** `build:staging` and
+`build:production` set their environment with POSIX inline assignment —
+`PUBLIC_SITE_ENV=staging astro build`. npm on Windows runs scripts through
+**cmd.exe**, where that is a command name rather than an assignment, so the two most
+important commands in the kit did not work at all on a platform the README claims to
+support. Every CI job ran on ubuntu.
+
+⚠ **Never put an environment variable inline in an npm script.** `scripts/build.mjs`
+takes the environment as an argument and sets it once — which also removed the
+four-way repetition of `PUBLIC_SITE_ENV=production` in one line, where missing one
+copy silently mixes environments. **`kit.yml` now runs on `windows-latest` as well**,
+because this class has shipped three times and reading for it has not worked.
+
 ## After changing any documentation
 
 ```bash

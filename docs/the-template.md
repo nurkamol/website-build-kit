@@ -204,7 +204,7 @@ where you look at half-finished work.
       `PRODUCTION_HOSTS` from here, so this is the only place the production hostname is written
 - [ ] Category slugs match the source CMS exactly, if this is a migration
 - [ ] `wrangler.jsonc` — worker name, real KV ids, your staging hostname
-- [ ] `package.json` — staging and production URLs in the build scripts
+- [ ] `scripts/build.mjs` — `SITE_URLS`, the staging and production hostnames
 
 **Design**
 

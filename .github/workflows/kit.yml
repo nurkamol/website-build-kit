@@ -16,7 +16,35 @@ permissions:
 
 jobs:
   kit:
-    runs-on: ubuntu-latest
+    # ⚠ WINDOWS IS A SUPPORTED TARGET AND NOTHING TESTED IT.
+    #
+    # Two Windows failures have already shipped from this repo — `npx` is
+    # `npx.cmd` and execFile cannot resolve it, and a `brew install` hint is a
+    # dead end there. A third was found only by reading: `build:staging` used
+    # POSIX inline env assignment, which npm on Windows runs through cmd.exe,
+    # where it is not syntax. The two most important commands in the kit did not
+    # work at all on a platform the README claims to support, and every CI job
+    # ran on ubuntu.
+    #
+    # fail-fast is off so a Windows-only break still reports the Linux result,
+    # which is what tells you whether it is portability or a real regression.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    # Every `run:` body below is written for bash. Windows runners ship it, and
+    # forcing it keeps one set of steps rather than two.
+    #
+    # ⚠ This does NOT hide the bug above: npm picks its own shell for `scripts`
+    #   — cmd.exe on Windows — no matter what shell invoked npm. So
+    #   `npm run build:staging` still runs the way a user's would.
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - uses: actions/checkout@v7
 

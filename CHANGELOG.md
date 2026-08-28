@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-08-28f — the kit did not build on Windows at all
+
+⚠ **`build:staging` AND `build:production` USED POSIX INLINE ENV ASSIGNMENT.**
+`PUBLIC_SITE_ENV=staging astro build` is shell syntax; **npm on Windows runs scripts through
+cmd.exe**, where that is a command name, not an assignment:
+
+```
+'PUBLIC_SITE_ENV' is not recognized as an internal or external command
+```
+
+So the two most important commands in the kit **did not work at all** on a platform `CLAUDE.md`
+calls supported — and every CI job ran on ubuntu, so nothing said so. Two Windows failures had
+already shipped from this repo before this one.
+
+`scripts/build.mjs` takes the environment as an argument and sets it **once**. That fixes a
+second, quieter problem in the same line: `build:production` repeated `PUBLIC_SITE_ENV=production`
+four times, and missing one copy runs that step as `development` while the others do not —
+`astro check` typing a different environment than the one that gets built. **A mixed-environment
+build is exactly what `check-env.mjs` exists to catch**, and it survives review because every
+command looks right on its own.
+
+**`kit.yml` now runs on `ubuntu-latest` and `windows-latest`**, `fail-fast: false` so a
+Windows-only break still reports the Linux result. Step bodies are pinned to `bash`, which the
+Windows runners ship — and that does not hide the bug, because npm picks **its own** shell for
+`scripts` regardless of what invoked it.
+
+Two cases added for the wrapper: no environment refuses, and a misspelled one refuses rather than
+defaulting — asserting it never starts a build. The coverage ledger demanded them, which is what
+it is for: **20 scripts can exit 1, 10 covered, 10 accounted for.** 52 cases, 32 proving a
+refusal.
+
 ## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
 
 0.1.5 ships both. A project scaffolded today gets them on its first run.
