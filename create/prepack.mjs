@@ -31,8 +31,13 @@ if (!existsSync(src)) {
 rmSync(dest, { recursive: true, force: true });
 cpSync(src, dest, {
   recursive: true,
+  /* ⚠ [\\/] — NOT \/ — BECAUSE cp HANDS THIS WINDOWS SEPARATORS.
+     With a forward-slash-only class the filter matched nothing on Windows, so
+     template\node_modules was copied wholesale and the guard below refused the
+     pack. The guard doing its job is why this shipped as a failed build rather
+     than a package with someone's node_modules in it. */
   filter: (path) =>
-    !/(^|\/)(node_modules|dist|\.astro|\.wrangler|recon|shots|\.dev\.vars)($|\/)/.test(path),
+    !/(^|[\\/])(node_modules|dist|\.astro|\.wrangler|recon|shots|\.dev\.vars)($|[\\/])/.test(path),
 });
 
 /* See the note above. `.npmrc` would be stripped too; the template has none. */

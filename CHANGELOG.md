@@ -69,8 +69,25 @@ A diagnostic that cries wolf on one platform gets ignored on all of them, which 
 having it — this step exists because npm reports success when an optional dependency fails, and it
 only works if its verdict is trusted.
 
-**Five of the six Windows bugs in this repo were found by a user or by CI, not by reading.** That
-is the argument for the leg, and it earned itself three times in three runs.
+### And a seventh — where the safety net caught the filter
+
+`prepack` copies `template/` into `create/` and excludes `node_modules`, `dist`, `.astro`,
+`recon`, `shots` and `.dev.vars` with `/(^|\/)(…)($|\/)/`. **A forward-slash-only separator
+class matches nothing on Windows**, so `template\node_modules` was copied wholesale — and the
+belt-and-braces check refused the pack:
+
+```
+prepack: node_modules reached the package. Refusing to pack.
+```
+
+That refusal is why this surfaced as a failed build rather than a published package carrying
+someone's `node_modules`. The class is `[\\/]` now. Verified that it still **keeps**
+`src/pages/index.astro` while excluding the `.astro` cache directory — the `($|[\\/])` anchor is
+what separates a file ending in `.astro` from a directory named it.
+
+**Six of the seven Windows bugs in this repo were found by a user or by CI, not by reading.**
+Every step of `kit.yml` had to be fixed to pass there, on a platform the README already claimed to
+support.
 
 ## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
 
