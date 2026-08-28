@@ -44,6 +44,7 @@ const walk = (dir) =>
 
 const docs = walk(ROOT).filter((f) => f.endsWith('.md'));
 const problems = [];
+let countedFailures = 0;
 const fail = (file, msg) => problems.push({ file: relative(ROOT, file), msg });
 
 /* Section headings per file — `## 3.` and `### 1b.` both count. */
@@ -157,6 +158,53 @@ for (const f of walk(join(ROOT, 'template/scripts')).concat(walk(join(ROOT, 'tem
 const isRecord = (f) => f.endsWith('CHANGELOG.md') || f.endsWith('roadmap.md');
 const proseDocs = docs.filter((f) => !isRecord(f));
 const prose = proseDocs.map((f) => readFileSync(f, 'utf8')).join('\n');
+
+/* ── 4b. The failure count claimed in prose must be the real one ──────────
+ *
+ * The landing page, its meta description, its JSON-LD and the repository
+ * description all quote a number of documented silent failures. That number was
+ * written once, by hand, and was never computed from anything — reconstructing
+ * it later from the files it supposedly counted produced 30, 35, 49 and 57, but
+ * never the number on the page.
+ *
+ * ⚠ NOTHING GOES STALE AS QUIETLY AS A NUMBER. It stays plausible forever, it
+ *   is quoted back by anyone who reads it, and no reader can tell. Every entry
+ *   added to traps.md since made the claim more wrong.
+ *
+ * THE DEFINITION, so the count is reproducible rather than a judgement:
+ *
+ *   traps.md `###` entries          — the file whose bar IS "it failed silently"
+ * + compliance.md §8 entries        — CLAUDE.md: §8 takes entries on trap terms
+ *
+ * `build.md` §6 is deliberately NOT counted. It restates the same failures in
+ * framework-neutral language — "enforced trailing slashes break form POSTs" is
+ * traps.md's "`trailingSlash: 'always'` breaks form POSTs" — so adding it would
+ * count most of them twice. `compliance.md` §5 is not counted either: those are
+ * criteria that fail LOUDLY and get fixed, and §5 says so itself.
+ */
+{
+  const traps = readFileSync(join(ROOT, 'skills/website-build/references/traps.md'), 'utf8');
+  const compliance = readFileSync(join(ROOT, 'skills/website-build/references/compliance.md'), 'utf8');
+  const section8 = compliance.slice(compliance.indexOf('\n## 8.'), compliance.indexOf('\n## 9.'));
+
+  const actual =
+    (traps.match(/^### /gm) ?? []).length + (section8.match(/^\*\*/gm) ?? []).length;
+
+  /* Checked in the landing page too, not only markdown — that is where most of
+     the copies live, and it is the one file a reader sees. */
+  const claimants = [...proseDocs, join(ROOT, 'site/index.html')].filter(existsSync);
+
+  for (const file of claimants) {
+    const body = readFileSync(file, 'utf8');
+    for (const m of body.matchAll(/\b(\d{2,3})\s+(?:documented\s+)?(?:silent\s+)?failures?\b/g)) {
+      if (Number(m[1]) !== actual) {
+        fail(file, `claims ${m[1]} failures; traps.md + compliance.md §8 hold ${actual}`);
+      }
+    }
+  }
+  countedFailures = actual;
+}
+
 
 /* `build`, `dev` and `preview` are npm conventions rather than this kit's
    inventions, and `preview` is deliberately undocumented — it is an alias for

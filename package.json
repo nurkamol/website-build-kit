@@ -5,7 +5,8 @@
   "scripts": {
     "audit:docs": "node scripts/audit-docs.mjs",
     "check:refs": "node scripts/check-refs.mjs",
-    "test:gates": "node scripts/test-gates.mjs"
+    "test:gates": "node scripts/test-gates.mjs",
+    "cards:brand": "node scripts/brand-cards.mjs"
   },
   "license": "MIT"
 }

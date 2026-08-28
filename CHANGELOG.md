@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-28b — the number was never counted
+
+The landing page, its meta description, its `og:description`, its `twitter:description`, its
+JSON-LD, both share cards and the repository description all claimed **46** documented silent
+failures.
+
+⚠ **THAT NUMBER CANNOT BE REPRODUCED FROM ANYTHING.** At the commit that introduced it, the
+plausible sources gave 30 (`traps.md` + `compliance.md` §8), 35, 49 and 57 — never 46. It was
+written by hand, never computed, and every trap added since made it drift further.
+
+**Nothing goes stale as quietly as a number.** It stays plausible forever, it gets quoted back by
+anyone who reads it, and no reader can tell.
+
+**The count is now defined, and checked.** `audit:docs` fails when prose disagrees with the files:
+
+```
+traps.md ### entries          25   the file whose bar IS "it failed silently"
+compliance.md §8 entries       8   CLAUDE.md: §8 takes entries on trap terms
+                              ──
+                              33
+```
+
+`build.md` §6 is deliberately excluded — it restates the same failures in framework-neutral
+language ("enforced trailing slashes break form POSTs" *is* traps.md's "`trailingSlash: 'always'`
+breaks form POSTs"), so counting it would count most of them twice. `compliance.md` §5 is excluded
+too: those criteria fail **loudly** and get fixed, and §5 says so itself.
+
+Verified in both directions — prose claiming 34 against 33 files fails, and adding one trap so the
+files hold 34 against prose claiming 33 also fails.
+
+**`npm run cards:brand`** regenerates both share cards — 1200×630 for `og:image`, 1280×640 for
+GitHub's social preview. They are laid out separately rather than one scaled from the other: the
+aspect ratios differ, and scaling either letterboxes or crops the accent bar, which is the only
+element still legible at thumbnail size. The script reads the count from the same two files the
+audit reads, so the cards cannot disagree with the documentation.
+
+⚠ **GitHub's social preview has no API** — no `gh` flag, not on the repository object. The script
+writes the file and says so; uploading is Settings → General → Social preview, by hand.
+
 ## 2026-08-28 — the tells of a generated site
 
 `design.md` §3 caught the 2015 agency template: three equal cards, body text at container width,

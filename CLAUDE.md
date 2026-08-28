@@ -226,6 +226,25 @@ To publish by hand instead, the tree must be clean: `prepack` copies `template/`
 
 ## After changing the landing page
 
+```bash
+npm run audit:docs      # includes the failure count claimed on the page
+npm run cards:brand     # regenerate both share cards if that count moved
+```
+
+**The number in the headline is not decorative.** `site/index.html` claims a count of documented
+silent failures in five places — meta description, `og:description`, `twitter:description`, the
+JSON-LD and the body — and both share cards bake it into pixels. It is defined as **`traps.md`
+entries + `compliance.md` §8 entries**, `audit:docs` fails when the prose disagrees, and
+`cards:brand` reads the same two files rather than restating the number.
+
+That definition exists because the previous number, 46, could not be reproduced from anything:
+the plausible sources gave 30, 35, 49 and 57 at the commit that introduced it. Nothing goes stale
+as quietly as a number — it stays plausible forever and no reader can tell.
+
+⚠ **GitHub's social preview has no API.** `cards:brand` writes the file; uploading it is
+Settings → General → Social preview, by hand.
+
+
 `site/` is hand-written, self-contained HTML, and **not** built with the template. The template
 targets Cloudflare Workers — KV bindings, `_headers`, `_redirects`, an SSR adapter — none of
 which GitHub Pages serves, so dogfooding it there would mean fighting the adapter to publish one
