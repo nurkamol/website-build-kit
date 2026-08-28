@@ -31,6 +31,24 @@ defaulting — asserting it never starts a build. The coverage ledger demanded t
 it is for: **20 scripts can exit 1, 10 covered, 10 accounted for.** 52 cases, 32 proving a
 refusal.
 
+### And the Windows leg found a fourth one on its first run
+
+⚠ **`audit:docs` was unusable on Windows.** It keyed its section map with `d.split('/').pop()` —
+which returns the **whole path** when the separator is a backslash, so every later lookup by bare
+filename missed and it reported **79 phantom problems** on a clean tree. `basename()` knows both
+separators; `split('/')` knows one.
+
+Confirmed with `path.win32.basename`, since `basename` on macOS uses POSIX rules and would have
+made a misleading proof: it returns `SKILL.md` for `skills\website-build\SKILL.md` on Windows and
+for a forward-slash path everywhere.
+
+Swept for the same class across every script. Clean — the other four `split('/')` calls all
+operate on a **URL or a route pattern** (`example.com/*`, an `og:image` src, a redirect path),
+never a filesystem path.
+
+**Three of the four Windows bugs in this repo were found by a user or by CI, not by reading.**
+That is the argument for the leg.
+
 ## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
 
 0.1.5 ships both. A project scaffolded today gets them on its first run.

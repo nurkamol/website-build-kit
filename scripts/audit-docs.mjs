@@ -21,7 +21,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, dirname } from 'node:path';
+import { join, relative, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,7 +52,11 @@ const sections = new Map();
 for (const d of docs) {
   const body = readFileSync(d, 'utf8');
   const nums = new Set([...body.matchAll(/^#{2,4}\s+(\d+[a-z]?)\./gm)].map((m) => m[1]));
-  sections.set(d.split('/').pop(), nums);
+  /* ⚠ basename(), not split('/'). On Windows `walk` returns
+     `skills\\website-build\\SKILL.md`, so splitting on a forward slash returns the
+     WHOLE PATH as the key. Every later lookup by bare filename then missed and
+     the audit reported 79 phantom problems — on its first Windows run. */
+  sections.set(basename(d), nums);
 }
 
 /*
@@ -74,7 +78,7 @@ const isHistory = (f) => f.endsWith('CHANGELOG.md');
 
 for (const file of docs) {
   const body = readFileSync(file, 'utf8');
-  const self = file.split('/').pop();
+  const self = basename(file);
 
   /* ── 1. Section references ──────────────────────────────────────────────
    * `stacks.md §1d` must exist in stacks.md; a bare `§4` must exist here.
