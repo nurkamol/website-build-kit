@@ -185,7 +185,18 @@ function worstContrast(image, fgHex, [x, y, w, h]) {
 
 /* ── Drawing ───────────────────────────────────────────────────────────── */
 
-const manifest = JSON.parse(readFileSync('src/data/image-manifest.json', 'utf8'));
+/*
+ * ⚠ LAZY, BECAUSE A TOP-LEVEL READ RUNS BEFORE preflight().
+ *
+ * As a `const` at module scope this executed at import time — before main()
+ * called preflight() — so a project without an image manifest died on a raw
+ * ENOENT stack instead of being told its config was still the stub. The
+ * preflight exists precisely to name what is missing, and it was unreachable
+ * for the most common way to be missing something.
+ */
+let manifestCache = null;
+const manifest = () =>
+  (manifestCache ??= JSON.parse(readFileSync('src/data/image-manifest.json', 'utf8')));
 
 /**
  * Render one text run as its own transparent layer.
@@ -225,7 +236,7 @@ function buildCard(card, fonts, mark) {
 
   /* 1. Background. */
   if (card.photo) {
-    const entry = manifest[card.photo];
+    const entry = manifest()[card.photo];
     if (!entry) throw new Error(`${card.route ?? slug}: no manifest entry for "${card.photo}"`);
     const file = join('public', entry.src);
     if (!existsSync(file)) throw new Error(`${card.route ?? slug}: missing file ${file}`);

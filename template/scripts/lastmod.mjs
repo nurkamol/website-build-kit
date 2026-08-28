@@ -31,12 +31,15 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 
 const OUT = 'src/data/lastmod.json';
 
-const git = (args) =>
-  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+const gitRaw = (args) =>
+  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+
+/** Trimmed — correct for a single scalar like `--format=%cI` or a rev-parse answer. */
+const git = (args) => gitRaw(args).trim();
 
 if (git(['rev-parse', '--is-shallow-repository']) === 'true') {
   console.error(
@@ -47,8 +50,22 @@ if (git(['rev-parse', '--is-shallow-repository']) === 'true') {
 }
 
 /** Files with uncommitted changes. Their real "last modified" is now, not their last commit. */
+/*
+ * ⚠ gitRaw, NOT git — `--porcelain` LINES BEGIN WITH A SIGNIFICANT SPACE.
+ *
+ * The status format is two columns then a space: ` M path` for an unstaged
+ * modification. Trimming the whole output eats the leading space of the FIRST
+ * line only, so `slice(3)` then cut one character too far and produced
+ * "rc/pages/about.astro". That path matched nothing, so the first uncommitted
+ * file was never treated as dirty and kept its old commit date — while the
+ * script still printed "1 uncommitted file(s) dated today".
+ *
+ * Only the first entry, and only when it starts with a space, which is the
+ * ordinary case of having edited a page without committing it: the page most
+ * worth recrawling is the one that silently keeps a stale date.
+ */
 const dirty = new Set(
-  git(['status', '--porcelain'])
+  gitRaw(['status', '--porcelain'])
     .split('\n')
     .filter(Boolean)
     .map((l) => l.slice(3).trim()),
@@ -139,6 +156,9 @@ for (const [route, files] of [...sources].sort()) {
   if (date) out[route] = date;
 }
 
+/* src/data/ exists in the template, but not in a bare checkout or a fixture —
+   and an ENOENT stack is not a diagnosis. */
+mkdirSync(OUT.slice(0, OUT.lastIndexOf('/')), { recursive: true });
 writeFileSync(OUT, JSON.stringify(out, null, 2) + '\n');
 
 const spread = Object.values(out).reduce((m, d) => m.set(d, (m.get(d) ?? 0) + 1), new Map());

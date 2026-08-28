@@ -83,9 +83,13 @@ function fixture(files) {
  * 1 means it must refuse. `contains` additionally pins the reason, so a gate
  * that fails for an unrelated reason is not counted as catching the bug.
  */
-function gate(label, { script, files, env = {}, args = [], expect, contains, then }) {
+function gate(label, { script, files, env = {}, args = [], expect, contains, then, setup }) {
   const dir = fixture(files);
   try {
+    /* `setup` prepares state the file map cannot express — a real git history
+       with pinned commit dates, for the one script whose entire output is
+       dates. */
+    if (setup) setup(dir);
     const run = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, script), ...args], {
       cwd: dir,
       encoding: 'utf8',
@@ -670,6 +674,118 @@ gate('turns captured HTML into markdown', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * lastmod — per-route content dates for the sitemap
+ *
+ * Previously excused as "needs a git history with real commit dates; a
+ * fixture repo would assert its own mtimes". That was wrong on both halves:
+ * `GIT_COMMITTER_DATE` pins a commit date exactly, and the script reads
+ * `git log`, never an mtime. A script whose whole output is dates is a poor
+ * thing to leave untested because dates seemed hard.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const git = (dir, args, env = {}) =>
+  spawnSync('git', args, {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', ...env },
+  });
+
+/** A repository with one commit, made at an exact instant. */
+const repoAt = (iso) => (dir) => {
+  git(dir, ['init', '-q', '-b', 'main']);
+  git(dir, ['config', 'user.email', 'test@example.com']);
+  git(dir, ['config', 'user.name', 'Test']);
+  git(dir, ['add', '-A']);
+  git(dir, ['commit', '-q', '-m', 'first'], { GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso });
+};
+
+const PAGES = {
+  'src/pages/index.astro': '---\nconst t = 1;\n---\n<h1>Home</h1>\n',
+  'src/pages/about.astro': '---\nconst t = 1;\n---\n<h1>About</h1>\n',
+};
+
+const lastmodOf = (dir, route) => {
+  const f = join(dir, 'src/data/lastmod.json');
+  if (!existsSync(f)) return null;
+  return JSON.parse(readFileSync(f, 'utf8'))[route] ?? null;
+};
+
+describe('lastmod');
+
+gate('a shallow clone — refuses rather than dating everything the same', {
+  script: 'lastmod.mjs',
+  files: PAGES,
+  setup: (dir) => {
+    repoAt('2024-03-05T12:00:00+00:00')(dir);
+    /* `git rev-parse --is-shallow-repository` keys off this file existing. */
+    writeFileSync(join(dir, '.git/shallow'), '');
+  },
+  expect: 1,
+  contains: 'shallow',
+});
+
+gate('a committed page takes its commit date', {
+  script: 'lastmod.mjs',
+  files: PAGES,
+  setup: repoAt('2024-03-05T12:00:00+00:00'),
+  expect: 0,
+  then: (dir) => {
+    const d = lastmodOf(dir, '/about/');
+    if (!d) return 'no date written for /about/';
+    return d.startsWith('2024-03-05') ? null : `dated ${d}, wanted the commit date 2024-03-05`;
+  },
+});
+
+/*
+ * An uncommitted change means the real "last modified" is now, not the last
+ * commit. Getting this backwards understates freshness on the page you just
+ * edited — the one most worth recrawling.
+ */
+gate('an uncommitted page is dated today, not its last commit', {
+  script: 'lastmod.mjs',
+  files: PAGES,
+  setup: (dir) => {
+    repoAt('2024-03-05T12:00:00+00:00')(dir);
+    writeFileSync(join(dir, 'src/pages/about.astro'), '---\nconst t = 2;\n---\n<h1>About, edited</h1>\n');
+  },
+  expect: 0,
+  then: (dir) => {
+    const d = lastmodOf(dir, '/about/');
+    if (!d) return 'no date written for /about/';
+    if (d.startsWith('2024-03-05')) return 'an edited file kept its old commit date';
+    const home = lastmodOf(dir, '/');
+    return home && home.startsWith('2024-03-05')
+      ? null
+      : `the untouched page should have kept 2024-03-05, got ${home}`;
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * og-cards — refuses on the stub config, before it looks for a binary
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('og-cards');
+
+/*
+ * The config guard runs BEFORE the python3/ImageMagick checks, so the refusal
+ * that matters most is reachable with no tooling at all: a fresh template must
+ * not generate social cards, because the design does not exist yet and the
+ * cards would bake in the placeholder ramp.
+ *
+ * The paths past it — missing binary, missing fontTools, a FONTS path that does
+ * not resolve — need a CONFIGURED project and the toolchain, so they are not
+ * reachable from a fixture. That is a smaller gap than it sounds: it is one
+ * `existsSync` per path, and the guard above is the one that fires on a real
+ * build.
+ */
+gate('the stub config — refuses before generating anything', {
+  script: 'og-cards.mjs',
+  files: { 'src/pages/index.astro': '---\n---\n<h1>Home</h1>\n' },
+  expect: 1,
+  contains: 'still the stub',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed
@@ -684,7 +800,6 @@ gate('turns captured HTML into markdown', {
  * ──────────────────────────────────────────────────────────────────────── */
 
 const NETWORK = 'needs a deployed site or a live zone';
-const TOOLING = 'needs external binaries that are not a dependency of this repo';
 
 const UNCOVERED = {
   'verify.mjs': NETWORK,
@@ -697,8 +812,6 @@ const UNCOVERED = {
   'dns-snapshot.mjs': NETWORK + ' (node:dns against a real zone)',
   'indexnow.mjs': NETWORK + ' — and it submits to real search engines',
   'md-to-pdf.mjs': NETWORK + ' (headless Chrome fetching the rendered page)',
-  'og-cards.mjs': TOOLING + ' — python3 and ImageMagick',
-  'lastmod.mjs': 'needs a git history with real commit dates; a fixture repo would assert its own mtimes',
 };
 
 {

@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-08-28d — covering the last two gates found two real bugs
+
+`lastmod` and `og-cards` were the last entries in the coverage ledger, excused as needing a git
+history and external binaries. Both excuses were softer than they sounded: `GIT_COMMITTER_DATE`
+pins a commit date exactly, and `og-cards`' config guard runs before any binary check. Covering
+them surfaced two bugs that had shipped.
+
+⚠ **`lastmod` NEVER SAW THE FIRST UNCOMMITTED FILE.** Its `git()` helper trimmed the whole
+output, which is right for a scalar like `--format=%cI` and wrong for `--porcelain`, whose lines
+**begin with a significant space**: ` M path`. Trimming ate the leading space of the first line
+only, so `slice(3)` cut one character too far and produced `rc/pages/about.astro`. That matched
+no route, so the file was never treated as dirty and kept its **old commit date** — while the
+script still printed "1 uncommitted file(s) dated today".
+
+Only the first entry, and only when it starts with a space, which is the ordinary case of having
+edited a page and not committed it. **The page most worth recrawling is the one that silently
+keeps a stale sitemap date**, and the output says the opposite.
+
+⚠ **`og-cards`' preflight was unreachable.** `preflight()` is called from `main()`, but
+`const manifest = JSON.parse(readFileSync('src/data/image-manifest.json'))` sat at module scope,
+so it ran at import time — before it. Any project without an image manifest died on a raw ENOENT
+stack instead of being told its config was still the stub. The preflight exists precisely to name
+what is missing, and it lost the race to the most common way of missing something. The read is
+lazy now.
+
+`lastmod` also wrote `src/data/lastmod.json` without ensuring the directory existed — an ENOENT
+stack rather than a diagnosis on a bare checkout.
+
+Nine new cases. `lastmod`: a shallow clone refuses rather than dating everything identically; a
+committed page takes its commit date; an edited page is dated today while its untouched sibling
+keeps 2024-03-05. `og-cards`: the stub config refuses before generating anything. Both fixes
+mutation-tested — restoring the trim, and restoring the eager read, each turn exactly one case red.
+
+**50 cases across 11 gates, 30 proving a refusal. 19 scripts can exit 1: 9 covered, 10 accounted
+for** — all ten genuinely needing a deployed site or a live zone.
+
 ## 2026-08-28c — the exclusion list is a ledger now, not a sentence
 
 *CI caught what the local run could not: covering `extract.mjs` gave `test:gates` a dependency on
