@@ -21,7 +21,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, dirname, basename } from 'node:path';
+import { join, relative, dirname, basename, sep, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +131,32 @@ for (const file of docs) {
     if (field.length < 3) continue;
     const src = readFileSync(join(ROOT, `template/src/data/${obj}.ts`), 'utf8');
     if (!new RegExp(`\\b${field}\\b`).test(src)) fail(file, `${obj}.${field} is not in ${obj}.ts`);
+  }
+}
+
+/* ── 4c. A doc inside template/ must not link out of it ───────────────────
+ *
+ * The npm package ships `index.mjs` and `template/` — nothing else. A relative
+ * link from template/docs/ into skills/ resolves perfectly in this repository
+ * and 404s for every person who scaffolds a project, which is everyone the
+ * document is written for.
+ *
+ * The convention the template already follows is a bare reference — `stacks.md`
+ * §1d — because the skill is loaded by the model, not opened by the reader. The
+ * one time a link was written instead, this audit passed it: the path was real
+ * HERE. It is the shipping boundary that makes it wrong, and only a check that
+ * knows about the boundary can see it.
+ */
+{
+  const shipped = join(ROOT, 'template');
+  for (const file of docs.filter((f) => f.startsWith(shipped + sep))) {
+    const body = readFileSync(file, 'utf8');
+    for (const m of body.matchAll(/\]\((\.\.\/[^)]+)\)/g)) {
+      const target = resolve(dirname(file), m[1]);
+      if (!target.startsWith(shipped + sep)) {
+        fail(file, `links to ${m[1]}, which is outside template/ and not in the package`);
+      }
+    }
   }
 }
 

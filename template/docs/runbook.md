@@ -490,16 +490,27 @@ In this order. Steps 1–3 happen days ahead, not on launch day.
 3. **Move Search Console verification to DNS TXT** if it currently relies on an HTML file, and
    confirm it still shows verified. File-based verification breaks the moment the file stops
    resolving, and losing verification loses the property's history.
-4. **Full verification matrix against staging.** Every row.
-5. **Deploy production** — `npm run deploy:production`. Read the bindings table in the output;
+4. **Name what enforces every retention period the privacy notice states.** KV is done for you —
+   `leadRetentionDays` becomes an `expirationTtl` and the store enforces it. **Anything else is
+   not.** R2 keeps uploaded files forever unless the bucket has a **lifecycle rule**, and that
+   rule lives in the Cloudflare dashboard, so nothing in the repo and no gate here can see it.
+   D1 needs a scheduled delete you wrote.
+
+   ⚠ A notice claiming a period nothing enforces is a false statement, and it fails silently:
+   clean build, clean deploy, correct-looking policy, data still there a year later. Caught on a
+   real build where résumés went to R2 while the retention value drove only the KV record and the
+   page copy. If you cannot name the mechanism, build it or change the notice —
+   `stacks.md` §6.
+5. **Full verification matrix against staging.** Every row.
+6. **Deploy production** — `npm run deploy:production`. Read the bindings table in the output;
    it is the only visible signal that the right environment was built.
-6. **Cut DNS over.** Watch, do not assume:
+7. **Cut DNS over.** Watch, do not assume:
    ```bash
    dig +short $PROD; dig +short www.$PROD
    curl -sI "https://$PROD/" | head -3
    ```
-7. **Remove the staging route** from the worker, or staging becomes an indexable duplicate.
-8. **Re-run the matrix against production**, including `robots.txt` (must now allow) and
+8. **Remove the staging route** from the worker, or staging becomes an indexable duplicate.
+9. **Re-run the matrix against production**, including `robots.txt` (must now allow) and
    `noindex` (must now be absent).
 
    ```bash
@@ -511,7 +522,7 @@ In this order. Steps 1–3 happen days ahead, not on launch day.
    `check:secrets` already ran as part of `deploy:production`. Run it again here because
    go-live is when it is most likely to fail: a secret set on the staging worker is not
    automatically on this one, and the failure is silent — leads store, nothing emails.
-9. **Submit the sitemap** in [Search Console](https://search.google.com/search-console) and
+10. **Submit the sitemap** in [Search Console](https://search.google.com/search-console) and
    [Bing Webmaster Tools](https://www.bing.com/webmasters). If you kept the old filename, the
    existing entry keeps working and there is nothing to resubmit.
 
@@ -526,7 +537,7 @@ In this order. Steps 1–3 happen days ahead, not on launch day.
    submission and rejects the whole batch with a 403 if it is not live yet. And it is Bing,
    Yandex, Seznam and Naver: **Google does not participate**, so this is never the reason a
    page is or is not in Google. The script prints both of those on every run.
-10. **Diff the zone against the capture.** The one step that catches a launch taking the
+11. **Diff the zone against the capture.** The one step that catches a launch taking the
     client's email with it:
 
     ```bash
@@ -536,10 +547,10 @@ In this order. Steps 1–3 happen days ahead, not on launch day.
     MX, SPF, DMARC, verification TXT and nameservers, compared against what was published
     before you touched anything. A dead site gets a phone call; dead email is silent.
 
-11. **Send one real enquiry through the live form** and confirm the client received it in the
+12. **Send one real enquiry through the live form** and confirm the client received it in the
     inbox they actually read.
-12. **Restore the DNS TTL** to something sane (3600s).
-13. **Point the uptime monitor at a real page and the form endpoint** — not just the homepage.
+13. **Restore the DNS TTL** to something sane (3600s).
+14. **Point the uptime monitor at a real page and the form endpoint** — not just the homepage.
     The endpoint is what breaks.
 
 ---

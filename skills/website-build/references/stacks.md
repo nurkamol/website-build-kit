@@ -402,6 +402,11 @@ dashboard is Next/Remix/SvelteKit — and probably two projects, not one.
 | **ImageKit / Cloudinary** | Transformation-first workflows, DAM features, client uploads arbitrary sizes | Most capable, most expensive. Easy to over-buy for a marketing site |
 | **S3 + CloudFront** | Already deep in AWS | Egress costs; more configuration than the alternatives |
 
+⚠ **R2 HOLDING FILES PEOPLE UPLOAD IS A DIFFERENT DECISION FROM R2 HOLDING YOUR PHOTOGRAPHS.**
+The row above is about a media library — your images, your risk, keep them forever. The moment a
+résumé, an attachment or an ID document lands in a bucket, it is personal data in a store **with
+no expiry of any kind**. See §6 for what has to be true before you publish a retention period.
+
 **Whichever you choose, the rule holds:** content stores a *portable reference*
 (`services/roofing.jpg`), never a CDN URL. Changing provider is then one change to the
 generator, not a content migration.
@@ -536,6 +541,34 @@ is both bad practice and, in the EU, unlawful.
 | **Cloudflare D1** | You need to query, filter or report on submissions |
 | **Airtable / Google Sheets** | The client wants to live in a spreadsheet. Adds an OAuth dependency |
 | **CRM direct** (HubSpot, Pipedrive) | Sales team already works there — but *still* write locally first |
+
+### A retention period must name the thing that enforces it
+
+The template sets `leadRetentionDays` and writes it as a KV `expirationTtl`, so **the store
+enforces it** and nobody has to remember. That is the standard every other store has to be held
+to, and most of them fail it:
+
+| Store | What enforces the period | Where it lives |
+| --- | --- | --- |
+| **Workers KV** ✅ | `expirationTtl` on the write | Your code. Reviewed, deployed, visible in the diff |
+| **R2** | A **bucket lifecycle rule** | The Cloudflare dashboard — **not in the repo** |
+| **D1** | A scheduled delete you write | A cron trigger you have to build |
+| **A spreadsheet or CRM** | A human, on a calendar reminder | Nowhere |
+
+⚠ **A PRIVACY NOTICE STATING A PERIOD NOTHING ENFORCES IS A FALSE STATEMENT, AND IT IS SILENT.**
+The build is clean, the deploy is clean, the policy reads correctly, and the data is still there
+a year later. Nothing errors, nothing logs, and the only person who ever finds out is a lawyer
+reading a document that turned out not to be true.
+
+**The R2 case is the one that catches people**, because it looks solved. A real build stored
+résumés in R2 with an `applicationRetentionDays` that drove the KV record *and* the careers-page
+copy — both correct, both visible in the diff — while the files themselves had no expiry at all.
+It was caught by someone thinking it through, not by anything in the repo, because **a bucket
+lifecycle rule is account configuration and no gate can see it**.
+
+So: before the privacy notice goes live, name the enforcing mechanism for every store the site
+writes to. If you cannot name one, either build it or change the notice. `runbook.md` §3 has it
+as a go-live line.
 
 **Reading them back** — storage is only half of it. The template ships a token-protected CSV at
 `/api/leads.csv`, which is the right minimum: one route, no UI, no dependency. It is enough when

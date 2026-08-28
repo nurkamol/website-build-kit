@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-28i — a retention period nothing enforces
+
+From a real build's open blockers: résumés were being written to R2 while `applicationRetentionDays`
+drove the KV record and the careers-page copy. Both of those were correct and visible in the diff.
+**The files had no expiry at all.**
+
+The kit was careful about this for KV and silent about it for R2. `contact.ts` says the principle
+outright — `expirationTtl` is *"the retention policy, **enforced by the store**"* — and R2 has no
+equivalent. It mentioned R2 in three places, none of them about retention: `stacks.md` §3 treated
+it purely as a media CDN for large image libraries.
+
+⚠ **R2 HOLDING FILES PEOPLE UPLOAD IS A DIFFERENT DECISION FROM R2 HOLDING YOUR PHOTOGRAPHS.**
+Your images are your risk and can live forever. A résumé is personal data in a store with no
+expiry, under a notice that states one.
+
+**A privacy notice claiming a period nothing enforces is a false statement, and it is silent** —
+clean build, clean deploy, correct-looking policy, data still there a year later. Nothing errors.
+The only person who finds out is a lawyer reading a document that turned out not to be true.
+
+`stacks.md` §6 now carries the enforcement table — KV `expirationTtl` (in the diff), R2 lifecycle
+rule (**in the dashboard, not the repo**), D1 a scheduled delete you write, a spreadsheet a human
+with a calendar reminder — and `runbook.md` §3 makes naming the mechanism a go-live step, before
+the notice is published.
+
+**It cannot be a gate**, and the entry says so: a bucket lifecycle rule is account configuration,
+`verify` runs against a deployed site, and nothing in a repository can see it.
+
+### The write-up broke the shipping boundary, and the audit passed it
+
+The runbook line first cited `stacks.md` as a **relative link** into `skills/`. That resolves
+perfectly here and **404s for every person who scaffolds a project** — the package ships
+`index.mjs` and `template/`, nothing else. The template's own convention is a bare reference,
+`` `stacks.md` §1d ``, precisely because the skill is loaded by the model rather than opened by
+the reader.
+
+`audit:docs` passed it, because the path was real *in this repository*. It now fails a link from
+inside `template/` that resolves outside it. Verified in both directions: the bad link is caught,
+in-package relative links still pass.
+
 ## 2026-08-28h — the CMS question was never being asked
 
 Reported from a real migration: no CMS option was ever offered. Confirmed — the word "CMS"
