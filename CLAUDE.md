@@ -155,7 +155,14 @@ rule counted three times and a `> 2` threshold could never be cleared. Both were
 importable, working-looking code, and both read as checks that ran.
 
 **If you add a gate, add its refusal case.** A gate with only a passing test is the
-state this catches. `verify`, `recon`, `shots`, `console`, `reflow` and `dns` are
+state this catches — and `test:gates` now *enforces* it: it enumerates every template script
+that can exit 1, subtracts the ones it covers, and fails if what remains is not listed in its
+`UNCOVERED` map with a reason. It also fails on a stale entry — one naming a script that no
+longer exists, or one that is now covered.
+
+That ledger is mechanical because the prose version was wrong twice: first excusing everything
+as "needs a deployed site" when `staging-headers.mjs` was entirely offline, then still omitting
+`redirects.mjs` and `extract.mjs`. A sentence cannot be checked. `verify`, `recon`, `shots`, `console`, `reflow` and `dns` are
 deliberately not covered — they need a deployed site, and a stub convincing enough to
 exercise them would need more maintenance than the scripts do.
 

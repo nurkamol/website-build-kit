@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-28c — the exclusion list is a ledger now, not a sentence
+
+`test:gates` shipped with prose explaining what it did not cover. **That prose was wrong twice.**
+First it justified every omission as *"needs a deployed site"*, which was untrue of
+`staging-headers.mjs`. Fixed — and it was still wrong: it omitted `redirects.mjs` and
+`extract.mjs`, both of which import nothing but `node:fs`, and named neither `indexnow` nor
+`md-to-pdf`.
+
+⚠ **AN EXCLUSION LIST THAT DOES NOT DESCRIBE WHAT IS EXCLUDED IS THE SAME FAILURE AS A GATE THAT
+DOES NOT GATE.** Both read as coverage that is not there.
+
+So it is a ledger. The suite enumerates every template script that can exit 1, subtracts what it
+covers, and **fails if the remainder is not accounted for** with a reason — the same shape as
+`audit:docs` failing on a script documented nowhere. It also fails on a stale entry: one naming a
+file that no longer exists, or one now covered. Verified by all three mutations.
+
+**19 scripts can exit 1: 7 covered, 12 accounted for.**
+
+Two of the four genuinely-offline gaps are now covered rather than excused:
+
+**`redirects.mjs`** — including the guarantee its own header calls the whole design: it **never
+writes `public/_redirects`**. Slug similarity is a guess, and a wrong 301 is worse than a 404 —
+the 404 turns up in the log and gets fixed, the wrong redirect looks like it works and sends
+people to the wrong page for years. Nothing else checked that promise, and it is one refactor from
+being lost. The case leaves a pre-existing live map in the fixture and asserts it comes back
+byte-identical.
+
+**`extract.mjs`** — refuses with no capture directory, refuses on a directory with no HTML, and
+turns captured HTML into markdown with the body text intact and no tags surviving.
+
+*One case failed on first run and the script was right: `/about-us/` and `/services/` existed as
+new routes, so they correctly needed no redirect. The assertion now checks `/gone/` — the path
+with no candidate, which is the one that loses traffic silently if nobody decides about it.*
+
 ## 2026-08-28b — the number was never counted
 
 The landing page, its meta description, its `og:description`, its `twitter:description`, its

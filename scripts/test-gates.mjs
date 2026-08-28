@@ -26,23 +26,25 @@
  * inside this repo is indistinguishable from real config to every other sweep
  * we run over it, and the assertion reads better next to the input it asserts on.
  *
- * ── WHAT THIS DOES NOT COVER, AND WHY ──────────────────────────────────────
- * `verify`, `recon`, `shots`, `console`, `reflow`, `a11y` and `dns` all need a
- * deployed site or a live zone. Faking one is more fixture than the test is
- * worth, and a stub convincing enough to exercise them would need maintaining
- * more carefully than the scripts do. They stay covered by running them.
+ * ── WHAT THIS DOES NOT COVER ───────────────────────────────────────────────
+ * Written as prose, twice, and wrong both times. The first version justified
+ * every omission as "needs a deployed site", which was untrue of
+ * `staging-headers.mjs`. The second still omitted `redirects.mjs` and
+ * `extract.mjs` — both entirely offline — while naming scripts that no longer
+ * needed naming.
  *
- * That list once read as though it covered everything uncovered. It did not:
- * `staging-headers.mjs` is entirely offline, has three refusal paths, and had
- * simply been missed. An exclusion list that does not describe what is actually
- * excluded is the same failure as a gate that does not gate.
+ * ⚠ AN EXCLUSION LIST THAT DOES NOT DESCRIBE WHAT IS ACTUALLY EXCLUDED IS THE
+ *   SAME FAILURE AS A GATE THAT DOES NOT GATE. Both read as coverage that is
+ *   not there, and prose cannot be checked.
  *
- * `audit:docs` and `check:refs` read this whole repository, so a fixture for
- * them means a fake repository. They are also the two gates that run on every
- * commit, which is its own kind of coverage.
+ * So the ledger at the bottom of this file is mechanical: it enumerates every
+ * template script that can exit 1, subtracts the ones covered here, and fails
+ * if what remains is not accounted for in UNCOVERED with a reason. A new gate
+ * script now cannot be silently uncovered — the same shape as `audit:docs`
+ * failing on a script documented nowhere.
  */
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -58,6 +60,9 @@ const KIT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATE_SCRIPTS = join(KIT, 'template', 'scripts');
 
 const results = [];
+/* This file reads itself to find which scripts it covers, so the ledger below
+   cannot disagree with the cases above. */
+const s_selfSource = readFileSync(fileURLToPath(import.meta.url), 'utf8');
 let currentGate = null;
 
 /** Write `{ 'rel/path': 'contents' }` into a fresh temp directory. */
@@ -557,6 +562,182 @@ for (const [label, css, name, fires] of [
     expect: 1, // seven unrelated rows fire on a bare fixture; the row is pinned below
     then: row(name, fires),
   });
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * redirects — proposes a map, and must never write the live one
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('redirects');
+
+const distRoutes = {
+  'dist/client/index.html': '<!doctype html><html><head></head><body></body></html>',
+  'dist/client/about-us/index.html': '<!doctype html><html><head></head><body></body></html>',
+  'dist/client/services/index.html': '<!doctype html><html><head></head><body></body></html>',
+};
+
+gate('no recon inventory — refuses', {
+  script: 'redirects.mjs',
+  files: distRoutes,
+  expect: 1,
+  contains: 'recon',
+});
+
+gate('no dist and no host — refuses', {
+  script: 'redirects.mjs',
+  files: { 'recon/urls.txt': '/about-us/\n/services/\n' },
+  expect: 1,
+  contains: 'Build first',
+});
+
+gate('proposes a map from the inventory', {
+  script: 'redirects.mjs',
+  files: { ...distRoutes, 'recon/urls.txt': '/about-us/\n/services/\n/gone/\n' },
+  expect: 0,
+  then: (dir) => {
+    const out = join(dir, 'recon/redirects.proposed');
+    if (!existsSync(out)) return 'wrote no proposal';
+    const body = readFileSync(out, 'utf8');
+    /* /about-us/ and /services/ exist as new routes, so they correctly need no
+       redirect. /gone/ is the one with no candidate — and the one that loses
+       traffic silently if nobody decides about it, so it must be named. */
+    if (!/\/gone\//.test(body)) return 'the path with no candidate is not named in the proposal';
+    if (!/not applied|never/i.test(body)) return 'the proposal does not say it was not applied';
+    return null;
+  },
+});
+
+/*
+ * The script's stated design: it NEVER writes public/_redirects, because slug
+ * similarity is a guess and a wrong 301 is worse than a 404 — the 404 shows up
+ * in the log and gets fixed, the wrong redirect looks like it works and sends
+ * people to the wrong page for years.
+ *
+ * That guarantee is one refactor away from being lost, and nothing else checks
+ * it. A pre-existing file is left byte-identical.
+ */
+gate('never writes public/_redirects', {
+  script: 'redirects.mjs',
+  files: {
+    ...distRoutes,
+    'recon/urls.txt': '/about-us/\n/services/\n',
+    'public/_redirects': '# hand-written, do not touch\n/old/  /new/  301\n',
+  },
+  expect: 0,
+  then: (dir) => {
+    const live = readFileSync(join(dir, 'public/_redirects'), 'utf8');
+    return live === '# hand-written, do not touch\n/old/  /new/  301\n'
+      ? null
+      : 'it modified public/_redirects, which it promises never to do';
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * extract — captured HTML to markdown
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('extract');
+
+const capture = (body) =>
+  `<!doctype html><html><head><title>About us</title></head><body>${body}</body></html>`;
+
+gate('no capture directory — refuses', {
+  script: 'extract.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'recon',
+});
+
+gate('a capture directory with no HTML — refuses', {
+  script: 'extract.mjs',
+  files: { 'recon/html/notes.txt': 'not html' },
+  expect: 1,
+  contains: 'no .html',
+});
+
+gate('turns captured HTML into markdown', {
+  script: 'extract.mjs',
+  files: { 'recon/html/about.html': capture('<h1>About us</h1><p>We fix things.</p>') },
+  expect: 0,
+  then: (dir) => {
+    const out = join(dir, 'recon/extracted/about.md');
+    if (!existsSync(out)) return 'wrote no markdown';
+    const md = readFileSync(out, 'utf8');
+    if (!/We fix things\./.test(md)) return 'the body text did not survive extraction';
+    if (/<p>|<h1>/.test(md)) return 'raw HTML tags survived into the markdown';
+    return null;
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * The coverage ledger
+ *
+ * Every template script that can exit 1 is either covered above or listed
+ * here with a reason. A new one that is neither FAILS THIS SUITE.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE PROSE VERSION WAS WRONG TWICE. First it claimed
+ *   everything uncovered "needs a deployed site", which was untrue of
+ *   staging-headers.mjs. Then, after that was fixed, it still omitted
+ *   redirects.mjs and extract.mjs — both entirely offline — and named neither
+ *   indexnow nor md-to-pdf. A sentence cannot be checked; a list compared
+ *   against the filesystem can.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const NETWORK = 'needs a deployed site or a live zone';
+const TOOLING = 'needs external binaries that are not a dependency of this repo';
+
+const UNCOVERED = {
+  'verify.mjs': NETWORK,
+  'recon.mjs': NETWORK,
+  'shots.mjs': NETWORK,
+  'check-console.mjs': NETWORK,
+  'check-reflow.mjs': NETWORK,
+  'check-a11y.mjs': NETWORK,
+  'a11y-evidence.mjs': NETWORK,
+  'dns-snapshot.mjs': NETWORK + ' (node:dns against a real zone)',
+  'indexnow.mjs': NETWORK + ' — and it submits to real search engines',
+  'md-to-pdf.mjs': NETWORK + ' (headless Chrome fetching the rendered page)',
+  'og-cards.mjs': TOOLING + ' — python3 and ImageMagick',
+  'lastmod.mjs': 'needs a git history with real commit dates; a fixture repo would assert its own mtimes',
+};
+
+{
+  const dir = join(TEMPLATE_SCRIPTS);
+  const scripts = readdirSync(dir)
+    .filter((f) => f.endsWith('.mjs') && !f.endsWith('.config.mjs'))
+    .filter((f) => /process\.exit\((?:1|failed \? 1 : 0)\)/.test(readFileSync(join(dir, f), 'utf8')));
+
+  const covered = new Set(
+    [...s_selfSource.matchAll(/script: '([^']+)'/g)].map((m) => m[1]),
+  );
+
+  const unaccounted = scripts.filter((f) => !covered.has(f) && !(f in UNCOVERED));
+  const stale = Object.keys(UNCOVERED).filter((f) => !scripts.includes(f) || covered.has(f));
+
+  for (const f of unaccounted) {
+    results.push({
+      gate: 'coverage ledger',
+      label: `${f} can exit 1 and is neither covered nor accounted for`,
+      ok: false,
+      detail: 'add a case above, or an entry in UNCOVERED saying why not',
+    });
+  }
+  for (const f of stale) {
+    results.push({
+      gate: 'coverage ledger',
+      label: `${f} is listed in UNCOVERED but ${covered.has(f) ? 'IS covered' : 'no longer exists'}`,
+      ok: false,
+      detail: 'the ledger has drifted from the filesystem',
+    });
+  }
+  if (!unaccounted.length && !stale.length) {
+    results.push({
+      gate: 'coverage ledger',
+      label: `${scripts.length} scripts can exit 1 — ${scripts.length - Object.keys(UNCOVERED).length} covered, ${Object.keys(UNCOVERED).length} accounted for`,
+      ok: true,
+      detail: 'exit 0',
+    });
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────
