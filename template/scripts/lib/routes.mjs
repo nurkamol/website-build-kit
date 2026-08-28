@@ -11,7 +11,7 @@
  */
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 /** Routes this build emitted, as absolute paths. 404 is excluded — it is not a route. */
 export function routesFromDist() {
@@ -26,7 +26,13 @@ export function routesFromDist() {
 
   return walk(root)
     .filter((f) => f.endsWith('.html') && !f.endsWith('404.html'))
-    .map((f) => '/' + relative(root, f).replace(/index\.html$/, '').replace(/\.html$/, '/'))
+    /* ⚠ SEPARATORS NORMALISED — `relative()` RETURNS BACKSLASHES ON WINDOWS.
+       A URL path is always `/`. Without this the map produced `/about\\` for
+       `about\\index.html`, which matched nothing: check-sitemap's contradiction
+       check silently passed a site that listed a noindexed URL in its sitemap, and
+       Search Console reports that as an error against the whole submission. */
+    .map((f) => '/' + relative(root, f).split(sep).join('/')
+          .replace(/index\.html$/, '').replace(/\.html$/, '/'))
     .map((p) => (p.endsWith('/') ? p : `${p}/`))
     .sort();
 }

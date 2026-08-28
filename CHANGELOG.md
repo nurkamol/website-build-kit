@@ -46,8 +46,21 @@ Swept for the same class across every script. Clean — the other four `split('/
 operate on a **URL or a route pattern** (`example.com/*`, an `og:image` src, a redirect path),
 never a filesystem path.
 
-**Three of the four Windows bugs in this repo were found by a user or by CI, not by reading.**
-That is the argument for the leg.
+### And a fifth, on the run after that — a gate silently passing
+
+⚠ **`check-sitemap` DID NOT DETECT ITS OWN CONTRADICTION ON WINDOWS.** It builds URL paths from
+file paths with `relative()`, which returns `about\index.html` there — so the route became
+`/about\`, matched nothing in the sitemap, and a site listing a **noindexed URL in its sitemap**
+passed the gate. Search Console reports that as an error counted against the whole submission.
+
+The same line is in **`lib/routes.mjs`**, which is how every script discovers routes — so on
+Windows `verify`, `redirects` and `shots` were all matching against paths that could not match.
+
+Both normalised with `.split(sep).join('/')`. Confirmed under `path.win32` semantics:
+`about\index.html` now maps to `/about/`, where before it produced `/about\`.
+
+**Four of the five Windows bugs in this repo were found by a user or by CI, not by reading.** That
+is the argument for the leg, and it earned itself twice in two runs.
 
 ## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
 
