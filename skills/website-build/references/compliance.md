@@ -313,6 +313,25 @@ Most of it is not code. What is:
   remembering the next time a reference says "should"
 - **Keep personal data out of KV metadata.** `list()` returns metadata without reading values,
   so anything there is available through the cheaper call for no benefit
+- ⚠ **THE MESSAGE BOX IS WHERE REGULATED DATA ACTUALLY ARRIVES, AND NOT ASKING IS NOT A CONTROL.**
+  You can design a form that requests nothing regulated and still receive *"my son is 7, diagnosed
+  with X, currently on Y"* in the free-text field. At that moment it is in KV, in the notification
+  email, and in the CSV export — for a client whose position assumes it is not.
+
+  It is silent in the worst way: the form works, the lead arrives, nothing errors, and every gate
+  in this kit passes. The exposure surfaces in an audit or a breach.
+
+  **Drop it server-side, in the handler, before storage and before any third-party call.** Not
+  `maxlength`, not a warning label above the textarea, not "we did not ask for it". A control that
+  lives in markup is one the sender can ignore.
+
+  **Then try to defeat it.** Craft a submission containing exactly what must not be kept — a name,
+  an age, a diagnosis, a card number, whichever applies — send it, and read the stored record back.
+  A control nobody has attacked is an assumption. On the build this came from that test is a row in
+  the verification table, and it is the only reason the claim "PHI not collected" is worth anything.
+
+  Not only healthcare: GDPR special categories, payment details pasted into a message, immigration
+  status — anything §10 above says the client may not hold.
 - **A data-subject request route** that reaches a human
 - **A consent mechanism only if you set something that needs one.** Cookieless analytics means
   no banner, which is both cheaper and better

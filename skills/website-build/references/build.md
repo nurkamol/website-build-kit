@@ -327,8 +327,14 @@ genuinely need one. Semantic HTML, real landmarks, labelled controls, visible fo
 Build to the archetype's section order, not to whatever the last project's pages looked like.
 The template has no page shapes for the same reason it has no palette.
 
+**If `compliance.md` §10 named something the client may not hold, the handler drops it — and you
+prove it.** A form that asks for nothing regulated is not the control; the free-text field accepts
+anything. Strip it server-side before storage and before any third-party call, then send a
+submission containing exactly that data and read the record back.
+
 *Gate: every inventoried URL resolves, one page per template family passes a keyboard pass and
-a clean axe run, and `npm run tells` reports fewer than three tells.* Per family, not per URL —
+a clean axe run, `npm run tells` reports fewer than three tells, and any field the client may not
+hold is provably absent from a stored record that contained it.* Per family, not per URL —
 a homepage pass misses everything the blog does differently.
 
 `npm run tells` is the mechanical half of `design.md` §3 — measure, section rhythm, the

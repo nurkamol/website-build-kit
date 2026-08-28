@@ -287,6 +287,7 @@ degrades into. Run the script; keep the commands below for when you need to see 
 | --- | --- |
 | One pageview per visit | Only visible in analytics Realtime |
 | A valid submission stores **and** emails | Sending one creates a real lead and a real notification |
+| **Data the client may not hold is dropped** | Only if `compliance.md` §10 named something — PHI, GDPR special categories, card numbers. Craft a submission containing exactly it, send it, then read the stored record back. The form not *asking* is not the control; the message box accepts anything. `verify` cannot do this: it would need the export token and the record schema |
 | The analytics container is the client's own | Fetch `gtm.js` and read it — see `analytics.md` |
 | A redirect lands on the **right** page | The script proves it resolves, not that it is correct |
 | It looks right on a phone | — |

@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-28j — not asking for it is not a control
+
+From a real build's locked decisions: **PHI — not collected. Enforced server-side in
+`dropClinicalDetail`, not by markup.** And in its verification table: *a submission crafted with a
+child's name, age and diagnosis stored none of it.*
+
+The kit had one line on this, in `kickoff.md` Round 2 — *"ask before building a form that collects
+a field they are not allowed to hold"* — which is about **which fields go on the form**. It said
+nothing about the field that actually causes the problem.
+
+⚠ **A MESSAGE BOX ACCEPTS ANYTHING.** You can design a form that requests nothing regulated and
+still receive *"my son is 7, diagnosed with X, currently on Y"*. At that moment it is in KV, in
+the notification email, and in the CSV export — for a client whose Section 504 or HIPAA position
+assumes it is not.
+
+It is silent in the worst way: the form works, the lead arrives, nothing errors, **every gate in
+this kit passes**, and the exposure surfaces in an audit or a breach.
+
+Now in `compliance.md` §10: drop it **server-side in the handler**, before storage and before any
+third-party call — not `maxlength`, not a warning label, not "we did not ask for it", because a
+control living in markup is one the sender can ignore. **Then try to defeat it**: craft a
+submission containing exactly what must not be kept, send it, and read the stored record back. A
+control nobody has attacked is an assumption — the same reason `test:gates` asserts refusals rather
+than passes.
+
+`build.md` phase 4's gate now requires it provably absent from a record that contained it, and
+`runbook.md` §2 carries it as a manual row.
+
+**It stays manual, and the row says why:** `verify` would need the export token and the record
+schema to read storage back. Claiming automated coverage here would be worse than not having it.
+
+Not only healthcare — GDPR special categories, payment details pasted into a message, immigration
+status.
+
 ## 2026-08-28i — a retention period nothing enforces
 
 From a real build's open blockers: résumés were being written to R2 while `applicationRetentionDays`
