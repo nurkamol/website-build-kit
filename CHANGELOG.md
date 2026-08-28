@@ -59,8 +59,18 @@ Windows `verify`, `redirects` and `shots` were all matching against paths that c
 Both normalised with `.split(sep).join('/')`. Confirmed under `path.win32` semantics:
 `about\index.html` now maps to `/about/`, where before it produced `/about\`.
 
-**Four of the five Windows bugs in this repo were found by a user or by CI, not by reading.** That
-is the argument for the leg, and it earned itself twice in two runs.
+### And a sixth, in the diagnostic itself
+
+The **"Platform binaries installed"** step resolved `<pkg>/bin/workerd` directly. On Windows the
+file is `workerd.exe`, so the check reported the package missing **while its own directory listing
+showed it installed**. It now resolves the package and accepts either binary name.
+
+A diagnostic that cries wolf on one platform gets ignored on all of them, which is worse than not
+having it — this step exists because npm reports success when an optional dependency fails, and it
+only works if its verdict is trusted.
+
+**Five of the six Windows bugs in this repo were found by a user or by CI, not by reading.** That
+is the argument for the leg, and it earned itself three times in three runs.
 
 ## 2026-08-28e — 0.1.6, two silent bugs out of the scaffolder
 

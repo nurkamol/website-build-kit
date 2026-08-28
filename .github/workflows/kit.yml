@@ -98,20 +98,37 @@ jobs:
       - name: Gates still refuse
         run: npm run test:gates
 
+      # workerd ships as a per-platform optional dependency. npm reports success
+      # when an optional dep fails to install, so a missing binary surfaces much
+      # later as a confusing wrangler error.
+      #
+      # ⚠ RESOLVE THE PACKAGE, THEN LOOK FOR EITHER BINARY NAME. Checking
+      #   `<pkg>/bin/workerd` directly fails on Windows, where the file is
+      #   `workerd.exe` — the package was installed and present in the directory
+      #   listing, and the check still reported it missing. A diagnostic that
+      #   cries wolf on one platform gets ignored on all of them.
       - name: Platform binaries installed
         working-directory: template
         run: |
           echo "$(node -p process.platform)-$(node -p process.arch), node $(node -v), npm $(npm -v)"
           ls node_modules/@cloudflare/ || true
           node -e '
+            const { existsSync } = require("fs");
+            const { dirname, join } = require("path");
             const map = {
               "linux-x64": "workerd-linux-64", "linux-arm64": "workerd-linux-arm64",
               "darwin-x64": "workerd-darwin-64", "darwin-arm64": "workerd-darwin-arm64",
               "win32-x64": "workerd-windows-64",
             };
-            const pkg = "@cloudflare/" + map[`${process.platform}-${process.arch}`];
+            const key = `${process.platform}-${process.arch}`;
+            const pkg = "@cloudflare/" + map[key];
+            if (!map[key]) {
+              console.error(`\nNo workerd mapping for ${key}. Add it here and to the lockfile.\n`);
+              process.exit(1);
+            }
+            let root;
             try {
-              console.log("ok:", require.resolve(`${pkg}/bin/workerd`));
+              root = dirname(require.resolve(`${pkg}/package.json`));
             } catch {
               console.error(`\n${pkg} did not install.\n`);
               console.error("It is an OPTIONAL dependency, so npm ci reported success anyway.");
@@ -119,6 +136,12 @@ jobs:
               console.error("lockfile is missing this platform: npm install and commit it.\n");
               process.exit(1);
             }
+            const found = ["bin/workerd", "bin/workerd.exe"].find((b) => existsSync(join(root, b)));
+            if (!found) {
+              console.error(`\n${pkg} installed but carries no workerd binary in bin/.\n`);
+              process.exit(1);
+            }
+            console.log("ok:", join(root, found));
           '
 
       - name: Template builds from clean
