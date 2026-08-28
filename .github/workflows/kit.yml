@@ -36,17 +36,6 @@ jobs:
       - name: Lib exports are imported where used
         run: npm run check:refs
 
-      # check:refs proves an identifier is imported. It cannot prove the check
-      # DOES anything — check-env.mjs passed every deploy on a client project
-      # while matching nothing, and tells.mjs counted dist CSS so a threshold
-      # could never be cleared. Both were valid, importable, working-looking code.
-      #
-      # Every case here asserts both directions, and the direction that matters
-      # is a fixture carrying the failure: the gate must exit 1. A gate that
-      # always passes reads as a check that ran.
-      - name: Gates still refuse
-        run: npm run test:gates
-
       # The promise: the template builds green from a clean checkout with no
       # content, no images and no secrets.
       - name: Install the template from the lockfile
@@ -65,6 +54,22 @@ jobs:
       #
       # Asserting here turns a misleading failure twenty lines deep into a clear
       # one at the step that caused it.
+      # ⚠ AFTER THE INSTALL, NOT BEFORE. test:gates exercises extract.mjs, which
+      # imports turndown — a template dependency. Run earlier it fails with a
+      # module-not-found that reads as three broken gates rather than a missing
+      # node_modules, and it passes locally either way because a developer's
+      # template/ is already installed. CI is the only place that sees it.
+      # check:refs proves an identifier is imported. It cannot prove the check
+      # DOES anything — check-env.mjs passed every deploy on a client project
+      # while matching nothing, and tells.mjs counted dist CSS so a threshold
+      # could never be cleared. Both were valid, importable, working-looking code.
+      #
+      # Every case here asserts both directions, and the direction that matters
+      # is a fixture carrying the failure: the gate must exit 1. A gate that
+      # always passes reads as a check that ran.
+      - name: Gates still refuse
+        run: npm run test:gates
+
       - name: Platform binaries installed
         working-directory: template
         run: |

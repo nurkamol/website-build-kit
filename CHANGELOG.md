@@ -2,6 +2,13 @@
 
 ## 2026-08-28c — the exclusion list is a ledger now, not a sentence
 
+*CI caught what the local run could not: covering `extract.mjs` gave `test:gates` a dependency on
+`turndown`, and the step ran **before** the template was installed. Three cases failed with a
+module-not-found that read as three broken gates. It passed locally either way, because a
+developer's `template/node_modules` is always there — the workflow step now runs after the
+install, and says why.*
+
+
 `test:gates` shipped with prose explaining what it did not cover. **That prose was wrong twice.**
 First it justified every omission as *"needs a deployed site"*, which was untrue of
 `staging-headers.mjs`. Fixed — and it was still wrong: it omitted `redirects.mjs` and
