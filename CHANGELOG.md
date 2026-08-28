@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-08-28g — 0.1.7, the release that makes the kit usable on Windows
+
+Everything through 0.1.6 was unusable there. `npm create website-build-kit@latest` scaffolded a
+project whose build command failed on the first run:
+
+```
+'PUBLIC_SITE_ENV' is not recognized as an internal or external command
+```
+
+Shipping in this release:
+
+| | |
+| --- | --- |
+| `scripts/build.mjs` | the environment is an argument, set once, instead of POSIX inline assignment npm runs through cmd.exe |
+| `check-sitemap` | URL paths normalised — it was **passing** a site that listed a noindexed URL in its sitemap |
+| `lib/routes.mjs` | same, and this is how every script discovers routes |
+
+The first is why a Windows user could not build at all. **The second is worse in kind**: a gate
+that reported success while checking nothing.
+
+Not shipped in the package but part of the same work: the `audit:docs`, workerd-check and
+`prepack` fixes, which affect people working **on** the kit rather than people building **with**
+it, and `kit.yml` now running on `windows-latest`.
+
 ## 2026-08-28f — the kit did not build on Windows at all
 
 ⚠ **`build:staging` AND `build:production` USED POSIX INLINE ENV ASSIGNMENT.**
