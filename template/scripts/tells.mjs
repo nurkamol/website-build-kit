@@ -238,6 +238,81 @@ tell(
   );
 }
 
+/*
+ * ── THE TELLS OF A GENERATED SITE, NOT A TEMPLATED ONE ─────────────────────
+ *
+ * Everything above catches the 2015 agency template: three equal cards, body
+ * text at container width, a headline at 96px. This block catches a newer and
+ * closer failure — the house style of the thing writing the code.
+ *
+ * These are counts with generous thresholds, deliberately. One frosted header
+ * is a decision; three glass surfaces is an aesthetic nobody chose. A gate that
+ * fires on a single legitimate use is one people learn to switch off, which is
+ * how the first version of `check:refs` shipped with seven false positives on a
+ * clean tree.
+ */
+
+/*
+ * "glass everywhere" — backdrop-filter as a look rather than a decision.
+ *
+ * ⚠ THE CHARACTER CLASS EXCLUDES `}` AS WELL AS `;`, AND NONE OF THESE THREE
+ *   REQUIRE A TRAILING SEMICOLON. The last declaration in a block may legally
+ *   omit it. Written as `[^;]+;` these matched nothing there; written greedily
+ *   as `[^;]*` one match ran across two whole declarations and counted them as
+ *   one. Both were caught by fixtures asserting the check FIRES, never by the
+ *   clean template, where all three read as passing.
+ */
+{
+  const glass = [...sourceCss.matchAll(/backdrop-filter:[^;}]*blur/g)].length;
+  tell(
+    'frosted glass on more than one surface',
+    glass > 1,
+    `${glass} backdrop-filter blurs. One translucent header is a choice; a page of them is the default look of generated UI, and each one costs a paint.`,
+  );
+}
+
+/*
+ * "giant border radii" — 24px and up.
+ *
+ * ⚠ A pill and a circle are NOT this. `9999px`, `50%` and `100%` are how you
+ *   write "fully round" for a badge or an avatar, and flagging those would make
+ *   the check useless on any correct design.
+ */
+{
+  const radii = [...sourceCss.matchAll(/border-radius:\s*([^;}]+)/g)]
+    .flatMap((m) => [...m[1].matchAll(/([\d.]+)(px|rem)/g)])
+    .map((m) => (m[2] === 'rem' ? Number(m[1]) * 16 : Number(m[1])))
+    .filter((px) => px >= 24 && px < 200);
+  tell(
+    'border radii of 24px and up, repeatedly',
+    radii.length > 2,
+    `${radii.length} radii at 24px or more (${[...new Set(radii)].slice(0, 4).join(', ')}px). Softness at that scale reads as a default rather than a decision. Pills and circles are excluded.`,
+  );
+}
+
+/*
+ * "glow" — a shadow with no offset and a real blur. `0 0 40px <colour>` is
+ * decoration; nothing in the physical world lights up from behind.
+ *
+ * ⚠ A focus ring is `0 0 0 3px` — zero blur. Requiring blur ≥ 16px is what
+ *   keeps this from flagging the one shadow every accessible site needs.
+ */
+{
+  const glows = [...sourceCss.matchAll(/box-shadow:\s*([^;}]+)/g)]
+    .flatMap((m) => m[1].split(','))
+    .filter((sh) => /(^|\s)0\s+0\s+([\d.]+)(px|rem)/.test(sh))
+    .filter((sh) => {
+      const m = /(^|\s)0\s+0\s+([\d.]+)(px|rem)/.exec(sh);
+      const blur = m[3] === 'rem' ? Number(m[2]) * 16 : Number(m[2]);
+      return blur >= 16;
+    });
+  tell(
+    'glow shadows',
+    glows.length > 0,
+    `${glows.length} zero-offset shadow(s) with a large blur. A glow is decoration with no physical referent; a shadow with offset reads as light. Focus rings (0 0 0 3px) are excluded.`,
+  );
+}
+
 // "the 404, the empty state or the form's invalid state was never designed"
 tell(
   'no invalid / busy form state',

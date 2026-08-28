@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-08-28 — the tells of a generated site
+
+`design.md` §3 caught the 2015 agency template: three equal cards, body text at container width,
+a headline at 96px. It had no row for the closer failure — **the house style of the thing writing
+the code.** A site can clear every existing row and still be recognisable in three seconds as LLM
+output, because nobody chose any of it.
+
+Eight new rows. Three are machine-checked in `npm run tells`, taking it from ten checks to
+thirteen:
+
+| Row | Threshold | Excluded, deliberately |
+| --- | --- | --- |
+| Frosted glass on more than one surface | `backdrop-filter` blur count > 1 | one translucent header is a decision |
+| Border radii of 24px and up, repeatedly | count > 2, between 24px and 200px | `9999px`, `50%`, `100%` — pills and avatars |
+| Glow shadows | zero offset, blur ≥ 16px | `0 0 0 3px` focus rings |
+
+**The exclusions are the whole reason the rows are usable.** A pill radius and a focus ring are
+correct design; a row that flagged them would be switched off within a day, which is how the first
+`check:refs` shipped with seven false positives on a clean tree.
+
+⚠ **ALL THREE REGEXES WERE WRONG ON FIRST WRITE, AND THE CLEAN TEMPLATE REPORTED ALL THREE AS
+PASSING.** `[^;]*` is greedy, so one match ran across two declarations and counted them as one;
+`[^;]+;` requires a terminator the last declaration in a block may legally omit. Only fixtures
+asserting the row *fires* found either.
+
+**Then two blind spots in those fixtures, found by mutation.** Restoring the semicolon-requiring
+regex changed nothing, because `tells` concatenates stylesheets and the match ran past the `}` into
+the next file to find a `;` there — the fixture's `tokens.css` now has none. And the pills
+exclusion proved nothing while the fixture held a single `9999px`: removing the upper bound left
+the count under the threshold either way. It now holds three.
+
+Nine cases in `test:gates`, pinned by row rather than exit code — `tells` exits 1 on three or more
+rows in total, and a bare fixture trips seven, so the exit code says nothing about which row fired.
+**38 cases across 6 gates, 24 proving a refusal.**
+
+**Two additions to `design.md` §1, from the same review.** What a reference gives you and what it
+does not — composition, hierarchy, type scale, rhythm, density, grid, CTA placement are decisions;
+copy, photography, illustration, icon sets, branding and a recognisable layout are somebody's work
+and usually somebody's licence. And what to do when a **screenshot** arrives instead of a URL: a
+still carries no behaviour, so scroll, reflow, hover and 320px are either asked about or decided
+explicitly, never guessed from a JPEG.
+
+**What was rejected**, from a proposed design-reference library: a `references/` tree at repo root
+(collides with `skills/website-build/references/`, which `audit:docs` requires `SKILL.md` to point
+at — an unpointed reference is one the model never loads), a curated gallery link list (*"name the
+build it came from — it is what separates this from a listicle"*), per-style recipes (`design.md`
+never prescribes a look), and Astro implementation rules already in `build.md` §2.
+
 ## 2026-08-27g — 0.1.5, so a scaffolded project gets the secrets gate
 
 The scaffolder bundles `template/` at pack time, so template changes only travel with a release.

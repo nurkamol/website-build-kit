@@ -35,6 +35,25 @@ you something to be held to.
 
 Also ask for **one site they dislike**, and why. It is usually more informative.
 
+**What a reference gives you, and what it does not.** Take the composition, the visual hierarchy,
+the type scale and its contrast, the section rhythm, the density, the grid, how the navigation
+behaves, where the CTA sits. Those are decisions, and decisions are the thing you are being paid
+to make.
+
+Do not take the copy, the photography, the illustration, the icon set, the branding, or a layout
+distinctive enough that someone would recognise where it came from. Those are somebody's work and
+usually somebody's licence. A reference is design input; it is not a source file.
+
+The test is whether you could show the client both sites at once. If pointing at the reference
+would be embarrassing, you copied instead of deciding.
+
+**When what arrives is a screenshot, not a URL** — which is most of the time — you have lost the
+half that matters. A still shows composition, type scale and density; it shows nothing about
+behaviour: what the nav does on scroll, how the grid reflows, what moves on hover, how any of it
+holds at 320px. Read the structure from it, then ask for the URL, or decide those yourself and
+say that you did. Answering them by guessing from a JPEG is how a design arrives that works at
+exactly one width.
+
 ### Show a real comp, do not describe one ✅
 
 **Build the hero and one content section in two or three directions, with the client's real copy
@@ -172,7 +191,7 @@ standing instructions; it belongs on this list because it is a *design* property
 
 The tells of a templated site. If three or more are true, it is not ready.
 
-**Ten of these are checked by `npm run tells` in the template.** Run it on every build —
+**Thirteen of these are checked by `npm run tells` in the template.** Run it on every build —
 migration, faithful rebuild, redesign, all of them. It reads `src/` and `dist/` with no browser,
 so it works in CI. The rows it can check are marked ⚙; the rest need your eyes, and it says so
 at the end of its own output.
@@ -210,6 +229,24 @@ deliberately weaker than they read:
 - [ ] ⚙ The 404, the empty state or the form's invalid state was never designed *(⚙ checks the form only)*
 - [ ] ⚙ Focus rings are the browser default, or removed
 - [ ] ⚙ A raw hex sits inside a component instead of in `tokens.css`
+
+### And the tells of a *generated* site
+
+Everything above is the 2015 agency template. These are newer, and closer to home: they are the
+house style of the thing writing the code. A site can clear every row above and still be
+recognisable in three seconds as something an LLM produced, because nobody chose any of it.
+
+- [ ] ⚙ Frosted glass on more than one surface — one translucent header is a decision, a page of them is a default
+- [ ] ⚙ Border radii of 24px and up, repeatedly *(pills and circles excluded — `9999px` and `50%` are how you write "round")*
+- [ ] ⚙ Glow shadows — zero offset, large blur. Nothing in the physical world lights up from behind *(focus rings excluded)*
+- [ ] Every section is a rounded card floating on a tinted background, so nothing is ever flush
+- [ ] The accent is violet-into-blue and no one in the room can say why it is that colour
+- [ ] Badges and pills are decoration rather than status — "New", "Fast", "Secure" on things that are not new
+- [ ] Long-form text is centred, so every line starts in a different place
+- [ ] Icon + heading + one sentence, repeated, where the sentences carry no information
+
+**The counts have deliberately generous thresholds.** One frosted surface passes; three do not.
+A gate that fires on a single legitimate use is one people learn to switch off.
 
 **Then look at it properly:** on a real screen at 100%, on a phone, and beside the three
 reference sites. Three hours of staring at a page makes it invisible — the comparison is what

@@ -93,8 +93,10 @@ function gate(label, { script, files, env = {}, args = [], expect, contains, the
        bugs — a duplicate `/*` block that dropped the CSP, and a `#` comment
        that became part of the header value — were invisible in the exit code
        and in a casual read of the file. Only an assertion on the result
-       catches them. Returns null when satisfied, else why not. */
-    const thenErr = codeOk && textOk && then ? then(dir) : null;
+       catches them. It also receives the output, because `tells` reports a
+       per-row verdict while exiting 1 for the total — so the exit code cannot
+       tell you WHICH row fired. Returns null when satisfied, else why not. */
+    const thenErr = codeOk && textOk && then ? then(dir, out) : null;
     results.push({
       gate: currentGate,
       label,
@@ -496,6 +498,66 @@ gate('dist/_headers, without a client/ subdirectory', {
   then: (dir) =>
     /X-Robots-Tag/.test(readHeaders(dir, 'dist/_headers')) ? null : 'nothing written to dist/_headers',
 });
+
+/* ────────────────────────────────────────────────────────────────────────
+ * tells — the generated-site rows. Counting checks with exclusions, where
+ * the exclusion is the whole reason the row is usable: a pill radius and a
+ * focus ring are correct design, and a row that flagged them would be
+ * switched off within a day.
+ *
+ * `tells` exits 1 on three or more tells in total, and a minimal fixture
+ * trips seven unrelated rows. So the exit code says nothing about WHICH row
+ * fired — every case here pins the row by its own line in the output.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/*
+ * ⚠ NO SEMICOLON IN tokens.css, DELIBERATELY.
+ *
+ * `tells` concatenates every stylesheet before matching. A regex written as
+ * `box-shadow:[^;]+;` — requiring a terminator — then runs past the `}`, past
+ * the newline, and finds the semicolon in the NEXT FILE, so it matches anyway
+ * and the bug is invisible. Removing the only other semicolon is what makes
+ * "the declaration has no terminator" actually testable.
+ *
+ * Found by mutation: restoring that exact regex changed nothing until this line
+ * did.
+ */
+const tellsFixture = (css) => ({
+  'src/styles/project.css': css,
+  'src/styles/tokens.css': ':root { --brand: #123456 }\n',
+  'src/pages/index.astro': '---\nconst t = 1;\n---\n<p>x</p>\n',
+});
+
+/** Assert one named row fired (or did not), by its verdict line. */
+const row = (name, shouldFire) => (_dir, out) => {
+  const clean = out.replace(/\x1b\[[0-9;]*m/g, '');
+  const fired = new RegExp(`^✗ ${name}`, 'm').test(clean);
+  const quiet = new RegExp(`^✓ ${name}`, 'm').test(clean);
+  if (!fired && !quiet) return `the row "${name}" was not reported at all`;
+  if (fired !== shouldFire) return `"${name}" ${fired ? 'fired' : 'stayed quiet'}, wanted the opposite`;
+  return null;
+};
+
+describe('tells — generated-site rows');
+
+for (const [label, css, name, fires] of [
+  ['two frosted surfaces',            '.a{backdrop-filter:blur(12px)} .b{backdrop-filter:blur(8px)}', 'frosted glass on more than one surface', true],
+  ['one frosted header is allowed',   '.hdr{backdrop-filter:blur(12px)}',                             'frosted glass on more than one surface', false],
+  ['three radii at 24px and up',      '.a{border-radius:28px}.b{border-radius:2rem}.c{border-radius:32px}', 'border radii of 24px and up, repeatedly', true],
+  ['pills and circles are excluded',  '.a{border-radius:9999px}.b{border-radius:9999px}.c{border-radius:9999px}.d{border-radius:50%}', 'border radii of 24px and up, repeatedly', false],
+  ['ordinary 8-12px radii',           '.a{border-radius:8px}.b{border-radius:12px}.c{border-radius:6px}',    'border radii of 24px and up, repeatedly', false],
+  ['a zero-offset glow',              '.a{box-shadow:0 0 40px rgba(120,80,255,.6)}',                  'glow shadows', true],
+  ['a glow as the last declaration',  '.a{color:red;box-shadow:0 0 32px #7c5cff}',                    'glow shadows', true],
+  ['a focus ring is excluded',        '.a:focus-visible{box-shadow:0 0 0 3px #8a3324}',               'glow shadows', false],
+  ['an offset shadow is excluded',    '.a{box-shadow:0 8px 24px rgba(0,0,0,.12)}',                    'glow shadows', false],
+]) {
+  gate(label, {
+    script: 'tells.mjs',
+    files: tellsFixture(css),
+    expect: 1, // seven unrelated rows fire on a bare fixture; the row is pinned below
+    then: row(name, fires),
+  });
+}
 
 /* ────────────────────────────────────────────────────────────────────────
  * Report
