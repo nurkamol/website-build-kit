@@ -47,6 +47,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `PageHero` rhythm + shorthand | A 160px hole between the lede and the body on every page using it, and a hero sitting behind the fixed nav — a shorthand out-specifying the utility beside it |
 | `npm run check:copy` | A note to yourself shipped as body copy — a real build put "⚠ CONFIRM: does the 9am class continue?" on a service page, past clean types, clean axe and clean tells |
 | Overshoot easing · side accent bar | Two generated-UI tells `tells` lacked, found by running an external detector over a real build — and the template was failing the first one with a token nothing used |
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |

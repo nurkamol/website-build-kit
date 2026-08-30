@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-08-30d — a shorthand out-specifying the utility beside it
+
+`PageHero` carried `class:list={['hero', 'under-header', 'section--tight']}`. `.section--tight`
+is a **shorthand** — it sets `padding-block` at both ends — and that produced two separate silent
+failures on every project built from the kit.
+
+**A hole under the lede.** Every page opens its following section with a rhythm class of its own,
+so two stacked. **Measured 160px on the kit's own `/contact/`**, 176px on all four `PageHero` pages
+of a client build, and up to 232px where the next section is `.section`.
+
+⚠ **AND THE HERO SAT BEHIND THE NAV.** `.under-header` reserves the fixed header's height on
+`padding-block-start`, and `global.css` warns in as many words that *"a scoped component style
+would out-specify"* it. A shorthand from this component is exactly such a style —
+`.hero[data-astro-cid-…]` at (0,2,0) against a bare class at (0,1,0) — so the reserve was
+discarded. **The comment predicted the failure and the component committed it anyway.**
+
+Build green, types green, axe green, `tells` green in both cases. A page sitting under its own nav
+is visible only by looking at it.
+
+`PageHero` now sets `padding-block-end: 0` and drops the rhythm class: the offset stays with
+`.under-header`, the rhythm stays with whatever section comes next. 160px → 80px, header offset
+intact at 136px.
+
+**Not moved to `main`,** which would have been un-overridable and wrong for a different reason:
+the header's background is opaque `var(--bg)`, so padding there leaves a strip of body colour
+behind it wherever a first section has a background of its own. The per-section reserve is
+deliberate; the shorthand was the bug.
+
+⚠ **NO GATE FOR THIS, AND THAT IS A DECISION.** Catching it generally means analysing the cascade
+— which utility class lands on which element, at which specificity — and that is a CSS analyser,
+not a grep. A check that guessed would produce exactly the false positives this kit keeps refusing
+to ship. It is in `traps.md`, with a grep that narrows the search rather than pretending to decide.
+
+*And adding that entry moved the failure count, which the `audit:docs` check caught immediately:
+33 → 34, updated across the six claims in `site/index.html`, both share cards and the repository
+description. Built two days ago for exactly this.*
+
 ## 2026-08-30c — 0.1.8, and one outside tool earns a recommendation
 
 **Shipping in the package:**

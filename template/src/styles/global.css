@@ -241,6 +241,16 @@ b {
  * height or the heading sits behind the nav. Applied by each opening section
  * rather than a blanket `main > :first-child` rule, which a scoped component
  * style would out-specify.
+ *
+ * ⚠ AND ONE DID. A component wrote `padding-block: <a> <b>` on the same element
+ *   — a SHORTHAND, so it set padding-block-start too, out-specified this, and
+ *   the hero sat behind the nav on a real build. On the element that carries
+ *   `.under-header`, set `padding-block-end` and never the shorthand.
+ *
+ * ⚠ NOT MOVED TO `main`, WHICH WOULD BE UN-OVERRIDABLE. The header's background
+ *   is opaque `var(--bg)`, so padding on `main` would leave a strip of body
+ *   colour behind it wherever a first section has a background of its own. The
+ *   per-section reserve is deliberate; the shorthand is the bug.
  */
 .under-header {
   padding-block-start: calc(var(--header-h) + var(--space-2xl));

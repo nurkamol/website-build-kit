@@ -5,6 +5,36 @@ deploy, wrong result. Check this list before debugging anything strange.
 
 ---
 
+### A shorthand out-specifies the utility it sits beside
+
+`padding-block: <a> <b>` sets **both** ends. On an element that also carries a utility setting
+one end — the kit's `.under-header`, which reserves the fixed header's height — the shorthand
+wins, because a scoped component style is `.hero[data-astro-cid-…]` at (0,2,0) against a bare
+class at (0,1,0).
+
+*Symptom:* two of them, and neither errors. The hero sits **behind the fixed nav**, because the
+reserve was silently discarded. And where the utility is a rhythm class like `.section--tight`,
+its *other* end stacks with the next section's, leaving a hole: 160px measured on the kit's own
+`/contact/`, 176px on four pages of a client build, up to 232px where the next section is
+`.section`.
+
+Build green, types green, axe green, `tells` green. A page sitting under its own nav is visible
+only by looking at it.
+
+*Fix:* on any element carrying a one-sided utility, set the **longhand** for the side you own —
+`padding-block-end` — and never the shorthand. Moving the reserve to `main` would make it
+un-overridable, and is wrong for a different reason: an opaque fixed header leaves a strip of body
+colour behind it wherever a first section has its own background.
+
+*Catch it early:*
+
+```bash
+grep -rn --include='*.astro' -B40 'padding-block:' src/components src/pages \
+  | grep -E 'under-header|section--tight' -A1
+```
+
+---
+
 ### A trailing comment in `_redirects` rejects the whole file, at deploy
 
 `_redirects` allows a comment only on **its own line**. A hit count parked at the end of a
