@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-08-30m — 0.1.13, Actions get version updates, npm does not
+
+**Version updates is not one decision — it is two ecosystems, and they are nothing alike.**
+
+| | | |
+| --- | --- | --- |
+| `github-actions` | 5 actions, all first-party `actions/*`, all pinned to a major tag | **on** |
+| `npm` | 593 packages, and the lockfile is a *shipped artefact* | **off** |
+
+Five actions on major tags means a PR only ever appears on a **major** bump — roughly five a
+year, each tested by `kit.yml` on ubuntu and windows before anyone looks. 593 npm packages, in a
+lockfile copied into every site built from the kit, is a change to what users *receive*; that
+needs a judgement and the full gate suite, not a queue.
+
+**The failure it prevents:** GitHub has forcibly retired action runtimes before — the Node 12 and
+Node 16 deprecations. CI is this repo's entire quality signal, and finding out it has gone stale
+from a red build during a release is the wrong moment.
+
+⚠ **npm SECURITY updates stay on.** They live in repo settings, not in `dependabot.yml`, and this
+file does not disable them. What is declined is routine churn, never the vulnerability signal —
+a distinction worth stating, because a reader seeing "npm absent" will assume otherwise.
+
+**And the unfixable advisory is now proven unfixable, not asserted.** `template/docs/dependencies.md`
+said "no patched version" on the advisory's authority. Checked against the registry instead:
+
+```
+npm view extract-zip versions   →  … 2.0.1        ← the newest release IS the vulnerable one
+last published                  →  2023-03-04     ← unmaintained for ~3.5 years
+```
+
+That matters because `overrides` in `package.json` is the usual escape hatch for a transitive
+pin — and it is only useless here because **there is no version to point it at.** "No patch
+available" and "we checked every version ever published" are different claims, and only the
+second one closes the question.
+
 ## 2026-08-30l — the audit finding every site inherits, answered once
 
 Dependency graph, Dependabot **alerts** and Dependabot **security updates** are on. Version

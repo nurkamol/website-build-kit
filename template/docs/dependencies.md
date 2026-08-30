@@ -40,8 +40,12 @@ pa11y-ci  →  pa11y ^9.1.1  →  puppeteer ^24.37.5  →  @puppeteer/browsers 2
 
 Three reasons, each checkable:
 
-1. **There is no patched release.** The advisory's `first_patched_version` is empty. Nothing to
-   upgrade *to* — this is not a version we have neglected to take.
+1. **There is no patched release, and no version to override to.** The advisory's
+   `first_patched_version` is empty — but that is the advisory's word for it, so check the
+   registry instead: `npm view extract-zip versions` ends at **2.0.1**, which *is* the vulnerable
+   version. Nothing above it has ever been published, and the last release was **2023-03-04**.
+   An `overrides` entry in `package.json` is the usual escape hatch for a transitive pin; here
+   there is nothing to point it at.
 2. **`npm audit fix` changes nothing.** It reports `+0 ~0 -0 packages`. Confirm with
    `npm audit fix --dry-run`.
 3. **`puppeteer` pins `@puppeteer/browsers` at an exact `2.13.2`**, not a range. Even forcing a
@@ -89,6 +93,7 @@ this note covers exactly one, and a second finding is a new decision, not this o
 ```bash
 npm audit --omit=dev            # must stay at 0. If it is not, that is a real problem
 npm outdated pa11y-ci           # the chain moves when this does
+npm view extract-zip versions   # the day something above 2.0.1 appears, this note is obsolete
 ```
 
 If a patched `extract-zip` ships and the chain picks it up, delete this file. A note describing

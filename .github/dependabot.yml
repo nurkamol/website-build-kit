@@ -1,0 +1,35 @@
+# Dependabot version updates.
+#
+# ── GITHUB ACTIONS ONLY, AND npm IS ABSENT ON PURPOSE ──────────────────────
+# The two ecosystems in this repo are nothing alike:
+#
+#   github-actions   5 actions, all first-party `actions/*`, all pinned to a
+#                    major tag — so a PR only ever appears on a MAJOR bump.
+#                    Roughly five a year, each one tested by kit.yml on both
+#                    ubuntu and windows before anyone looks at it.
+#
+#   npm              593 packages, and `template/package-lock.json` is a
+#                    SHIPPED ARTEFACT — it is copied into every site built
+#                    from this kit. A version bump there is a change to what
+#                    users receive, and it needs the full gate suite and a
+#                    judgement, not a queue of automated PRs.
+#
+# ⚠ SECURITY updates for npm are still on — they are configured in the repo
+#   settings, not here, and this file does not turn them off. What is declined
+#   below is the routine version churn, never the vulnerability signal.
+#
+# The failure this prevents: GitHub has forcibly retired action runtimes before
+# (the Node 12 and Node 16 deprecations). CI is this repo's whole quality
+# signal, and finding out it has gone stale from a red build during a release
+# is the wrong moment.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+    open-pull-requests-limit: 3
