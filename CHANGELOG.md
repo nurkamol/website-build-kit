@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-08-30i — the honeypot is called `company`
+## 2026-08-30i — 0.1.10, the honeypot is called `company`
 
 From the one shipped site whose lessons live in code comments rather than a trap file:
 
