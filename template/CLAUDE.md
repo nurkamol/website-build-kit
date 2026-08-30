@@ -13,6 +13,7 @@ npm run a11y                                 # accessibility check, one URL per 
 npm run tells                                # what is undecided, and the design tells
 npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
+#   --allow-internal                         # ...if the old site is on a VPN or a private address
 npm run dns -- old-site.com                  # capture the zone. MX loss kills client email
 npm run seo -- https://old-site.com          # optional: SEO baseline to diff after cutover
 npm run verify -- https://new.example.com    # the deployed site, not the build. exits non-zero

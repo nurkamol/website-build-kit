@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-08-30j — recon refuses to crawl inward, and says so
+
+The kit's first outside contribution ([#1], by [anupamme]), and the reason it is worth
+reading twice.
+
+**The hole was real.** `recon` crawls a site we do not control, and it followed redirects. A
+302 the old site issues could therefore steer the crawler at whatever is reachable from the
+operator's machine — a dev server on `127.0.0.1`, something on the office `10.` range, the
+cloud metadata endpoint at `169.254.169.254`. The guard blocks loopback, RFC1918, link-local
+and `localhost`, on the target **and on every redirect hop**.
+
+⚠ **A REFUSAL MUST NOT LOOK LIKE A NETWORK ERROR.** The original guard threw inside `req()`'s
+existing `try`, and that `catch` returns `null` — which every caller reads as *"the old site did
+not answer"*. A refused crawl would have been reported as an unreachable site: thin inventory,
+exit 0, nobody learns pages were skipped on purpose. Refusals now print and land in the
+end-of-run notes, deduplicated by reason. *The security fix was right and would have been
+invisible.*
+
+**It only sees literal addresses, and the comment now says so.** A hostname that *resolves* to
+loopback walks straight through — `localtest.me` is a public name pointing at `::1` today.
+Closing that needs resolution-before-connect with a pinned socket, which `fetch` does not
+expose. Defence in depth, not a barrier; a comment implying otherwise is worse than none.
+
+Two holes closed while writing that sentence down:
+
+| Was allowed | Why it looked handled |
+| --- | --- |
+| `::ffff:127.0.0.1` | Node canonicalises IPv4-mapped IPv6 to **hex** — `[::ffff:7f00:1]` — so a blocklist in dotted quad never matches. Stripping the literal `::ffff:` prefix looks like it works |
+| `file:///etc/passwd` | `target.startsWith('http')` turned it into `https://file:///etc/passwd`, which parses with hostname `file`, so the protocol check could never fire on a target the user typed |
+
+That second fix also repairs a **latent crash**: `npm run recon -- httpbin.org` threw an
+uncaught `TypeError`, because the string starts with `http` and is not a URL. Same family as the
+`PRESERVED is not defined` that shipped — valid syntax, wrong at runtime, only on real input.
+
+**`--allow-internal`** covers the real case of an old site on a VPN. It excuses a **host**, never
+a **protocol**: offering it for a `file:` URL would be advice that cannot work.
+
+**recon leaves the `UNCOVERED` ledger.** Its refusals happen before the first fetch, so every
+path it can exit 1 on now runs offline — usage, a blocked host, a blocked protocol. 14 cases,
+covering each encoding Node folds (`127.1`, `2130706433`, `0177.0.0.1`, `[0:0:0:0:0:0:0:1]`) and
+both sides of the RFC1918 boundary, where `172.15` is public and `172.16` is not. Mutation-tested
+four ways.
+
+⚠ **The redirect refusal is still uncovered and cannot be tested offline** — it needs a real
+server issuing a 302 inward. It does not exit 1, so the ledger does not demand it, and the gate
+block says so rather than letting a green tick imply otherwise.
+
+Verified against a live crawl: **byte-for-byte identical output** to the previous code, and
+nothing in `recon` reads `res.url` or `res.redirected`, so swapping fetch's `follow` for a manual
+loop changes nothing observable. **91 cases across 15 gates, 57 proving a refusal.**
+
+[#1]: https://github.com/nurkamol/website-build-kit/pull/1
+[anupamme]: https://github.com/anupamme
+
 ## 2026-08-30i — 0.1.10, the honeypot is called `company`
 
 From the one shipped site whose lessons live in code comments rather than a trap file:
