@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-08-30c — 0.1.8, and one outside tool earns a recommendation
+
+**Shipping in the package:**
+
+| | |
+| --- | --- |
+| `scripts/check-copy.mjs` *(new)* | author notes in rendered copy — `TODO`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}` |
+| `scripts/build.mjs` | runs it — warns on staging, **refuses on production** |
+| `scripts/tells.mjs` | two rows: overshoot easing, a thick accent bar down one side |
+| `src/styles/tokens.css` | **`--ease-spring` removed** — an overshoot curve is a look, and nothing referenced it |
+
+⚠ **`check-copy` CAN FAIL A PRODUCTION BUILD THAT PREVIOUSLY PASSED.** That is the point, and it
+is a behaviour change rather than an addition. Staging only warns, so it surfaces well before
+go-live rather than at it.
+
+**And `design.md` now recommends [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable)** —
+as a second opinion, explicitly not as a gate. Yesterday the provider rule blocked it: *do not add
+a recommendation you have not used on a real deploy.* Today it does not, because it was run
+against one: 14 findings, **9 of them matches inside code comments**, and two signals worth
+keeping. The entry carries that ratio, because a recommendation without its failure rate is an
+advert.
+
+**Two held back, in Rejected so they are not re-proposed.** Style-preset skills ship named looks,
+and `design.md` never prescribes a look — adopting them would put two philosophies in one build.
+Animation skills are good and the author already uses several, but nothing here has shipped a
+build with them, and *"we already use it"* is not the bar the rule sets.
+
 ## 2026-08-30b — notes to yourself, shipped as body copy
 
 A real build put this on a service page, as text a parent would read:
