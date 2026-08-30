@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-08-30 — two rows borrowed from a detector, with the exclusions it lacks
+
+Ran [pbakaus/impeccable](https://github.com/pbakaus/impeccable)'s deterministic detector over a
+real build to see what `npm run tells` was missing. **14 findings, 9 of them matches inside code
+comments** — including `// never reach a deploy as a silently broken <img>.`, flagged as a broken
+image.
+
+That is the bug class `check-sitemap.mjs` already carries a comment about: *"Match the META TAG,
+not the word… a false positive that would train someone to ignore this check."* Same trap, and the
+reason its detector is a second opinion here rather than a gate.
+
+**Five findings were real, and two are worth having.** Both needed an exclusion the original does
+not have, and in each case **the exclusion is the row**:
+
+| Row | Fires on | Excluded |
+| --- | --- | --- |
+| Bounce or overshoot easing | a `cubic-bezier` leaving [0,1] on y | nothing — but it is a *tell*, because overshoot is right after a flick or a drag release |
+| A thick accent bar down one side | `border-inline-start`/`left` ≥ 3px solid, more than once | **blockquotes** — a rule beside a quotation is a convention older than the web |
+
+The blockquote case was a live false positive on the real build: `.prose blockquote` flagged
+beside `.form__notice`, one a typographic convention and one an actual tell. Reporting both would
+teach people to skim the row.
+
+⚠ **AND THE TEMPLATE ITSELF FAILED THE FIRST ROW.** `tokens.css` shipped
+`--ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1)` — **referenced nowhere**, in the template or in
+the client project that had inherited it. An overshoot curve is a look, and the template does not
+ship looks. Removed, with a comment saying where a spring belongs: a gesture that carried
+momentum, and nothing that merely appeared.
+
+Six cases in `test:gates`, mutation-tested — dropping the blockquote exclusion, and an off-by-one
+accepting `y == 1` as overshoot, each turn exactly one case red. **58 cases across 12 gates, 38
+proving a refusal.**
+
+**Not adopted:** the detector as a gate. A 64% false-positive rate on a codebase that documents
+its decisions in prose is a check people learn to skip, which is how `check:refs` was written the
+first time and had to be narrowed.
+
 ## 2026-08-28j — not asking for it is not a control
 
 From a real build's locked decisions: **PHI — not collected. Enforced server-side in

@@ -45,6 +45,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| Overshoot easing · side accent bar | Two generated-UI tells `tells` lacked, found by running an external detector over a real build — and the template was failing the first one with a token nothing used |
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |
 | Generated-site tells | A site that clears every templated-look row and is still recognisable in three seconds as LLM output — glass, giant radii, glow, badge decoration. Three are machine-checked |

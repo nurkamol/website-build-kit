@@ -313,6 +313,56 @@ tell(
   );
 }
 
+/*
+ * Two rows adopted after running pbakaus/impeccable's detector over a real
+ * build. Both are signals `tells` did not have; both needed an exclusion its
+ * version does not have, and the exclusions are the reason they are usable.
+ */
+
+/*
+ * "bounce and overshoot easing" — a cubic-bezier whose control points leave
+ * [0,1] on the y axis overshoots the target and springs back.
+ *
+ * ⚠ NOT ALWAYS WRONG, which is why it is a tell and not an error. Overshoot is
+ *   right when the gesture itself carried momentum — a flick, a drag release.
+ *   It is wrong on a menu that faded in, where nothing threw it.
+ */
+{
+  const overshoot = [...sourceCss.matchAll(/cubic-bezier\(([^)]+)\)/g)]
+    .map((m) => m[1].split(',').map((n) => Number(n.trim())))
+    .filter((p) => p.length === 4 && p.every((n) => Number.isFinite(n)))
+    .filter(([, y1, , y2]) => y1 > 1 || y2 > 1 || y1 < 0 || y2 < 0);
+  tell(
+    'bounce or overshoot easing',
+    overshoot.length > 0,
+    `${overshoot.length} easing curve(s) overshoot. Right after a flick or a drag release, where momentum came from the gesture; dated on anything that simply appeared.`,
+  );
+}
+
+/*
+ * "a thick accent bar down one side of a card" — border-inline-start (or
+ * border-left) at 3px or more.
+ *
+ * ⚠ BLOCKQUOTES ARE EXCLUDED, AND THAT EXCLUSION IS THE WHOLE ROW. A rule
+ *   flagged `.prose blockquote { border-inline-start: 3px solid }` on a real
+ *   build — a left rule on a quotation is a typographic convention older than
+ *   the web, and reporting it would teach people to skim past the row. The
+ *   pattern actually meant is a notice or card wearing a coloured tab.
+ */
+{
+  const bars = [...sourceCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, selector]) => !/blockquote|\bquote\b|\bcite\b/i.test(selector))
+    .filter(([, , body]) => {
+      const m = /border-(?:inline-start|left):\s*([\d.]+)px\s+solid/.exec(body);
+      return m && Number(m[1]) >= 3;
+    });
+  tell(
+    'a thick accent bar down one side',
+    bars.length > 1,
+    `${bars.length} rule(s) put a 3px+ coloured border on one edge. On a card or a notice it is one of the most recognisable generated-UI tells. Blockquotes are excluded — a rule beside a quotation is a convention, not a tell.`,
+  );
+}
+
 // "the 404, the empty state or the form's invalid state was never designed"
 tell(
   'no invalid / busy form state',

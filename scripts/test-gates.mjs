@@ -559,6 +559,15 @@ for (const [label, css, name, fires] of [
   ['a glow as the last declaration',  '.a{color:red;box-shadow:0 0 32px #7c5cff}',                    'glow shadows', true],
   ['a focus ring is excluded',        '.a:focus-visible{box-shadow:0 0 0 3px #8a3324}',               'glow shadows', false],
   ['an offset shadow is excluded',    '.a{box-shadow:0 8px 24px rgba(0,0,0,.12)}',                    'glow shadows', false],
+  // Adopted after running pbakaus/impeccable's detector over a real build.
+  ['an overshoot easing',             '.a{transition:transform 200ms cubic-bezier(0.34,1.4,0.64,1)}', 'bounce or overshoot easing', true],
+  ['anticipation, y below 0',         '.a{transition:transform 200ms cubic-bezier(0.4,-0.3,0.6,1)}',  'bounce or overshoot easing', true],
+  ['a normal ease-out is excluded',   '.a{transition:transform 200ms cubic-bezier(0.22,1,0.36,1)}',   'bounce or overshoot easing', false],
+  ['two cards with a side bar',       '.card{border-inline-start:3px solid red}.n{border-left:4px solid blue}', 'a thick accent bar down one side', true],
+  // The exclusion IS the row: a rule beside a quotation is a convention older
+  // than the web, and flagging it teaches people to skim past the check.
+  ['blockquotes are excluded',        '.prose blockquote{border-inline-start:3px solid red}blockquote{border-left:4px solid blue}', 'a thick accent bar down one side', false],
+  ['1px hairlines are excluded',      '.card{border-inline-start:1px solid red}.n{border-left:2px solid blue}', 'a thick accent bar down one side', false],
 ]) {
   gate(label, {
     script: 'tells.mjs',

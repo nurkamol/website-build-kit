@@ -191,7 +191,7 @@ standing instructions; it belongs on this list because it is a *design* property
 
 The tells of a templated site. If three or more are true, it is not ready.
 
-**Thirteen of these are checked by `npm run tells` in the template.** Run it on every build —
+**Fifteen of these are checked by `npm run tells` in the template.** Run it on every build —
 migration, faithful rebuild, redesign, all of them. It reads `src/` and `dist/` with no browser,
 so it works in CI. The rows it can check are marked ⚙; the rest need your eyes, and it says so
 at the end of its own output.
@@ -244,6 +244,9 @@ recognisable in three seconds as something an LLM produced, because nobody chose
 - [ ] Badges and pills are decoration rather than status — "New", "Fast", "Secure" on things that are not new
 - [ ] Long-form text is centred, so every line starts in a different place
 - [ ] Icon + heading + one sentence, repeated, where the sentences carry no information
+- [ ] ⚙ Bounce or overshoot easing on something that merely appeared *(right after a flick or a drag release, where momentum came from the gesture)*
+- [ ] ⚙ A thick accent bar down one side of a card or notice *(blockquotes excluded — a rule beside a quotation is a convention older than the web)*
+- [ ] The display face is one of the handful every generated site reaches for
 
 **The counts have deliberately generous thresholds.** One frosted surface passes; three do not.
 A gate that fires on a single legitimate use is one people learn to switch off.
