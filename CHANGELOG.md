@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-08-30k — the hop cap was not a security property
+## 2026-08-30k — 0.1.12, the hop cap was not a security property
 
 Following redirects by hand is what lets every hop be checked. **The hop LIMIT is not part of
 that**, and 0.1.11 shipped one of 5 where `fetch` itself allows 20.
