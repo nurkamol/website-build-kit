@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-08-30j — recon refuses to crawl inward, and says so
+## 2026-08-30j — 0.1.11, recon refuses to crawl inward, and says so
 
 The kit's first outside contribution ([#1], by [anupamme]), and the reason it is worth
 reading twice.
