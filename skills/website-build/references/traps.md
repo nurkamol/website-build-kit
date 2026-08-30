@@ -5,6 +5,51 @@ deploy, wrong result. Check this list before debugging anything strange.
 
 ---
 
+### `wrangler r2 object put` writes to LOCAL storage by default
+
+Twelve videos uploaded, every one reporting **"Upload complete"**. `wrangler r2 object get` read
+them all back at the correct byte counts. The bucket was empty the entire time.
+
+*Symptom:* everything agrees with itself and everything is wrong. The `r2.dev` URL 404s, and so
+does a fresh six-byte probe — which reads as the subdomain failing to provision. The deployed
+worker's `bucket.get()` returns null for a key the CLI fetches successfully — which reads as a
+binding problem. Hours go into those two hypotheses.
+
+**The tell is in the dashboard, not the CLI: Class A operations: 0.** Class A is writes. The
+uploads went to `.wrangler/state` and the reads came back out of it — local state behaving
+exactly like a working bucket.
+
+*Fix:* `--remote` on every `r2 object` command meant to touch the real bucket.
+
+```bash
+npx wrangler r2 object put <bucket>/<key> --file <path> --content-type <type> --remote
+npx wrangler r2 object get <bucket>/<key> --remote        # verify against the same flag
+```
+
+Then check Class A operations moved. `stacks.md` §3 makes R2 the default past ~15 MB, so this is
+on the path the kit sends you down.
+
+---
+
+### Astro's `paginate()` does not emit WordPress's pagination URLs
+
+`paginate()` on `blog/[...page].astro` produces `/blog/` and `/blog/2/`. WordPress produced
+`/blog/` and `/blog/page/2/`. The rebuilt page also declared `canonical="/blog/page/2/"` — so page
+two existed at one URL and claimed to live at another, while the URL that actually holds traffic
+returned a 404.
+
+*Symptom:* nothing. The build is clean, `/blog/` is fine, and the only evidence is a 404 on a URL
+nobody thought to request. All three facts were individually invisible.
+
+*Fix:* build the paths by hand, putting the literal `page/N` pair in the rest param and keeping the
+`page` prop the shape `paginate()` returned, so the template does not change.
+
+**The general rule: when a preserved URL has a shape, assert the shape.** Do not assume the
+framework's default matches the CMS you are migrating off — `stacks.md` §1d lists the paths that
+must not change, and a paginated archive is one of them.
+
+---
+
 ### A shorthand out-specifies the utility it sits beside
 
 `padding-block: <a> <b>` sets **both** ends. On an element that also carries a utility setting

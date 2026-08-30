@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-30g — working through the rest of the shipped sites' traps
+
+Checked the remaining candidates from two projects' trap files against **current** `master`, not
+against whatever kit version those sites were built on. That distinction did the work: most were
+already fixed.
+
+**Already in the kit, verified individually:**
+
+| A project recorded | Where the kit already has it |
+| --- | --- |
+| `security.checkOrigin` covers form posts but not JSON | the existing CSRF trap says exactly that, and explains why the JSON path tested fine while the no-JS path looked broken |
+| `curl` without `Origin` looks like a broken no-JS path | same entry |
+| `getStaticPaths` cannot see frontmatter above it | commented in `[slug].astro` at the declaration |
+| `ClientRouter` and scripts not re-running | existing trap, plus a note in `Header.astro` |
+| CI shallow-clones, so git history is empty | `lastmod.mjs` refuses on a shallow clone |
+
+*A keyword sweep called `shallow` ABSENT and it was not — the helper was wrong. Every result above
+was then re-checked by opening the file. A grep that answers the wrong question confidently is
+worse than no grep.*
+
+**Two were real, and both are on paths the kit sends you down.**
+
+⚠ **`wrangler r2 object put` WRITES TO LOCAL STORAGE BY DEFAULT.** Twelve videos uploaded, every
+one reporting "Upload complete", `r2 object get` reading them back at correct byte counts, and the
+bucket empty the whole time. Everything agrees with itself and everything is wrong: the `r2.dev`
+URL 404s (reads as a subdomain problem), the deployed worker's `bucket.get()` returns null (reads
+as a binding problem). **The tell is in the dashboard: Class A operations: 0.** `--remote` on every
+command meant to touch the real bucket. `stacks.md` §3 makes R2 the default past ~15 MB, so this is
+squarely on the recommended path.
+
+⚠ **Astro's `paginate()` DOES NOT EMIT WORDPRESS'S PAGINATION URLS.** It produces `/blog/2/`;
+WordPress produced `/blog/page/2/`. The rebuilt page also declared a canonical pointing at the
+WordPress shape — so page two existed at one URL, claimed to live at another, and the URL holding
+the traffic 404'd. Clean build, no symptom, invisible unless someone requests it. Now a row in
+`stacks.md` §1d beside the sitemap filename and the verification files, because **when a preserved
+URL has a shape, assert the shape.**
+
+Count moved 34 → 36; site, both cards and the repository description updated.
+
 ## 2026-08-30f — scanned five shipped sites, and mostly found the loop working
 
 Read the trap files and components of five live builds — inner vision pilates, nag-global,

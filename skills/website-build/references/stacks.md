@@ -297,6 +297,7 @@ done
 | `google<hash>.html` | HTML-file verification drops the moment the file stops resolving, and losing verification loses the property's data access | Carry the file over byte-for-byte, or switch to DNS TXT first and confirm before launch |
 | `BingSiteAuth.xml`, `msvalidate.01` meta | Same for Bing | Same |
 | `facebook-domain-verification` meta | Ad account domain verification | Carry the meta tag |
+| **Paginated archives** — `/blog/page/2/`, `/category/x/page/3/` | WordPress's shape, and Astro's `paginate()` emits `/blog/2/` instead. Page two then exists at one URL and the old one 404s — invisible unless someone requests it | Build the paths by hand with the literal `page/N` in the rest param. `traps.md` has the entry |
 | `/feed/`, `/comments/feed/` | Subscribers, aggregators and syndication partners | 301 to the new feed path — do not just drop it |
 | `ads.txt`, `app-ads.txt` | Programmatic revenue stops without it, with no error anywhere | Copy verbatim |
 | `/.well-known/*` | Domain association files for payments, apps, single sign-on | Copy the directory wholesale |
