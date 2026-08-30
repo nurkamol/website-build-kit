@@ -53,11 +53,31 @@ const OUT = 'recon';
 const section = (t) => console.log(`\n${BOLD}── ${t} ${'─'.repeat(Math.max(0, 56 - t.length))}${RESET}`);
 const notes = [];
 
+/* Blocks loopback, RFC1918 private ranges, link-local (which covers the cloud
+   metadata services at 169.254.169.254) and localhost — a redirect the OLD
+   site issues must not be able to steer this crawler at internal infrastructure. */
+const BLOCKED_HOST_RE =
+  /^(127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|192\.168(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2}|0\.0\.0\.0|localhost|::1|metadata\.google\.internal)$/i;
+
+function assertPublicUrl(url) {
+  const { protocol, hostname } = new URL(url);
+  if (protocol !== 'http:' && protocol !== 'https:') throw new Error(`blocked protocol: ${protocol}`);
+  if (BLOCKED_HOST_RE.test(hostname.replace(/^\[|\]$/g, ''))) throw new Error(`blocked internal host: ${hostname}`);
+}
+
 async function req(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
+  const follow = options.redirect !== 'manual';
   try {
-    return await fetch(url, { redirect: 'follow', signal: controller.signal, ...options });
+    assertPublicUrl(url);
+    let res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
+    for (let hops = 0; follow && res.status >= 300 && res.status < 400 && res.headers.get('location') && hops < 5; hops++) {
+      url = new URL(res.headers.get('location'), url).toString();
+      assertPublicUrl(url);
+      res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
+    }
+    return res;
   } catch {
     return null;
   } finally {
@@ -407,7 +427,8 @@ const VENDORS = [
   'jobber', 'servicetitan', 'momence', 'wellnessliving', 'glofox', 'pike13', 'cookieyes', 'cookiebot', 'complianz', 'algolia', 'mindbody',
   'squarespace', 'wix', 'shopify', 'woocommerce', 'memberpress',
 ];
-const vendors = VENDORS.filter((v) => new RegExp(v.replace('.', '\\.'), 'i').test(corpus));
+const corpusLower = corpus.toLowerCase();
+const vendors = VENDORS.filter((v) => corpusLower.includes(v.toLowerCase()));
 
 const origins = [...new Set([...corpus.matchAll(/(?:src|href)=["']https?:\/\/([^"'/]+)/g)].map((m) => m[1]))]
   .filter((h) => !h.endsWith(HOST.replace(/^www\./, '')))
