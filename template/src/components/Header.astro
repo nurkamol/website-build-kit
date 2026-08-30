@@ -29,7 +29,22 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
       {/* Text until there is a logo. A brand mark referenced before the file
           exists renders as a broken image on every page, which is worse than
           plain type — swap this for <img> once the artwork is in place, and
-          look at it on both a light and a dark background before shipping. */}
+          look at it on both a light and a dark background before shipping.
+
+          ⚠ SIZE IT BY HEIGHT, NOT WIDTH, AND KEEP IT UNDER --header-h.
+            `inline-size: 12rem; block-size: auto` on a wide mark computes to
+            whatever its aspect ratio says — on a real build a 520×227 logo came
+            out 87px tall in an 88px bar, so the LOGO was setting the header's
+            height instead of the token.
+
+            That is not cosmetic. FOUR offsets are computed from --header-h:
+            this header's min-block-size, `.under-header`'s reserve, and
+            scroll-padding-top / scroll-margin-top, which are what stop an
+            anchor target landing underneath the fixed nav. A header taller than
+            its token leaves all four short by the same amount, and none of them
+            errors.
+
+            `block-size: clamp(2.25rem, 3.4vw, 2.75rem); inline-size: auto` */}
       {business.name}
     </a>
 

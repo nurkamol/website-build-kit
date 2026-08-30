@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-08-30e — what --header-h actually holds up
+
+Swept the template for the same shorthand-versus-utility class and for anything else shipping
+wrong. Two of the three candidates turned out to be nothing, and saying so is the point:
+
+- **`404.astro` carries `class="section under-header"`** — both global, equal specificity, so
+  source order decides. `.under-header` is defined *after* `.section`, so it wins. Measured at
+  1440, 768 and 375px: reserve holds at 136px, the heading clears the 73px bar at every width.
+  **No bug.** Checked before touching working code.
+- **`CtaBand`, `Icon` and `Img` are imported nowhere.** Expected — the template ships no design
+  and no images, and `astro check` type-checks them regardless.
+
+**The real finding is what depends on `--header-h`.** Four things read it: the header's own
+`min-block-size`, `.under-header`'s reserve, and `scroll-padding-top` / `scroll-margin-top` —
+the last two being what stop an anchor target landing underneath the fixed nav.
+
+⚠ **A HEADER TALLER THAN ITS TOKEN LEAVES ALL FOUR SHORT BY THE SAME AMOUNT, AND NOTHING REPORTS
+IT.** On a real build a 520×227 logo sized with `inline-size: 12rem; block-size: auto` computed to
+87px tall in an 88px bar — so the **logo** was setting the header's height instead of the token,
+and every offset derived from it was 16px short. The hero looked fine; an anchor link landing
+slightly under the nav is not something anyone files a bug about.
+
+The template renders text, not a logo, with a comment saying to swap in an `<img>` "once the
+artwork is in place" — which is exactly the moment the mistake gets made. That comment now says to
+size by height and stay under the token, and gives the clamp. `tokens.css` lists what breaks if
+you do not.
+
+Guidance at the point of the mistake, not a gate: there is nothing to check until a project adds a
+logo, and by then it is that project's CSS.
+
 ## 2026-08-30d — a shorthand out-specifying the utility beside it
 
 `PageHero` carried `class:list={['hero', 'under-header', 'section--tight']}`. `.section--tight`
