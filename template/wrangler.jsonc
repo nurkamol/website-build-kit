@@ -7,6 +7,21 @@
   // the Astro adapter resolves its environment at build time and silently
   // ignores `deploy --env`, which is how a staging deploy lands on production.
   //
+  // ⚠ AND IT IGNORES `--config` THE SAME WAY, which is the next flag anyone
+  //   reaches for. @astrojs/cloudflare generates dist/server/wrangler.json —
+  //   the config actually deployed, the one carrying `main` and the real asset
+  //   directory — and builds it from the DEFAULT config path only. So
+  //   `wrangler deploy --config wrangler.production.jsonc` either fails with
+  //   "Cannot use assets with a binding in an assets-only Worker" (the
+  //   hand-written file has no `main`), or, if you work around that by
+  //   deploying the generated file instead, ships with whatever name and routes
+  //   THIS file held, whatever was built.
+  //
+  //   One config is the reason that cannot happen here. A project that grows a
+  //   second one has to rewrite dist/server/wrangler.json between build and
+  //   deploy, because there is no adapter option for it. Found on a shipped
+  //   build that needed two.
+  //
   //   npm run deploy:staging      → builds staging, deploys this worker
   //   npm run deploy:production   → builds production, deploys this worker
   //

@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-08-30f — scanned five shipped sites, and mostly found the loop working
+
+Read the trap files and components of five live builds — inner vision pilates, nag-global,
+implantwide, arnicadentalclinic, getmiohome — looking for lessons the kit has not absorbed. Two
+projects keep their own `traps.md`: **39 and 37 entries against the kit's 26.**
+
+**The components had nothing to give.** Across seven projects only one component recurs that the
+kit does not ship — `ServiceIcon` — and that is subject-matter art, which `Icon.astro` says
+explicitly belongs to the project. Convergence there is the rule working, not a gap.
+
+**And three of four spot-checked traps had already fed back:**
+
+| A project recorded | The kit |
+| --- | --- |
+| One generator silently deleting another's manifest entries — every page shipped the same OG card for three days | `optimize-media.mjs` already carries over keys it does not own, and states the general rule |
+| `_redirects` cannot match on hostname in Workers Static Assets | `runbook.md` §3a already has it, **in more detail** — with the test date, the spoofed `Host` header, and "do not re-try this" |
+| Stripping JSONC comments with `//.*$` mangles every URL | `check-env.mjs`'s stripper already guards with `[^:"']`; verified it parses a config containing `https://` |
+
+That is the answer to "what can we harvest": mostly nothing, because it was harvested already. Worth
+knowing, and worth the hour to establish rather than assume.
+
+**One real gap.** `wrangler.jsonc` warns that the adapter *"silently ignores `deploy --env`"* — and
+says nothing about `--config`, which is the next flag anyone reaches for. `@astrojs/cloudflare`
+builds `dist/server/wrangler.json` from the **default config path only**, so
+`wrangler deploy --config wrangler.production.jsonc` either fails with *"Cannot use assets with a
+binding in an assets-only Worker"* or, worked around, ships with whatever name and routes the
+default file held — regardless of what was built. Found on a shipped site that needed two configs.
+
+**The guard that project wrote was deliberately NOT taken.** It rewrites the generated config
+between build and deploy, which solves a problem the kit does not have: one worker, one config, the
+environment decided by the build. Importing the script would import the problem. The warning now
+names `--config` beside `--env`, and says what a project that grows a second config must do.
+
 ## 2026-08-30e — what --header-h actually holds up
 
 Swept the template for the same shorthand-versus-utility class and for anything else shipping
