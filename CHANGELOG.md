@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-08-30l — the audit finding every site inherits, answered once
+
+Dependency graph, Dependabot **alerts** and Dependabot **security updates** are on. Version
+updates deliberately are **not**: 590 packages would be constant churn, and here the lockfile is
+a *shipped artefact* — every bump needs the full gate suite before it is safe.
+
+**The reason this matters for a kit rather than an app.** `template/package-lock.json` is copied
+into every site scaffolded from it. A future CVE in `astro`, `wrangler` or `sharp` lands in every
+site built after that day, and until now **nothing would have told anybody.** That is the kit's
+own silent-failure shape, pointed at the kit.
+
+`kit.yml` already declares `permissions: contents: read` and uses no secrets — exactly what a
+Dependabot PR is given — so its PRs get properly tested rather than failing on missing
+credentials.
+
+**And there is one finding that cannot be fixed, so it is documented instead.**
+`template/docs/dependencies.md` covers [GHSA-jmr9-qjv8-65gv] — `extract-zip`, CVSS 8.1, reached
+through `pa11y-ci → pa11y → puppeteer → @puppeteer/browsers`. Three checkable reasons it stays:
+its `first_patched_version` is **empty**, `npm audit fix` reports `+0 ~0 -0`, and `puppeteer`
+pins `@puppeteer/browsers` at an **exact** `2.13.2` rather than a range.
+
+Production dependencies report **zero**, nothing under `src/` imports it, and a production
+install does not pull it — which makes it low risk, *not* fine, and the note says so in those
+words.
+
+⚠ **`npm audit` and Dependabot disagree on the count and both are right.** npm prints one row per
+affected package in the chain (six); GitHub prints one per advisory (one). A reader who assumes
+six separate holes will escalate something that is not there.
+
+The note ends with the wording to give a client, every clause of it checkable by two commands —
+and an instruction to **delete the file** when a patch ships, because a note describing a problem
+that no longer exists is worse than no note.
+
+[GHSA-jmr9-qjv8-65gv]: https://github.com/advisories/GHSA-jmr9-qjv8-65gv
+
 ## 2026-08-30k — 0.1.12, the hop cap was not a security property
 
 Following redirects by hand is what lets every hop be checked. **The hop LIMIT is not part of

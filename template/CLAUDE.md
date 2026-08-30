@@ -109,6 +109,13 @@ One shipped as body copy on a service page — *"⚠ CONFIRM: the old site adver
 Saturday at 9am…"* — past clean types, clean axe and clean tells. **The question is usually real:
 move it to `BUILD-STATE.md`, do not just delete it.**
 
+**`npm audit` reports a high, and it cannot be fixed.** One advisory, in accessibility *testing*
+tooling — `pa11y-ci → puppeteer → @puppeteer/browsers → extract-zip` — with **no patched version
+published**. Production dependencies report **zero**, nothing under `src/` imports it, and a
+production install does not pull it. `docs/dependencies.md` carries the chain, the three reasons
+it cannot be fixed here, and the wording to give a client who asks. Do not answer that question
+from memory, and never claim the site has "no vulnerabilities".
+
 **Evidence, not assertions.** `npm run a11y:evidence` writes a dated pack to
 `docs/a11y-evidence/` — commit it. It fills in the machine half and leaves the keyboard,
 screen-reader and forms passes **blank**, because no tool does those; a pack with them still
