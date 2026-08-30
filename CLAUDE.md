@@ -238,6 +238,14 @@ it back. That is not cosmetic: the template's `.gitignore` is what keeps `.dev.v
 `.dev.vars`, `node_modules` or `dist` reach the staging copy, and the CLI exits rather than leave
 a scaffolded site without a `.gitignore`.
 
+⚠ **`prepack` copies what `git ls-files` reports, never the working tree.** It used to use a
+denylist — `node_modules|dist|.astro|.wrangler|recon|shots|.dev.vars` — and `template/docs/handover.pdf`
+walked straight past it into a pack. That file is *ignored* by `template/.gitignore`, but the
+ignore file is renamed to `gitignore` for publishing, so npm stops honouring it. The PDF was the
+placeholder, so nothing leaked; the same path ships a **real client's rendered handover** from any
+machine that has run `npm run handover`. A denylist tests for the mistakes you already made — git
+already keeps the correct list, so ask git.
+
 ## Publishing to npm
 
 Releases go out through `.github/workflows/publish.yml` on a published GitHub release, using
