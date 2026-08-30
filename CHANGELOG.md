@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-08-30i — the honeypot is called `company`
+
+From the one shipped site whose lessons live in code comments rather than a trap file:
+
+> ⚠️ `companyName`, NOT `company`. `company` is the HONEYPOT
+
+⚠ **THE KIT'S OWN TRAP FIELD IS NAMED `company`,** and `api/contact.ts` discards any submission
+that fills it in — **silently, with a 200**, so a bot learns nothing:
+
+```ts
+if (input.company) return wantsHtml(request) ? seeOther(FORM_PAGE) : json({ ok: true }, 200);
+```
+
+Add a real "Company" field to that form — which a B2B site eventually asks for — and **every
+enquiry from a company that types its name is thrown away.** Thank-you page renders, nothing
+stored, nothing logged. It is `check-secrets` again: leads vanishing while the site looks like it
+is working. Except this one arrives as an ordinary client request rather than a mistake.
+
+**`npm run check:form`** fails the build when two controls share a `name`, and says which case it
+is: the honeypot collision, or a plain duplicate where the second value overwrites the first in
+`formData`. It runs **before** the build, in both environments — nobody ever meant two fields to
+share a name.
+
+**It reads the source, not `dist/`.** The contact route is `prerender = false`, so the form is not
+in the build output at all. Reading the component catches it before a deploy, which for a lead-loss
+bug is the difference that matters.
+
+**The honeypot keeps its name.** It has to look plausible to a bot, and every plausible name —
+`company`, `website`, `fax`, `url` — is a field some real form wants. Moving the trap moves the
+landmine; the check does not depend on guessing which name nobody will need.
+
+⚠ **AND MUTATION FOUND A DEAD LINE IN THE CHECK ITSELF.** It carried a guard skipping names
+containing `{` or `$`, for expression-built fields. Deleting it changed no test — because the regex
+only captures **quoted** values and Astro writes expressions unquoted, so the guard could never
+fire. Worse, it would have wrongly skipped a real literal like `name="f-{i}"`. Removed, with the
+reasoning moved to the regex. *A test that passes for the wrong reason is the thing mutation
+testing is for.*
+
+Six cases, four of them exclusions. **77 across 14 gates, 43 proving a refusal.**
+
 ## 2026-08-30h — 0.1.9, one layout change and three things written down
 
 **Exactly one functional change reaches the package.** `PageHero` no longer carries

@@ -880,6 +880,58 @@ gate('no dist — refuses', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * check-form — two controls sharing a name, the honeypot most of all
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('check-form');
+
+const formFile = (body) => ({ 'src/components/ContactForm.astro': `<form>${body}</form>` });
+
+gate('a clean form passes', {
+  script: 'check-form.mjs',
+  files: formFile('<input name="name"><input name="email"><input name="message">'),
+  expect: 0,
+});
+
+/* The scenario: a client asks for a Company field, and the honeypot already
+   owns that name. Every enquiry from a company that fills it in is discarded
+   with a 200 and a thank-you page. */
+gate('a real field colliding with the honeypot', {
+  script: 'check-form.mjs',
+  files: formFile('<div class="form__trap"><input name="company" tabindex="-1"></div><input name="company">'),
+  expect: 1,
+  contains: 'HONEYPOT',
+});
+
+gate('a plain duplicate, not the honeypot', {
+  script: 'check-form.mjs',
+  files: formFile('<input name="phone"><input name="phone">'),
+  expect: 1,
+  contains: 'overwrites the first',
+});
+
+/* name= on something that is not a form control must not count. */
+gate('name on a non-control is ignored', {
+  script: 'check-form.mjs',
+  files: formFile('<meta name="x"><a name="x"></a><input name="email">'),
+  expect: 0,
+});
+
+/* A name built from an expression cannot be compared; skipping beats guessing. */
+gate('an expression-built name is skipped', {
+  script: 'check-form.mjs',
+  files: formFile('<input name={`f-${i}`}><input name={`f-${i}`}>'),
+  expect: 0,
+});
+
+gate('no src — refuses', {
+  script: 'check-form.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'no src',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed

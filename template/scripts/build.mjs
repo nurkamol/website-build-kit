@@ -96,6 +96,11 @@ if (env === 'production') {
   run(['check']);
 }
 
+/* Before the build, not after: a duplicate field name is a source bug, and
+   there is no reason to spend a build discovering it. Fails in BOTH
+   environments — nobody ever meant two controls to share a name. */
+step(process.execPath, ['scripts/check-form.mjs']);
+
 run(['build']);
 
 if (env === 'staging') {

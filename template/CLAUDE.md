@@ -94,6 +94,12 @@ The rules whose failure looks like success — double-counted pageviews, a conve
 two pipes, a trigger on `sent=1` that catches almost nothing — are in `docs/analytics.md`.
 Read it before adding any tag.
 
+⚠ **THE HONEYPOT IS CALLED `company`.** `api/contact.ts` discards any submission that fills it in,
+silently and with a 200, so a bot learns nothing. Add a real "Company" field to that form — an
+ordinary client request — and every enquiry from a company that types its name is thrown away, with
+a thank-you page and nothing stored. **Name the real field `companyName`** and leave the trap alone;
+`npm run check:form` fails the build if two controls share a name.
+
 **Notes to yourself never ship.** `check:copy` reads the text a browser would show — not the
 source, not comments, not `<script>` — and looks for the markers people actually leave: `TODO`,
 `FIXME`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}`. It warns on staging and
