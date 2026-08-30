@@ -177,9 +177,20 @@ async function req(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   const follow = options.redirect !== 'manual';
+  /*
+   * ⚠ 20, BECAUSE THAT IS WHAT fetch ITSELF ALLOWS. Following redirects by
+   *   hand is what lets every hop be checked, but the hop LIMIT is not a
+   *   security property — and picking a lower one silently changes results.
+   *
+   *   At a cap of 5, a page behind a longer chain came back as the 302 rather
+   *   than the 200 it used to: measured, old → 200, new → 302. In a migration
+   *   inventory that turns a live page into a redirect, which is the kind of
+   *   wrong that reads as fine.
+   */
+  const MAX_HOPS = 20;
   try {
     let res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
-    for (let hops = 0; follow && res.status >= 300 && res.status < 400 && res.headers.get('location') && hops < 5; hops++) {
+    for (let hops = 0; follow && res.status >= 300 && res.status < 400 && res.headers.get('location') && hops < MAX_HOPS; hops++) {
       const next = new URL(res.headers.get('location'), url).toString();
       const hopRefusal = blockedReason(next, { allowInternal });
       if (hopRefusal) return refuse(`${hopRefusal.reason} — reached by a redirect from ${url}`, next);

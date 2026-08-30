@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-08-30k — the hop cap was not a security property
+
+Following redirects by hand is what lets every hop be checked. **The hop LIMIT is not part of
+that**, and 0.1.11 shipped one of 5 where `fetch` itself allows 20.
+
+Measured against a server issuing a seven-hop chain:
+
+| | old | 0.1.11 |
+| --- | --- | --- |
+| 1 hop | 200 | 200 |
+| **7 hops** | **200** | **302** |
+| no redirect | 200 | 200 |
+
+So a live page behind a long chain was recorded as a **redirect rather than a page**. In a
+migration inventory — the document every later routing decision reads — that is the kind of wrong
+that reads as fine. Nothing errors, nothing is empty, the number is simply not the truth.
+
+Raised to 20. Parity restored on every case, and the crawl output is identical to 0.1.10 again.
+
+⚠ **The lesson is the shape.** A security change arrived bundled with a tuning constant, the
+security part was scrutinised, and the constant rode along unexamined because it sat inside the
+same block. Ask of any borrowed limit: *is this the property I want, or a number that came with it?*
+
 ## 2026-08-30j — 0.1.11, recon refuses to crawl inward, and says so
 
 The kit's first outside contribution ([#1], by [anupamme]), and the reason it is worth
