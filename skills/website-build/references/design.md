@@ -251,6 +251,24 @@ recognisable in three seconds as something an LLM produced, because nobody chose
 **The counts have deliberately generous thresholds.** One frosted surface passes; three do not.
 A gate that fires on a single legitimate use is one people learn to switch off.
 
+### A second opinion, and what it is worth
+
+[`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) runs ~61 deterministic detector
+rules with no LLM and no API key — `npx impeccable detect src`, nothing installed. It names the
+same failure this section does, independently: *"Inter for everything, purple-to-blue gradients,
+cards nested in cards, the rounded-square icon tile above every heading."* Two rows above came
+from running it.
+
+⚠ **RUN IT, DO NOT GATE ON IT.** On the build it was tried against, **9 of 14 findings were
+matches inside code comments** — including `// never reach a deploy as a silently broken <img>.`,
+reported as a broken image. That is the failure `check-sitemap.mjs` carries a warning about:
+match the thing, not the word, or people learn to skim the check. At that rate it is a useful
+different opinion and a poor gate.
+
+**Read the disagreements rather than fixing them.** It flags Fraunces and Inter as overused —
+against the advice above, where a serif display over a neutral sans is the reliable premium lever.
+Both positions are defensible; that is a decision for the project, not a defect in either tool.
+
 **Then look at it properly:** on a real screen at 100%, on a phone, and beside the three
 reference sites. Three hours of staring at a page makes it invisible — the comparison is what
 restores judgement.

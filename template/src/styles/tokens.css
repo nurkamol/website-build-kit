@@ -197,6 +197,11 @@
      appeared should spring. */
 
   /* ── Chrome ────────────────────────────────────────────────────────────── */
+  /* ⚠ FOUR THINGS READ THIS: the header's min-block-size, `.under-header`'s
+     reserve, and scroll-padding-top / scroll-margin-top, which keep an anchor
+     target clear of the fixed nav. If the rendered header is taller than this
+     — a logo sized by width is the usual cause — all four are short by the same
+     amount and nothing reports it. Measure the bar, do not assume it. */
   --header-h: 4.5rem;
   --z-header: 100;
   --z-menu: 110;

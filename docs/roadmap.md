@@ -35,6 +35,8 @@ Kept so they are not re-proposed as new ideas.
 | **Anything SEO-analytical** | Separate skills exist. This kit builds the site; it does not audit rankings |
 | **A CMS in the template** | `stacks.md` §4 picks one per project. Shipping one decides it for every site |
 | **A component library** | The reason the template has no design. See `CLAUDE.md` |
+| **Style-preset skills** (`taste-skill` and similar) | They ship named looks — minimal, brutalist, soft. `design.md` explains why something reads as expensive and **never prescribes a look**; adopting presets would put two philosophies in one build. Not a criticism of those projects, which solve a different problem |
+| **Animation skills as a kit recommendation** | Genuinely good, and the author uses several. But nothing here has shipped a build with them, and "we already use it" is not the bar the provider rule sets. Revisit with build evidence |
 | **Structured-data validation** | Ranked, then rejected on its own note. Offline JSON-LD validation is awkward and the useful check is Google's own Rich Results Test, which needs the live URL and a browser. It is a runbook link, not a script — and `verify` already catches the failure that is mechanical (a `logo` or `og:image` pointing at a 404) |
 
 ---
@@ -45,6 +47,9 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `npm run check:form` | A real field colliding with the honeypot — the trap is named `company`, so a B2B site adding one loses every enquiry from a company that fills it in, with a 200 and a thank-you page |
+| `PageHero` rhythm + shorthand | A 160px hole between the lede and the body on every page using it, and a hero sitting behind the fixed nav — a shorthand out-specifying the utility beside it |
+| `npm run check:copy` | A note to yourself shipped as body copy — a real build put "⚠ CONFIRM: does the 9am class continue?" on a service page, past clean types, clean axe and clean tells |
 | Overshoot easing · side accent bar | Two generated-UI tells `tells` lacked, found by running an external detector over a real build — and the template was failing the first one with a token nothing used |
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |

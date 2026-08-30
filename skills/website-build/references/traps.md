@@ -5,6 +5,81 @@ deploy, wrong result. Check this list before debugging anything strange.
 
 ---
 
+### `wrangler r2 object put` writes to LOCAL storage by default
+
+Twelve videos uploaded, every one reporting **"Upload complete"**. `wrangler r2 object get` read
+them all back at the correct byte counts. The bucket was empty the entire time.
+
+*Symptom:* everything agrees with itself and everything is wrong. The `r2.dev` URL 404s, and so
+does a fresh six-byte probe — which reads as the subdomain failing to provision. The deployed
+worker's `bucket.get()` returns null for a key the CLI fetches successfully — which reads as a
+binding problem. Hours go into those two hypotheses.
+
+**The tell is in the dashboard, not the CLI: Class A operations: 0.** Class A is writes. The
+uploads went to `.wrangler/state` and the reads came back out of it — local state behaving
+exactly like a working bucket.
+
+*Fix:* `--remote` on every `r2 object` command meant to touch the real bucket.
+
+```bash
+npx wrangler r2 object put <bucket>/<key> --file <path> --content-type <type> --remote
+npx wrangler r2 object get <bucket>/<key> --remote        # verify against the same flag
+```
+
+Then check Class A operations moved. `stacks.md` §3 makes R2 the default past ~15 MB, so this is
+on the path the kit sends you down.
+
+---
+
+### Astro's `paginate()` does not emit WordPress's pagination URLs
+
+`paginate()` on `blog/[...page].astro` produces `/blog/` and `/blog/2/`. WordPress produced
+`/blog/` and `/blog/page/2/`. The rebuilt page also declared `canonical="/blog/page/2/"` — so page
+two existed at one URL and claimed to live at another, while the URL that actually holds traffic
+returned a 404.
+
+*Symptom:* nothing. The build is clean, `/blog/` is fine, and the only evidence is a 404 on a URL
+nobody thought to request. All three facts were individually invisible.
+
+*Fix:* build the paths by hand, putting the literal `page/N` pair in the rest param and keeping the
+`page` prop the shape `paginate()` returned, so the template does not change.
+
+**The general rule: when a preserved URL has a shape, assert the shape.** Do not assume the
+framework's default matches the CMS you are migrating off — `stacks.md` §1d lists the paths that
+must not change, and a paginated archive is one of them.
+
+---
+
+### A shorthand out-specifies the utility it sits beside
+
+`padding-block: <a> <b>` sets **both** ends. On an element that also carries a utility setting
+one end — the kit's `.under-header`, which reserves the fixed header's height — the shorthand
+wins, because a scoped component style is `.hero[data-astro-cid-…]` at (0,2,0) against a bare
+class at (0,1,0).
+
+*Symptom:* two of them, and neither errors. The hero sits **behind the fixed nav**, because the
+reserve was silently discarded. And where the utility is a rhythm class like `.section--tight`,
+its *other* end stacks with the next section's, leaving a hole: 160px measured on the kit's own
+`/contact/`, 176px on four pages of a client build, up to 232px where the next section is
+`.section`.
+
+Build green, types green, axe green, `tells` green. A page sitting under its own nav is visible
+only by looking at it.
+
+*Fix:* on any element carrying a one-sided utility, set the **longhand** for the side you own —
+`padding-block-end` — and never the shorthand. Moving the reserve to `main` would make it
+un-overridable, and is wrong for a different reason: an opaque fixed header leaves a strip of body
+colour behind it wherever a first section has its own background.
+
+*Catch it early:*
+
+```bash
+grep -rn --include='*.astro' -B40 'padding-block:' src/components src/pages \
+  | grep -E 'under-header|section--tight' -A1
+```
+
+---
+
 ### A trailing comment in `_redirects` rejects the whole file, at deploy
 
 `_redirects` allows a comment only on **its own line**. A hit count parked at the end of a

@@ -11,6 +11,7 @@ npm run media                                # after adding or replacing any ima
 npm run build:staging && npx wrangler dev    # localhost:8788, real KV + secrets
 npm run a11y                                 # accessibility check, one URL per family
 npm run tells                                # what is undecided, and the design tells
+npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
 npm run dns -- old-site.com                  # capture the zone. MX loss kills client email
 npm run seo -- https://old-site.com          # optional: SEO baseline to diff after cutover
@@ -92,6 +93,20 @@ are set, so an unset ID cannot fall back to another project's container. Never c
 The rules whose failure looks like success — double-counted pageviews, a conversion sent down
 two pipes, a trigger on `sent=1` that catches almost nothing — are in `docs/analytics.md`.
 Read it before adding any tag.
+
+⚠ **THE HONEYPOT IS CALLED `company`.** `api/contact.ts` discards any submission that fills it in,
+silently and with a 200, so a bot learns nothing. Add a real "Company" field to that form — an
+ordinary client request — and every enquiry from a company that types its name is thrown away, with
+a thank-you page and nothing stored. **Name the real field `companyName`** and leave the trap alone;
+`npm run check:form` fails the build if two controls share a name.
+
+**Notes to yourself never ship.** `check:copy` reads the text a browser would show — not the
+source, not comments, not `<script>` — and looks for the markers people actually leave: `TODO`,
+`FIXME`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}`. It warns on staging and
+**refuses on production**, because a note is normal while building and unacceptable at go-live.
+One shipped as body copy on a service page — *"⚠ CONFIRM: the old site advertised classes every
+Saturday at 9am…"* — past clean types, clean axe and clean tells. **The question is usually real:
+move it to `BUILD-STATE.md`, do not just delete it.**
 
 **Evidence, not assertions.** `npm run a11y:evidence` writes a dated pack to
 `docs/a11y-evidence/` — commit it. It fills in the machine half and leaves the keyboard,

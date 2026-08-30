@@ -1,5 +1,267 @@
 # Changelog
 
+## 2026-08-30i — the honeypot is called `company`
+
+From the one shipped site whose lessons live in code comments rather than a trap file:
+
+> ⚠️ `companyName`, NOT `company`. `company` is the HONEYPOT
+
+⚠ **THE KIT'S OWN TRAP FIELD IS NAMED `company`,** and `api/contact.ts` discards any submission
+that fills it in — **silently, with a 200**, so a bot learns nothing:
+
+```ts
+if (input.company) return wantsHtml(request) ? seeOther(FORM_PAGE) : json({ ok: true }, 200);
+```
+
+Add a real "Company" field to that form — which a B2B site eventually asks for — and **every
+enquiry from a company that types its name is thrown away.** Thank-you page renders, nothing
+stored, nothing logged. It is `check-secrets` again: leads vanishing while the site looks like it
+is working. Except this one arrives as an ordinary client request rather than a mistake.
+
+**`npm run check:form`** fails the build when two controls share a `name`, and says which case it
+is: the honeypot collision, or a plain duplicate where the second value overwrites the first in
+`formData`. It runs **before** the build, in both environments — nobody ever meant two fields to
+share a name.
+
+**It reads the source, not `dist/`.** The contact route is `prerender = false`, so the form is not
+in the build output at all. Reading the component catches it before a deploy, which for a lead-loss
+bug is the difference that matters.
+
+**The honeypot keeps its name.** It has to look plausible to a bot, and every plausible name —
+`company`, `website`, `fax`, `url` — is a field some real form wants. Moving the trap moves the
+landmine; the check does not depend on guessing which name nobody will need.
+
+⚠ **AND MUTATION FOUND A DEAD LINE IN THE CHECK ITSELF.** It carried a guard skipping names
+containing `{` or `$`, for expression-built fields. Deleting it changed no test — because the regex
+only captures **quoted** values and Astro writes expressions unquoted, so the guard could never
+fire. Worse, it would have wrongly skipped a real literal like `name="f-{i}"`. Removed, with the
+reasoning moved to the regex. *A test that passes for the wrong reason is the thing mutation
+testing is for.*
+
+Six cases, four of them exclusions. **77 across 14 gates, 43 proving a refusal.**
+
+## 2026-08-30h — 0.1.9, one layout change and three things written down
+
+**Exactly one functional change reaches the package.** `PageHero` no longer carries
+`.section--tight` and sets `padding-block-end: 0`. The other four touched files —
+`Header.astro`, `tokens.css`, `global.css`, `wrangler.jsonc` — are comments.
+
+`.section--tight` is a **shorthand**, setting `padding-block` at both ends, and every page opens
+its next section with a rhythm class of its own — so two stacked. **160px measured on the kit's own
+`/contact/`**, 176px across four pages of a client build, up to 232px where the next section is
+`.section`. The same shorthand out-specified `.under-header` and put a hero **behind the fixed
+nav** — the failure `global.css` warns about in as many words.
+
+**Written down rather than gated:** what `--header-h` holds up (four offsets, and a logo sized by
+width shortens all four silently); that the Cloudflare adapter ignores `--config` exactly as it
+ignores `--env`; and that on an element carrying `.under-header` you write the longhand, never the
+shorthand.
+
+⚠ **A LAYOUT CHANGE, NOT AN ADDITION.** A project whose hero is followed by a section with no
+rhythm class now gets no space there. Neither template page is shaped that way — measured
+`/contact/` after the change: reserve 136px, hero-end 0, next-start 80px — and it is the correct
+behaviour, but it is a change.
+
+**No existing site can be affected.** `create/` scaffolds once and has no update path; it warns
+that scaffolding over an existing project is unrecoverable without git. Only new projects get this.
+
+## 2026-08-30g — working through the rest of the shipped sites' traps
+
+Checked the remaining candidates from two projects' trap files against **current** `master`, not
+against whatever kit version those sites were built on. That distinction did the work: most were
+already fixed.
+
+**Already in the kit, verified individually:**
+
+| A project recorded | Where the kit already has it |
+| --- | --- |
+| `security.checkOrigin` covers form posts but not JSON | the existing CSRF trap says exactly that, and explains why the JSON path tested fine while the no-JS path looked broken |
+| `curl` without `Origin` looks like a broken no-JS path | same entry |
+| `getStaticPaths` cannot see frontmatter above it | commented in `[slug].astro` at the declaration |
+| `ClientRouter` and scripts not re-running | existing trap, plus a note in `Header.astro` |
+| CI shallow-clones, so git history is empty | `lastmod.mjs` refuses on a shallow clone |
+
+*A keyword sweep called `shallow` ABSENT and it was not — the helper was wrong. Every result above
+was then re-checked by opening the file. A grep that answers the wrong question confidently is
+worse than no grep.*
+
+**Two were real, and both are on paths the kit sends you down.**
+
+⚠ **`wrangler r2 object put` WRITES TO LOCAL STORAGE BY DEFAULT.** Twelve videos uploaded, every
+one reporting "Upload complete", `r2 object get` reading them back at correct byte counts, and the
+bucket empty the whole time. Everything agrees with itself and everything is wrong: the `r2.dev`
+URL 404s (reads as a subdomain problem), the deployed worker's `bucket.get()` returns null (reads
+as a binding problem). **The tell is in the dashboard: Class A operations: 0.** `--remote` on every
+command meant to touch the real bucket. `stacks.md` §3 makes R2 the default past ~15 MB, so this is
+squarely on the recommended path.
+
+⚠ **Astro's `paginate()` DOES NOT EMIT WORDPRESS'S PAGINATION URLS.** It produces `/blog/2/`;
+WordPress produced `/blog/page/2/`. The rebuilt page also declared a canonical pointing at the
+WordPress shape — so page two existed at one URL, claimed to live at another, and the URL holding
+the traffic 404'd. Clean build, no symptom, invisible unless someone requests it. Now a row in
+`stacks.md` §1d beside the sitemap filename and the verification files, because **when a preserved
+URL has a shape, assert the shape.**
+
+Count moved 34 → 36; site, both cards and the repository description updated.
+
+## 2026-08-30f — scanned five shipped sites, and mostly found the loop working
+
+Read the trap files and components of five live builds — inner vision pilates, nag-global,
+implantwide, arnicadentalclinic, getmiohome — looking for lessons the kit has not absorbed. Two
+projects keep their own `traps.md`: **39 and 37 entries against the kit's 26.**
+
+**The components had nothing to give.** Across seven projects only one component recurs that the
+kit does not ship — `ServiceIcon` — and that is subject-matter art, which `Icon.astro` says
+explicitly belongs to the project. Convergence there is the rule working, not a gap.
+
+**And three of four spot-checked traps had already fed back:**
+
+| A project recorded | The kit |
+| --- | --- |
+| One generator silently deleting another's manifest entries — every page shipped the same OG card for three days | `optimize-media.mjs` already carries over keys it does not own, and states the general rule |
+| `_redirects` cannot match on hostname in Workers Static Assets | `runbook.md` §3a already has it, **in more detail** — with the test date, the spoofed `Host` header, and "do not re-try this" |
+| Stripping JSONC comments with `//.*$` mangles every URL | `check-env.mjs`'s stripper already guards with `[^:"']`; verified it parses a config containing `https://` |
+
+That is the answer to "what can we harvest": mostly nothing, because it was harvested already. Worth
+knowing, and worth the hour to establish rather than assume.
+
+**One real gap.** `wrangler.jsonc` warns that the adapter *"silently ignores `deploy --env`"* — and
+says nothing about `--config`, which is the next flag anyone reaches for. `@astrojs/cloudflare`
+builds `dist/server/wrangler.json` from the **default config path only**, so
+`wrangler deploy --config wrangler.production.jsonc` either fails with *"Cannot use assets with a
+binding in an assets-only Worker"* or, worked around, ships with whatever name and routes the
+default file held — regardless of what was built. Found on a shipped site that needed two configs.
+
+**The guard that project wrote was deliberately NOT taken.** It rewrites the generated config
+between build and deploy, which solves a problem the kit does not have: one worker, one config, the
+environment decided by the build. Importing the script would import the problem. The warning now
+names `--config` beside `--env`, and says what a project that grows a second config must do.
+
+## 2026-08-30e — what --header-h actually holds up
+
+Swept the template for the same shorthand-versus-utility class and for anything else shipping
+wrong. Two of the three candidates turned out to be nothing, and saying so is the point:
+
+- **`404.astro` carries `class="section under-header"`** — both global, equal specificity, so
+  source order decides. `.under-header` is defined *after* `.section`, so it wins. Measured at
+  1440, 768 and 375px: reserve holds at 136px, the heading clears the 73px bar at every width.
+  **No bug.** Checked before touching working code.
+- **`CtaBand`, `Icon` and `Img` are imported nowhere.** Expected — the template ships no design
+  and no images, and `astro check` type-checks them regardless.
+
+**The real finding is what depends on `--header-h`.** Four things read it: the header's own
+`min-block-size`, `.under-header`'s reserve, and `scroll-padding-top` / `scroll-margin-top` —
+the last two being what stop an anchor target landing underneath the fixed nav.
+
+⚠ **A HEADER TALLER THAN ITS TOKEN LEAVES ALL FOUR SHORT BY THE SAME AMOUNT, AND NOTHING REPORTS
+IT.** On a real build a 520×227 logo sized with `inline-size: 12rem; block-size: auto` computed to
+87px tall in an 88px bar — so the **logo** was setting the header's height instead of the token,
+and every offset derived from it was 16px short. The hero looked fine; an anchor link landing
+slightly under the nav is not something anyone files a bug about.
+
+The template renders text, not a logo, with a comment saying to swap in an `<img>` "once the
+artwork is in place" — which is exactly the moment the mistake gets made. That comment now says to
+size by height and stay under the token, and gives the clamp. `tokens.css` lists what breaks if
+you do not.
+
+Guidance at the point of the mistake, not a gate: there is nothing to check until a project adds a
+logo, and by then it is that project's CSS.
+
+## 2026-08-30d — a shorthand out-specifying the utility beside it
+
+`PageHero` carried `class:list={['hero', 'under-header', 'section--tight']}`. `.section--tight`
+is a **shorthand** — it sets `padding-block` at both ends — and that produced two separate silent
+failures on every project built from the kit.
+
+**A hole under the lede.** Every page opens its following section with a rhythm class of its own,
+so two stacked. **Measured 160px on the kit's own `/contact/`**, 176px on all four `PageHero` pages
+of a client build, and up to 232px where the next section is `.section`.
+
+⚠ **AND THE HERO SAT BEHIND THE NAV.** `.under-header` reserves the fixed header's height on
+`padding-block-start`, and `global.css` warns in as many words that *"a scoped component style
+would out-specify"* it. A shorthand from this component is exactly such a style —
+`.hero[data-astro-cid-…]` at (0,2,0) against a bare class at (0,1,0) — so the reserve was
+discarded. **The comment predicted the failure and the component committed it anyway.**
+
+Build green, types green, axe green, `tells` green in both cases. A page sitting under its own nav
+is visible only by looking at it.
+
+`PageHero` now sets `padding-block-end: 0` and drops the rhythm class: the offset stays with
+`.under-header`, the rhythm stays with whatever section comes next. 160px → 80px, header offset
+intact at 136px.
+
+**Not moved to `main`,** which would have been un-overridable and wrong for a different reason:
+the header's background is opaque `var(--bg)`, so padding there leaves a strip of body colour
+behind it wherever a first section has a background of its own. The per-section reserve is
+deliberate; the shorthand was the bug.
+
+⚠ **NO GATE FOR THIS, AND THAT IS A DECISION.** Catching it generally means analysing the cascade
+— which utility class lands on which element, at which specificity — and that is a CSS analyser,
+not a grep. A check that guessed would produce exactly the false positives this kit keeps refusing
+to ship. It is in `traps.md`, with a grep that narrows the search rather than pretending to decide.
+
+*And adding that entry moved the failure count, which the `audit:docs` check caught immediately:
+33 → 34, updated across the six claims in `site/index.html`, both share cards and the repository
+description. Built two days ago for exactly this.*
+
+## 2026-08-30c — 0.1.8, and one outside tool earns a recommendation
+
+**Shipping in the package:**
+
+| | |
+| --- | --- |
+| `scripts/check-copy.mjs` *(new)* | author notes in rendered copy — `TODO`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}` |
+| `scripts/build.mjs` | runs it — warns on staging, **refuses on production** |
+| `scripts/tells.mjs` | two rows: overshoot easing, a thick accent bar down one side |
+| `src/styles/tokens.css` | **`--ease-spring` removed** — an overshoot curve is a look, and nothing referenced it |
+
+⚠ **`check-copy` CAN FAIL A PRODUCTION BUILD THAT PREVIOUSLY PASSED.** That is the point, and it
+is a behaviour change rather than an addition. Staging only warns, so it surfaces well before
+go-live rather than at it.
+
+**And `design.md` now recommends [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable)** —
+as a second opinion, explicitly not as a gate. Yesterday the provider rule blocked it: *do not add
+a recommendation you have not used on a real deploy.* Today it does not, because it was run
+against one: 14 findings, **9 of them matches inside code comments**, and two signals worth
+keeping. The entry carries that ratio, because a recommendation without its failure rate is an
+advert.
+
+**Two held back, in Rejected so they are not re-proposed.** Style-preset skills ship named looks,
+and `design.md` never prescribes a look — adopting them would put two philosophies in one build.
+Animation skills are good and the author already uses several, but nothing here has shipped a
+build with them, and *"we already use it"* is not the bar the rule sets.
+
+## 2026-08-30b — notes to yourself, shipped as body copy
+
+A real build put this on a service page, as text a parent would read:
+
+> *"⚠ CONFIRM: the old site advertised classes every Saturday at 9am. Does this continue under the
+> concierge model? Emitting a class time nobody is running is a locked door."*
+
+It was written inline in the content file while drafting. **Every gate passed over it** —
+`astro check` clean, axe clean, `tells` clean, links fine. Nothing in a build can tell a sentence
+meant for the client from one meant for the reader, except a list of the markers people actually
+leave.
+
+**`npm run check:copy`** looks for `TODO`, `FIXME`, `XXX`, `TKTK`, `⚠ CONFIRM:`, `Lorem ipsum` and
+an unrendered `{{ placeholder }}`. It **warns on staging and refuses on production** — a note is
+normal while building and unacceptable at go-live, the same split as `tells --undecided-only`.
+
+⚠ **THE EXCLUSIONS ARE THE CHECK.** It reads the text a browser would show, never the source, so
+a `TODO` in a code comment, an HTML comment or a `<script>` is invisible to it. `CONFIRM` needs its
+colon, because *"please confirm your email address"* is a sentence real forms say. Bare `TK` is
+excluded outright — it appears inside `ATKINS` and `TKR`, and a check that fires on those gets
+switched off. Lowercase `todo` is a word in other languages. JSON-LD **is** scanned, because a
+placeholder in structured data gets quoted straight back by Google.
+
+**The question is usually real, and the fix is not deletion.** The script says so and so does
+`CLAUDE.md`: move it to `BUILD-STATE.md`, where the other open client questions live and someone
+reads them before go-live.
+
+Thirteen cases, ten of them exclusions. Mutation-tested: searching raw HTML instead of rendered
+text turns the comment and script cases red; loosening `CONFIRM:` to a bare word turns the email
+sentence red. **71 cases across 13 gates, 40 proving a refusal.**
+
 ## 2026-08-30 — two rows borrowed from a detector, with the exclusions it lacks
 
 Ran [pbakaus/impeccable](https://github.com/pbakaus/impeccable)'s deterministic detector over a

@@ -29,7 +29,7 @@ const { title, lede, breadcrumbs, class: className = '' } = Astro.props;
 const crumbs = breadcrumbs ?? [];
 ---
 
-<section class:list={['hero', 'under-header', 'section--tight', className]}>
+<section class:list={['hero', 'under-header', className]}>
   <div class="container">
     {
       crumbs.length > 0 && (
@@ -59,6 +59,31 @@ const crumbs = breadcrumbs ?? [];
 </section>
 
 <style>
+  /*
+   * ⚠ THE RHYTHM BELONGS TO THE NEXT SECTION, NOT TO THIS ONE.
+   *
+   * This carried `.section--tight`, which is a SHORTHAND — it sets padding-block
+   * at both ends. Every page opens its following section with a rhythm class of
+   * its own, so two stacked: a measured 160px hole on the template's own
+   * /contact/, 176px on all four PageHero pages of a real build, and up to 232px
+   * where the next section is `.section` rather than `.section--tight`.
+   *
+   * Nothing could see it. Build green, types green, axe green, tells green — a
+   * hole is only visible by looking at the page.
+   *
+   * ⚠ AND THE SHORTHAND CLOBBERED THE HEADER OFFSET. `.under-header` reserves
+   *   the fixed header's height on padding-block-START, and global.css warns in
+   *   as many words that "a scoped component style would out-specify" it. A
+   *   shorthand from this component is exactly such a style: on a real build it
+   *   discarded the reserve and put the hero behind the nav.
+   *
+   * padding-block-END only, therefore. The offset stays with `.under-header`,
+   * the rhythm stays with whatever section comes next.
+   */
+  .hero {
+    padding-block-end: 0;
+  }
+
   .hero__crumbs ol {
     display: flex;
     flex-wrap: wrap;

@@ -821,6 +821,117 @@ gate('a misspelled environment — refuses rather than defaulting', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * check-copy — author notes that reached the rendered page
+ *
+ * Every case here is really about the exclusions. Firing on "TODO" is
+ * trivial; not firing on "please confirm your email address" is what makes
+ * the check survive contact with a real site.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('check-copy');
+
+const copyPage = (body) => ({ 'dist/client/index.html': `<!doctype html><html><body>${body}</body></html>` });
+
+for (const [label, body, fires, args] of [
+  ['the note that shipped: ⚠ CONFIRM in body copy', '<p>Yoga is good. ⚠ CONFIRM: does the 9am class continue?</p>', true, []],
+  ['a bare TODO in a paragraph',                     '<p>TODO: write the pricing section.</p>', true, []],
+  ['Lorem ipsum',                                    '<p>Lorem ipsum dolor sit amet.</p>', true, []],
+  ['an unrendered template placeholder',             '<p>Call us on {{ business.phone }}.</p>', true, []],
+  ['a marker inside JSON-LD',                        '<script type="application/ld+json">{"name":"TODO"}</script>', true, []],
+  // The exclusions. Each one is a sentence a real site says.
+  ['TODO inside an HTML comment',                    '<!-- TODO: revisit --><p>Real copy.</p>', false, []],
+  ['TODO inside a script',                           '<script>const x = "TODO: refactor";</script><p>Real copy.</p>', false, []],
+  ['"confirm your email address"',                   '<p>Please confirm your email address to continue.</p>', false, []],
+  ['lowercase todo, a word in other languages',      '<p>Escribimos todo en espanol.</p>', false, []],
+  ['acronyms containing TK',                         '<p>We use the ATKINS method and TKR surgery.</p>', false, []],
+]) {
+  gate(label, {
+    script: 'check-copy.mjs',
+    files: copyPage(body),
+    args,
+    expect: 0, // warn mode never blocks; the verdict is in the output
+    then: (_dir, out) => {
+      const fired = /author marker/.test(out.replace(/\x1b\[[0-9;]*m/g, ''));
+      return fired === fires ? null : `${fired ? 'fired' : 'stayed quiet'}, wanted the opposite`;
+    },
+  });
+}
+
+/* The whole point of the two modes: normal while building, fatal at go-live. */
+gate('warn mode exits 0 with a marker present', {
+  script: 'check-copy.mjs',
+  files: copyPage('<p>TODO: fix</p>'),
+  expect: 0,
+});
+
+gate('--strict refuses the same page', {
+  script: 'check-copy.mjs',
+  files: copyPage('<p>TODO: fix</p>'),
+  args: ['--strict'],
+  expect: 1,
+  contains: 'author marker',
+});
+
+gate('no dist — refuses', {
+  script: 'check-copy.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'no dist',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * check-form — two controls sharing a name, the honeypot most of all
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('check-form');
+
+const formFile = (body) => ({ 'src/components/ContactForm.astro': `<form>${body}</form>` });
+
+gate('a clean form passes', {
+  script: 'check-form.mjs',
+  files: formFile('<input name="name"><input name="email"><input name="message">'),
+  expect: 0,
+});
+
+/* The scenario: a client asks for a Company field, and the honeypot already
+   owns that name. Every enquiry from a company that fills it in is discarded
+   with a 200 and a thank-you page. */
+gate('a real field colliding with the honeypot', {
+  script: 'check-form.mjs',
+  files: formFile('<div class="form__trap"><input name="company" tabindex="-1"></div><input name="company">'),
+  expect: 1,
+  contains: 'HONEYPOT',
+});
+
+gate('a plain duplicate, not the honeypot', {
+  script: 'check-form.mjs',
+  files: formFile('<input name="phone"><input name="phone">'),
+  expect: 1,
+  contains: 'overwrites the first',
+});
+
+/* name= on something that is not a form control must not count. */
+gate('name on a non-control is ignored', {
+  script: 'check-form.mjs',
+  files: formFile('<meta name="x"><a name="x"></a><input name="email">'),
+  expect: 0,
+});
+
+/* A name built from an expression cannot be compared; skipping beats guessing. */
+gate('an expression-built name is skipped', {
+  script: 'check-form.mjs',
+  files: formFile('<input name={`f-${i}`}><input name={`f-${i}`}>'),
+  expect: 0,
+});
+
+gate('no src — refuses', {
+  script: 'check-form.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'no src',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed

@@ -96,11 +96,21 @@ if (env === 'production') {
   run(['check']);
 }
 
+/* Before the build, not after: a duplicate field name is a source bug, and
+   there is no reason to spend a build discovering it. Fails in BOTH
+   environments — nobody ever meant two controls to share a name. */
+step(process.execPath, ['scripts/check-form.mjs']);
+
 run(['build']);
 
 if (env === 'staging') {
   step(process.execPath, ['scripts/staging-headers.mjs']);
 }
+
+/* Warn on staging, refuse on production. A note in the copy is normal WHILE
+   building and unacceptable at go-live — the same split as
+   `tells --undecided-only`. */
+step(process.execPath, ['scripts/check-copy.mjs', ...(env === 'production' ? ['--strict'] : [])]);
 
 step(process.execPath, ['scripts/check-env.mjs']);
 
