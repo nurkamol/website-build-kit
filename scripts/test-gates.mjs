@@ -949,7 +949,6 @@ const NETWORK = 'needs a deployed site or a live zone';
 
 const UNCOVERED = {
   'verify.mjs': NETWORK,
-  'recon.mjs': NETWORK,
   'shots.mjs': NETWORK,
   'check-console.mjs': NETWORK,
   'check-reflow.mjs': NETWORK,
@@ -998,6 +997,80 @@ const UNCOVERED = {
     });
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * recon — the SSRF guard
+ *
+ * recon is otherwise untestable offline: it crawls a live site. But its
+ * refusals happen BEFORE the first fetch, which makes every path that exits 1
+ * reachable in a fixture — the usage error, a blocked host and a blocked
+ * protocol. That is the whole of recon's exit-1 surface, which is why it is no
+ * longer in UNCOVERED.
+ *
+ * ⚠ THE REDIRECT REFUSAL IS NOT COVERED HERE and cannot be: it needs a real
+ *   server issuing a 302 to an internal address. It does not exit 1 — it
+ *   returns null and adds a note — so the ledger does not demand it, but do
+ *   not read this block as proof that the redirect path works.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('recon — SSRF guard');
+
+gate('no target at all is a usage error', {
+  script: 'recon.mjs',
+  files: {},
+  args: [],
+  expect: 1,
+  contains: 'usage:',
+});
+
+for (const [label, target] of [
+  ['loopback', 'http://127.0.0.1/'],
+  ['loopback, written short', 'http://127.1/'],
+  ['loopback, written as an integer', 'http://2130706433/'],
+  ['loopback, written in octal', 'http://0177.0.0.1/'],
+  ['loopback over IPv6', 'http://[::1]/'],
+  ['loopback as IPv4-mapped IPv6', 'http://[::ffff:127.0.0.1]/'],
+  ['localhost by name', 'http://localhost:8080/'],
+  ['the cloud metadata address', 'http://169.254.169.254/latest/meta-data/'],
+  ['an RFC1918 address', 'http://10.0.5.20/'],
+  ['a private 192.168 address', 'http://192.168.1.1/'],
+]) {
+  gate(`refuses ${label}`, {
+    script: 'recon.mjs',
+    files: {},
+    args: [target],
+    expect: 1,
+    contains: 'blocked internal host',
+  });
+}
+
+gate('refuses a non-http protocol', {
+  script: 'recon.mjs',
+  files: {},
+  args: ['file:///etc/passwd'],
+  expect: 1,
+  contains: 'blocked protocol',
+});
+
+/* --allow-internal must NOT excuse a bad protocol — the flag is about hosts,
+   and a hint offering it for a file: URL would be advice that cannot work. */
+gate('--allow-internal does not excuse a bad protocol', {
+  script: 'recon.mjs',
+  files: {},
+  args: ['file:///etc/passwd', '--allow-internal'],
+  expect: 1,
+  contains: 'blocked protocol',
+});
+
+/* The boundary of the RFC1918 range, in both directions. 172.15 is public and
+   172.16 is not; a regex that gets this wrong looks right in every other case. */
+gate('refuses 172.16, the first private address in the range', {
+  script: 'recon.mjs',
+  files: {},
+  args: ['http://172.16.0.1/'],
+  expect: 1,
+  contains: 'blocked internal host',
+});
+
 
 /* ────────────────────────────────────────────────────────────────────────
  * Report
