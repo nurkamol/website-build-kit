@@ -14,46 +14,12 @@ If it does not catch a failure, it is a preference.
 
 ## Open
 
-### 1. A local fixture server, so "needs a deployed site" stops being the reason
+Nothing. Every ranked item has shipped — see **Done** below, and `CHANGELOG.md` for the detail.
 
-**Catches:** a network-facing script silently changing what it *reports*. `verify.mjs` going
-inert the way `check-env` did — matching nothing and passing every go-live looking healthy.
+The bar is what keeps this section empty rather than full of preferences: *would you write this
+from scratch on the next project, and would you get it wrong the first time?* When the next
+build produces something that answers both, it goes here first and gets built second.
 
-**The evidence is a shipped regression.** 0.1.11 went to npm with a redirect cap of 5 where
-`fetch` allows 20. A live page behind a longer chain came back as **302 instead of 200**, so a
-migration inventory recorded a page as a redirect. Every gate was green. It was found because
-someone looked at a diff, not because anything tested it — and it was confirmed in minutes by a
-throwaway HTTP server issuing a seven-hop chain. That server is the thing to keep.
-
-**The ledger's stated reason is wrong, which is why nobody revisited it.** `test-gates.mjs` says
-`'needs a deployed site or a live zone'` for nine scripts. Sorted honestly:
-
-| | Real blocker |
-| --- | --- |
-| `shots`, `check-console`, `check-reflow`, `check-a11y`, `a11y-evidence`, `md-to-pdf` | a **browser** — which can point at localhost |
-| `dns-snapshot` | genuinely a live zone |
-| `indexnow` | submits to real search engines |
-| **`verify`** | **neither — it just takes a URL** |
-
-So the one fully testable script is the one that matters most. `verify.mjs` is **1,069 lines**
-deciding go-live across eleven sections — Routes, Links, Meta, Preserved paths, Redirects,
-Headers, Form, Sitemap — with three `exit(1)` paths and **not one case proving any of them still
-refuses.** It is the last thing standing between a build and a client's live site.
-
-**Shape:** a fixture server in `scripts/`, serving a small site with deliberate faults — duplicate
-titles, a canonical pointing elsewhere, a preserved path that 301s to the homepage, a route that
-404s — and cases asserting `verify` refuses each. Then correct `UNCOVERED` to say *browser* where
-that is the truth, so the remaining entries are honest rather than inherited.
-
-It also covers the one `recon` path still untested — the redirect refusal, which needs a server
-issuing a 302 inward. Same fixture, no extra machinery.
-
----
-
-Nothing else is open. The bar is what keeps this section near-empty rather than full of
-preferences: *would you write this from scratch on the next project, and would you get it wrong
-the first time?* When the next build produces something that answers both, it goes here first and
-gets built second.
 
 ---
 
@@ -89,6 +55,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |
 | Generated-site tells | A site that clears every templated-look row and is still recognisable in three seconds as LLM output — glass, giant radii, glow, badge decoration. Three are machine-checked |
+| `scripts/fixture-site.mjs` | A network-facing script silently changing what it *reports* — 0.1.11 shipped a redirect cap that turned a live page into a 302 in the inventory, with every gate green. `verify` is 1,069 lines deciding go-live and had no case proving any of its three `exit(1)` paths still fired |
 | `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 29 cases, 15 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |
 | `npm run check:secrets` | A deploy that captures leads and silently cannot email them — `secret()` returns `undefined`, the form returns 200, nobody is notified |
 | Inverse check in `audit:docs` | A feature that ships and is documented nowhere — the audit was green through two README drifts because it only checked that references *resolve* |

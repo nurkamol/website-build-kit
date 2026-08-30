@@ -158,13 +158,17 @@ const notes = [];
  */
 const refusals = new Set();
 
-function refuse(reason, url) {
+function refuse(reason, url, kind) {
   if (!refusals.has(reason)) {
     refusals.add(reason);
     console.log(`  ${YELLOW}refused${RESET} ${reason}`);
+    /* ⚠ ONLY A HOST REFUSAL IS SOMETHING --allow-internal CAN EXCUSE. Offering
+       the flag for a `file:` redirect is a dead hint — the same mistake this
+       script already fixed once in the startup message, still living here. */
     notes.push(
       `Refused to fetch ${url} — ${reason}. This was NOT a network error: the crawl skipped it ` +
-        `deliberately, so the inventory is incomplete. Re-run with --allow-internal if that host is yours.`,
+        `deliberately, so the inventory is incomplete.` +
+        (kind === 'host' ? ' Re-run with --allow-internal if that host is yours.' : ''),
     );
   }
   return null;
@@ -172,7 +176,7 @@ function refuse(reason, url) {
 
 async function req(url, options = {}) {
   const refusal = blockedReason(url, { allowInternal });
-  if (refusal) return refuse(refusal.reason, url);
+  if (refusal) return refuse(refusal.reason, url, refusal.kind);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -193,7 +197,7 @@ async function req(url, options = {}) {
     for (let hops = 0; follow && res.status >= 300 && res.status < 400 && res.headers.get('location') && hops < MAX_HOPS; hops++) {
       const next = new URL(res.headers.get('location'), url).toString();
       const hopRefusal = blockedReason(next, { allowInternal });
-      if (hopRefusal) return refuse(`${hopRefusal.reason} — reached by a redirect from ${url}`, next);
+      if (hopRefusal) return refuse(`${hopRefusal.reason} — reached by a redirect from ${url}`, next, hopRefusal.kind);
       url = next;
       res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
     }

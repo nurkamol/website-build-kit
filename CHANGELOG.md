@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-08-30n — "needs a deployed site" was the wrong reason, on every entry
+
+`verify.mjs` is **1,069 lines deciding go-live** across eleven sections, with three `exit(1)`
+paths and **not one case proving any of them still fired.** It sat in the `UNCOVERED` ledger
+behind the reason *"needs a deployed site or a live zone"* — which had been copied from the first
+script it was written for and never re-examined.
+
+Sorted honestly, that reason was wrong for every entry:
+
+| | Actual blocker |
+| --- | --- |
+| `shots`, `check-console`, `check-reflow`, `check-a11y`, `a11y-evidence`, `md-to-pdf` | a **browser**, which can point at localhost perfectly well |
+| `dns-snapshot` | genuinely a live zone |
+| `indexnow` | submits to real search engines |
+| **`verify`** | **neither — it takes a URL** |
+
+⚠ **A wrong reason in a ledger is worse than a missing entry, because it reads as a decision
+somebody made.** Nobody revisits a line that looks considered.
+
+**`scripts/fixture-site.mjs`** serves a deliberately faulty site on localhost. The clean fixture
+passes **all 32 checks and exits 0**, and every fault is paired against it — a suite that only
+ever sees a broken site cannot tell *"this check works"* from *"this check always fires"*.
+
+**Three of my own expectations were wrong, and the harness said so rather than being loosened
+until it agreed.** A second `h1` is a **warning**, not a failure. A preserved path landing on the
+homepage warns, and the exit code comes from the redirect rule. And a canonical pointing at
+another host **correctly passes**, because verify deliberately relaxes canonicals against a
+localhost origin — *"expected on a local preview of a remote build"*. That check therefore
+**cannot** be covered from here, and the gate block says so rather than letting a green tick imply
+otherwise.
+
+**It also closed recon's last untested path** — the redirect refusal, which needs a real server
+issuing a 302. Finding somewhere to put it was the lesson: the preserved-path checks and the
+sitemap probes all pass `redirect: 'manual'`, so the hop loop never runs there, and sitemap URLs
+are written to `urls.txt` without being fetched at all. **Three plausible-looking places exercise
+nothing.**
+
+⚠ **And writing that case found a dead hint still in the code.** The refusal note ended *"Re-run
+with `--allow-internal` if that host is yours"* — on a `file:` redirect, which that flag can never
+excuse. The startup message had been fixed for exactly this a release earlier; the note had not.
+It now only offers the flag for a host refusal.
+
+**105 cases across 16 gates, 67 proving a refusal** — from 91/15/57. Mutation-tested four ways:
+making the route, empty-submission and cross-origin checks always pass, and silencing recon's
+refusal, each fails the one case meant to catch it.
+
 ## 2026-08-30m — 0.1.13, Actions get version updates, npm does not
 
 **Version updates is not one decision — it is two ecosystems, and they are nothing alike.**

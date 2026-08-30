@@ -162,9 +162,18 @@ longer exists, or one that is now covered.
 
 That ledger is mechanical because the prose version was wrong twice: first excusing everything
 as "needs a deployed site" when `staging-headers.mjs` was entirely offline, then still omitting
-`redirects.mjs` and `extract.mjs`. A sentence cannot be checked. `verify`, `recon`, `shots`, `console`, `reflow` and `dns` are
-deliberately not covered — they need a deployed site, and a stub convincing enough to
-exercise them would need more maintenance than the scripts do.
+`redirects.mjs` and `extract.mjs`. A sentence cannot be checked.
+
+⚠ **And "needs a deployed site" was itself wrong for a third time — as the ledger's own reason
+string, on every entry.** It had been copied from the first script it was written for. Sorted
+honestly: six of them need a **browser** (which can point at localhost perfectly well), `dns`
+needs a live zone, `indexnow` submits to real search engines, and **`verify` needed neither — it
+takes a URL**, which is not the same thing as needing a deployment. `verify.mjs` is 1,069 lines
+deciding go-live and it had no case proving any of its three `exit(1)` paths still fired.
+
+`scripts/fixture-site.mjs` serves a deliberately faulty site on localhost so it can. **A wrong
+reason in a ledger is worse than a missing entry, because it reads as a decision someone made.**
+When adding an entry, name the *actual* blocker.
 
 A script can use a name nothing imported and still pass `node --check` — an
 undefined identifier is valid syntax. `npm run recon` shipped that way and threw

@@ -47,7 +47,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const RESET = '\x1b[0m';
@@ -945,18 +945,30 @@ gate('no src — refuses', {
  *   against the filesystem can.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const NETWORK = 'needs a deployed site or a live zone';
+/*
+ * ⚠ THE REASON USED TO BE WRONG FOR EVERY ENTRY, AND THAT IS WHY NOBODY
+ *   REVISITED IT. All nine said "needs a deployed site" — inherited from the
+ *   first one written. Sorted honestly, six need a BROWSER (which can point at
+ *   localhost perfectly well), one needs a live zone, one submits to real
+ *   search engines, and `verify.mjs` needed neither: it takes a URL, which is
+ *   not the same thing as needing a deployment.
+ *
+ *   `verify.mjs` is now covered against `scripts/fixture-site.mjs`. A wrong
+ *   reason in a ledger is worse than a missing entry, because it reads as a
+ *   decision someone made.
+ */
+const BROWSER = 'drives a real browser — testable in principle, but a stub convincing enough would need more maintenance than the script';
+const NETWORK = 'needs a live zone or a real third party';
 
 const UNCOVERED = {
-  'verify.mjs': NETWORK,
-  'shots.mjs': NETWORK,
-  'check-console.mjs': NETWORK,
-  'check-reflow.mjs': NETWORK,
-  'check-a11y.mjs': NETWORK,
-  'a11y-evidence.mjs': NETWORK,
+  'shots.mjs': BROWSER,
+  'check-console.mjs': BROWSER,
+  'check-reflow.mjs': BROWSER,
+  'check-a11y.mjs': BROWSER,
+  'a11y-evidence.mjs': BROWSER,
+  'md-to-pdf.mjs': BROWSER + ' (headless Chrome fetching the rendered page)',
   'dns-snapshot.mjs': NETWORK + ' (node:dns against a real zone)',
   'indexnow.mjs': NETWORK + ' — and it submits to real search engines',
-  'md-to-pdf.mjs': NETWORK + ' (headless Chrome fetching the rendered page)',
 };
 
 {
@@ -1069,6 +1081,201 @@ gate('refuses 172.16, the first private address in the range', {
   args: ['http://172.16.0.1/'],
   expect: 1,
   contains: 'blocked internal host',
+});
+
+
+
+/* ────────────────────────────────────────────────────────────────────────
+ * verify — the go-live gate, against a local fixture site
+ *
+ * 1,069 lines across eleven sections, three `exit(1)` paths, and until now not
+ * one case proving any of them still refuses. It was excused as "needs a
+ * deployed site"; it needs a URL.
+ *
+ * ⚠ EVERY FAULT IS PAIRED WITH THE CLEAN RUN. The clean fixture passes all 32
+ *   checks and exits 0, so a case asserting `✗ <check>` is proving that check
+ *   fired for its own reason — not that verify happened to fail at something
+ *   unrelated. A suite that only ever sees a broken site cannot tell "this
+ *   check works" from "this check always fires".
+ *
+ * ⚠ THE CANONICAL CHECKS CANNOT BE COVERED FROM HERE, and that is verify being
+ *   right rather than a gap to paper over. Against a localhost origin it
+ *   deliberately relaxes them — "expected on a local preview of a remote
+ *   build; re-run against the deployed host" — so a canonical pointing at
+ *   another host passes, correctly. Covering it needs a real deployment. Do
+ *   not read this block as proving the canonical section works.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('verify — against a fixture site');
+
+const FIXTURE_SITE = join(KIT, 'scripts', 'fixture-site.mjs');
+let fixturePort = 8330;
+
+/* The project files verify reads from disk. The served site is the fixture;
+   these are what it compares against. */
+const VERIFY_FILES = {
+  'src/pages/index.astro': '---\n---\n<h1>Home</h1>\n',
+  'src/pages/about.astro': '---\n---\n<h1>About</h1>\n',
+  'public/_redirects': '/legacy-about.html /about/ 301\n',
+  'recon/preserved.md':
+    '# Preserved\n\n## Present on the old site\n\n| path | status |\n| --- | --- |\n| `/legacy-about.html` | 301 |\n',
+};
+
+/**
+ * Start the fixture as a SEPARATE PROCESS and block until it answers.
+ *
+ * ⚠ IT CANNOT BE IN-PROCESS. This harness drives scripts with `spawnSync`,
+ *   which blocks the event loop — a listener in this process would never
+ *   accept the connection, and every case would fail as "origin unreachable"
+ *   while looking like a real verdict.
+ *
+ * A fresh port per case, so a socket still in TIME_WAIT from the previous one
+ * cannot fail the next with EADDRINUSE.
+ */
+function startFixture(faults) {
+  const port = ++fixturePort;
+  const args = [FIXTURE_SITE, '--port', String(port), ...(faults ? ['--faults', faults] : [])];
+  const child = spawn(process.execPath, args, { stdio: 'ignore' });
+  const probe = `fetch('http://127.0.0.1:${port}/__ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`;
+  for (let i = 0; i < 60; i++) {
+    if (spawnSync(process.execPath, ['-e', probe], { stdio: 'ignore' }).status === 0) {
+      return { child, origin: `http://127.0.0.1:${port}` };
+    }
+  }
+  child.kill('SIGKILL');
+  throw new Error(`fixture-site did not start on ${port}`);
+}
+
+/** Strip the colour before looking for a mark, or nothing ever matches. */
+const plain = (out) => out.replace(/\u001b\[[0-9;]*m/g, '');
+const showsCheck = (out, mark, name) => plain(out).includes(`${mark} ${name}`);
+
+function verifyGate(label, { faults = '', expect, mark, check }) {
+  let fixture;
+  try {
+    fixture = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    return;
+  }
+  try {
+    gate(label, {
+      script: 'verify.mjs',
+      files: VERIFY_FILES,
+      args: [fixture.origin],
+      expect,
+      then: (_dir, out) =>
+        showsCheck(out, mark, check) ? null : `did not report ${JSON.stringify(`${mark} ${check}`)}`,
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
+/* The control. Everything below is only meaningful because this passes. */
+verifyGate('a clean site passes every check', {
+  expect: 0,
+  mark: '✓',
+  check: 'every route returns 200',
+});
+
+for (const [label, faults, check] of [
+  ['a route that 404s', 'route-404', 'every route returns 200'],
+  ['two pages sharing a title', 'dup-title', 'no two pages share a title'],
+  ['robots.txt naming no sitemap', 'no-sitemap-in-robots', 'production robots.txt names a sitemap'],
+  ['caught spam landing on the conversion URL', 'spam-converts', 'caught spam does NOT land on the conversion URL'],
+  ['an empty submission accepted', 'accepts-empty', 'empty submission is rejected'],
+  ['a cross-origin submission accepted', 'allows-cross-origin', 'cross-origin submission is refused'],
+]) {
+  verifyGate(`refuses ${label}`, { faults, expect: 1, mark: '✗', check });
+}
+
+/*
+ * ⚠ THESE TWO WARN RATHER THAN REFUSE, AND THE CASES SAY SO.
+ *
+ *   Writing them as `expect: 1` is how this block was first drafted, and both
+ *   failed — which is the harness working. A second h1 is a `!`, and the run
+ *   still exits 0. Pinning the mark rather than only the exit code is what
+ *   makes that visible instead of being quietly "fixed" by loosening the
+ *   assertion until it passed.
+ */
+verifyGate('warns on a second h1, without failing the run', {
+  faults: 'two-h1',
+  expect: 0,
+  mark: '!',
+  check: 'exactly one h1 per page',
+});
+
+/* The warning is the preserved-path check; the exit 1 comes from the redirect
+   rule, which declared /about/ and got /. Same fault, two reports. */
+verifyGate('warns when a preserved path lands on the homepage', {
+  faults: 'preserved-to-home',
+  expect: 1,
+  mark: '!',
+  check: 'no preserved path redirects to the homepage',
+});
+
+/*
+ * recon's redirect refusal — the one path the offline cases could not reach.
+ *
+ * It needs a real server issuing a 302, which is exactly what the fixture is.
+ * The refusal does not exit 1: it prints, adds a note, and the crawl continues
+ * with an incomplete inventory. So the assertion is on the OUTPUT, and the
+ * clean run is paired with it — otherwise "no refusal" and "the check is dead"
+ * look identical.
+ */
+for (const [label, faults, wanted] of [
+  ['refuses a redirect it must not follow', 'redirect-blocked', 'refused blocked protocol: file:'],
+  ['does not refuse anything on a clean crawl', '', null],
+]) {
+  let fixture;
+  try {
+    fixture = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label: `recon ${label}`, ok: false, detail: String(err.message) });
+    continue;
+  }
+  try {
+    gate(`recon ${label}`, {
+      script: 'recon.mjs',
+      files: {},
+      args: [fixture.origin, '--no-wayback', '--allow-internal'],
+      expect: 0,
+      then: (_dir, out) => {
+        const text = plain(out);
+        if (wanted) return text.includes(wanted) ? null : `did not print ${JSON.stringify(wanted)}`;
+        return /refused/i.test(text) ? 'refused something on a clean site' : null;
+      },
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
+/* Both reachable without a server at all. */
+gate('no origin argument is a usage error', {
+  script: 'verify.mjs',
+  files: VERIFY_FILES,
+  args: [],
+  expect: 1,
+  contains: 'usage:',
+});
+
+gate('a non-http argument is a usage error', {
+  script: 'verify.mjs',
+  files: VERIFY_FILES,
+  args: ['example.com'],
+  expect: 1,
+  contains: 'usage:',
+});
+
+/* ⚠ A PORT NOTHING IS LISTENING ON. verify must say it cannot reach the origin
+   and stop, rather than reporting a page of green checks against nothing. */
+gate('an unreachable origin stops the run', {
+  script: 'verify.mjs',
+  files: VERIFY_FILES,
+  args: ['http://127.0.0.1:9'],
+  expect: 1,
+  contains: 'Cannot reach',
 });
 
 
