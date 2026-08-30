@@ -37,44 +37,153 @@ const YELLOW = '[33m';
 const DIM = '[2m';
 const BOLD = '[1m';
 
+/*
+ * ── WHAT THIS BLOCKS, AND WHAT IT DOES NOT ─────────────────────────────────
+ * Loopback, the RFC1918 private ranges, link-local (which is where the cloud
+ * metadata services live, at 169.254.169.254) and localhost. The threat is a
+ * redirect: the OLD site is not ours, and a 302 it issues must not be able to
+ * steer this crawler at infrastructure on the operator's network.
+ *
+ * ⚠ THIS IS A STRING BLOCKLIST AND IT ONLY SEES LITERAL ADDRESSES. A HOSTNAME
+ *   THAT *RESOLVES* TO LOOPBACK WALKS STRAIGHT THROUGH — `localtest.me` is a
+ *   public name that resolves to ::1 today, and any attacker can point their
+ *   own name wherever they like. Closing that needs resolution before connect
+ *   plus a pinned socket, which fetch does not expose.
+ *
+ *   So treat this as defence in depth, not a barrier. It raises the cost of
+ *   the obvious attack; it does not make the crawler safe to point at a host
+ *   you do not trust.
+ *
+ * Node's URL parser canonicalises before we ever see the host, which is why
+ * the short forms need no special handling: 127.1, 2130706433 and 0177.0.0.1
+ * all arrive as 127.0.0.1, and [0:0:0:0:0:0:0:1] arrives as ::1.
+ *
+ * ⚠ IT CANONICALISES IPv4-MAPPED IPv6 THE WRONG WAY FOR US. `::ffff:127.0.0.1`
+ *   comes back as `[::ffff:7f00:1]` — the same address in hex — so a blocklist
+ *   written in dotted quad never matches it. It has to be folded back by hand,
+ *   which is what unmapV4 does. Stripping the literal `::ffff:` prefix is NOT
+ *   enough and looks like it works.
+ */
+const BLOCKED_HOST_RE =
+  /^(127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|192\.168(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2}|0\.0\.0\.0|localhost|::1|metadata\.google\.internal)$/i;
+
+/** `::ffff:7f00:1` → `127.0.0.1`. Returns the host unchanged if it is not mapped. */
+function unmapV4(host) {
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+  if (hex) {
+    const [hi, lo] = [parseInt(hex[1], 16), parseInt(hex[2], 16)];
+    return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join('.');
+  }
+  return host.replace(/^::ffff:/i, '');
+}
+
+/**
+ * Why this URL is refused, or null if it is fine. Never throws.
+ *
+ * The `kind` matters: only a `host` refusal is something --allow-internal can
+ * excuse. A bad protocol is a typo, and telling someone to pass a flag that
+ * cannot help them is worse than saying nothing.
+ */
+function blockedReason(url, { allowInternal = false } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { kind: 'url', reason: `unparseable URL: ${url}` };
+  }
+  const { protocol, hostname } = parsed;
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    return { kind: 'protocol', reason: `blocked protocol: ${protocol}` };
+  }
+  if (allowInternal) return null;
+  const host = unmapV4(hostname.replace(/^\[|\]$/g, ''));
+  if (BLOCKED_HOST_RE.test(host)) return { kind: 'host', reason: `blocked internal host: ${hostname}` };
+  return null;
+}
+
 const argv = process.argv.slice(2);
 const target = argv.find((a) => !a.startsWith('--'));
 const useWayback = !argv.includes('--no-wayback');
+const allowInternal = argv.includes('--allow-internal');
 
 if (!target) {
-  console.error('usage: npm run recon -- https://old-site.com [--no-wayback]');
+  console.error('usage: npm run recon -- https://old-site.com [--no-wayback] [--allow-internal]');
   process.exit(1);
 }
 
-const ORIGIN = (target.startsWith('http') ? target : `https://${target}`).replace(/\/$/, '');
+/*
+ * ⚠ ONLY PREPEND A SCHEME WHEN THERE IS NONE. `target.startsWith('http')` was
+ *   the old test, and it turned `file:///etc/passwd` into
+ *   `https://file:///etc/passwd` — which parses, with hostname `file`, so the
+ *   protocol check below could never fire on a target the user typed.
+ */
+const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(target);
+const ORIGIN = (hasScheme ? target : `https://${target}`).replace(/\/$/, '');
 const HOST = new URL(ORIGIN).hostname;
 const OUT = 'recon';
+
+/*
+ * The target is checked too, not just the redirects. An old site behind a VPN
+ * on a private address is a real thing to recon, so this is a flag rather than
+ * a refusal — but it has to be asked for, because the default has to be the
+ * safe one and `--allow-internal` also relaxes the redirect check below.
+ */
+const originRefusal = blockedReason(ORIGIN, { allowInternal });
+if (originRefusal) {
+  const hint =
+    originRefusal.kind === 'host'
+      ? `  recon crawls the old LIVE site, so an internal address is usually a typo.\n` +
+        `  If it is not — the old site is on a VPN, or behind a private address —\n` +
+        `  pass ${BOLD}--allow-internal${RESET} and it will crawl it.\n`
+      : `  recon speaks http and https. Give it the URL you would type into a browser.\n`;
+  console.error(`\n${RED}✗ ${originRefusal.reason}${RESET}\n\n${hint}`);
+  process.exit(1);
+}
 
 const section = (t) => console.log(`\n${BOLD}── ${t} ${'─'.repeat(Math.max(0, 56 - t.length))}${RESET}`);
 const notes = [];
 
-/* Blocks loopback, RFC1918 private ranges, link-local (which covers the cloud
-   metadata services at 169.254.169.254) and localhost — a redirect the OLD
-   site issues must not be able to steer this crawler at internal infrastructure. */
-const BLOCKED_HOST_RE =
-  /^(127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|192\.168(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2}|0\.0\.0\.0|localhost|::1|metadata\.google\.internal)$/i;
+/*
+ * ⚠ A REFUSAL IS NOT A NETWORK ERROR, AND MUST NOT LOOK LIKE ONE.
+ *
+ *   req() returns null when a fetch fails, and every caller reads that as "the
+ *   old site did not answer". If a blocked host returned null the same way, a
+ *   refused crawl would be reported as an unreachable site: recon would print a
+ *   thin inventory, exit 0, and nobody would learn that pages were skipped on
+ *   purpose. That is the exact shape of failure this kit exists to prevent, so
+ *   a refusal says so on stdout AND lands in the notes at the end of the run.
+ *
+ *   Deduplicated by reason: a site that redirects every path to the same
+ *   internal host would otherwise print one line per URL.
+ */
+const refusals = new Set();
 
-function assertPublicUrl(url) {
-  const { protocol, hostname } = new URL(url);
-  if (protocol !== 'http:' && protocol !== 'https:') throw new Error(`blocked protocol: ${protocol}`);
-  if (BLOCKED_HOST_RE.test(hostname.replace(/^\[|\]$/g, ''))) throw new Error(`blocked internal host: ${hostname}`);
+function refuse(reason, url) {
+  if (!refusals.has(reason)) {
+    refusals.add(reason);
+    console.log(`  ${YELLOW}refused${RESET} ${reason}`);
+    notes.push(
+      `Refused to fetch ${url} — ${reason}. This was NOT a network error: the crawl skipped it ` +
+        `deliberately, so the inventory is incomplete. Re-run with --allow-internal if that host is yours.`,
+    );
+  }
+  return null;
 }
 
 async function req(url, options = {}) {
+  const refusal = blockedReason(url, { allowInternal });
+  if (refusal) return refuse(refusal.reason, url);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   const follow = options.redirect !== 'manual';
   try {
-    assertPublicUrl(url);
     let res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
     for (let hops = 0; follow && res.status >= 300 && res.status < 400 && res.headers.get('location') && hops < 5; hops++) {
-      url = new URL(res.headers.get('location'), url).toString();
-      assertPublicUrl(url);
+      const next = new URL(res.headers.get('location'), url).toString();
+      const hopRefusal = blockedReason(next, { allowInternal });
+      if (hopRefusal) return refuse(`${hopRefusal.reason} — reached by a redirect from ${url}`, next);
+      url = next;
       res = await fetch(url, { ...options, redirect: 'manual', signal: controller.signal });
     }
     return res;
