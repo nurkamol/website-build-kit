@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-30h — 0.1.9, one layout change and three things written down
+
+**Exactly one functional change reaches the package.** `PageHero` no longer carries
+`.section--tight` and sets `padding-block-end: 0`. The other four touched files —
+`Header.astro`, `tokens.css`, `global.css`, `wrangler.jsonc` — are comments.
+
+`.section--tight` is a **shorthand**, setting `padding-block` at both ends, and every page opens
+its next section with a rhythm class of its own — so two stacked. **160px measured on the kit's own
+`/contact/`**, 176px across four pages of a client build, up to 232px where the next section is
+`.section`. The same shorthand out-specified `.under-header` and put a hero **behind the fixed
+nav** — the failure `global.css` warns about in as many words.
+
+**Written down rather than gated:** what `--header-h` holds up (four offsets, and a logo sized by
+width shortens all four silently); that the Cloudflare adapter ignores `--config` exactly as it
+ignores `--env`; and that on an element carrying `.under-header` you write the longhand, never the
+shorthand.
+
+⚠ **A LAYOUT CHANGE, NOT AN ADDITION.** A project whose hero is followed by a section with no
+rhythm class now gets no space there. Neither template page is shaped that way — measured
+`/contact/` after the change: reserve 136px, hero-end 0, next-start 80px — and it is the correct
+behaviour, but it is a change.
+
+**No existing site can be affected.** `create/` scaffolds once and has no update path; it warns
+that scaffolding over an existing project is unrecoverable without git. Only new projects get this.
+
 ## 2026-08-30g — working through the rest of the shipped sites' traps
 
 Checked the remaining candidates from two projects' trap files against **current** `master`, not
