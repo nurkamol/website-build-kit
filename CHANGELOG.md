@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-08-30b — notes to yourself, shipped as body copy
+
+A real build put this on a service page, as text a parent would read:
+
+> *"⚠ CONFIRM: the old site advertised classes every Saturday at 9am. Does this continue under the
+> concierge model? Emitting a class time nobody is running is a locked door."*
+
+It was written inline in the content file while drafting. **Every gate passed over it** —
+`astro check` clean, axe clean, `tells` clean, links fine. Nothing in a build can tell a sentence
+meant for the client from one meant for the reader, except a list of the markers people actually
+leave.
+
+**`npm run check:copy`** looks for `TODO`, `FIXME`, `XXX`, `TKTK`, `⚠ CONFIRM:`, `Lorem ipsum` and
+an unrendered `{{ placeholder }}`. It **warns on staging and refuses on production** — a note is
+normal while building and unacceptable at go-live, the same split as `tells --undecided-only`.
+
+⚠ **THE EXCLUSIONS ARE THE CHECK.** It reads the text a browser would show, never the source, so
+a `TODO` in a code comment, an HTML comment or a `<script>` is invisible to it. `CONFIRM` needs its
+colon, because *"please confirm your email address"* is a sentence real forms say. Bare `TK` is
+excluded outright — it appears inside `ATKINS` and `TKR`, and a check that fires on those gets
+switched off. Lowercase `todo` is a word in other languages. JSON-LD **is** scanned, because a
+placeholder in structured data gets quoted straight back by Google.
+
+**The question is usually real, and the fix is not deletion.** The script says so and so does
+`CLAUDE.md`: move it to `BUILD-STATE.md`, where the other open client questions live and someone
+reads them before go-live.
+
+Thirteen cases, ten of them exclusions. Mutation-tested: searching raw HTML instead of rendered
+text turns the comment and script cases red; loosening `CONFIRM:` to a bare word turns the email
+sentence red. **71 cases across 13 gates, 40 proving a refusal.**
+
 ## 2026-08-30 — two rows borrowed from a detector, with the exclusions it lacks
 
 Ran [pbakaus/impeccable](https://github.com/pbakaus/impeccable)'s deterministic detector over a

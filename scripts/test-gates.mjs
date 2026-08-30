@@ -821,6 +821,65 @@ gate('a misspelled environment — refuses rather than defaulting', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * check-copy — author notes that reached the rendered page
+ *
+ * Every case here is really about the exclusions. Firing on "TODO" is
+ * trivial; not firing on "please confirm your email address" is what makes
+ * the check survive contact with a real site.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('check-copy');
+
+const copyPage = (body) => ({ 'dist/client/index.html': `<!doctype html><html><body>${body}</body></html>` });
+
+for (const [label, body, fires, args] of [
+  ['the note that shipped: ⚠ CONFIRM in body copy', '<p>Yoga is good. ⚠ CONFIRM: does the 9am class continue?</p>', true, []],
+  ['a bare TODO in a paragraph',                     '<p>TODO: write the pricing section.</p>', true, []],
+  ['Lorem ipsum',                                    '<p>Lorem ipsum dolor sit amet.</p>', true, []],
+  ['an unrendered template placeholder',             '<p>Call us on {{ business.phone }}.</p>', true, []],
+  ['a marker inside JSON-LD',                        '<script type="application/ld+json">{"name":"TODO"}</script>', true, []],
+  // The exclusions. Each one is a sentence a real site says.
+  ['TODO inside an HTML comment',                    '<!-- TODO: revisit --><p>Real copy.</p>', false, []],
+  ['TODO inside a script',                           '<script>const x = "TODO: refactor";</script><p>Real copy.</p>', false, []],
+  ['"confirm your email address"',                   '<p>Please confirm your email address to continue.</p>', false, []],
+  ['lowercase todo, a word in other languages',      '<p>Escribimos todo en espanol.</p>', false, []],
+  ['acronyms containing TK',                         '<p>We use the ATKINS method and TKR surgery.</p>', false, []],
+]) {
+  gate(label, {
+    script: 'check-copy.mjs',
+    files: copyPage(body),
+    args,
+    expect: 0, // warn mode never blocks; the verdict is in the output
+    then: (_dir, out) => {
+      const fired = /author marker/.test(out.replace(/\x1b\[[0-9;]*m/g, ''));
+      return fired === fires ? null : `${fired ? 'fired' : 'stayed quiet'}, wanted the opposite`;
+    },
+  });
+}
+
+/* The whole point of the two modes: normal while building, fatal at go-live. */
+gate('warn mode exits 0 with a marker present', {
+  script: 'check-copy.mjs',
+  files: copyPage('<p>TODO: fix</p>'),
+  expect: 0,
+});
+
+gate('--strict refuses the same page', {
+  script: 'check-copy.mjs',
+  files: copyPage('<p>TODO: fix</p>'),
+  args: ['--strict'],
+  expect: 1,
+  contains: 'author marker',
+});
+
+gate('no dist — refuses', {
+  script: 'check-copy.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'no dist',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed

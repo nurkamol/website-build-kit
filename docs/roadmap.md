@@ -45,6 +45,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `npm run check:copy` | A note to yourself shipped as body copy — a real build put "⚠ CONFIRM: does the 9am class continue?" on a service page, past clean types, clean axe and clean tells |
 | Overshoot easing · side accent bar | Two generated-UI tells `tells` lacked, found by running an external detector over a real build — and the template was failing the first one with a token nothing used |
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |

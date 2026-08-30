@@ -154,6 +154,11 @@ does ship is the skeleton of the parts that take longest to get right:
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
   and render-blocking counts — bytes and counts, never a timing, because a hand-rolled number
   from one machine disagrees with Lighthouse and nothing tells you it is wrong
+- **`npm run check:copy`** — the markers you leave for yourself, found in the text a *reader*
+  would see: `TODO`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}`. Warns on
+  staging, refuses on production. It reads rendered text rather than source, so a `TODO` in a code
+  comment or a `<script>` is ignored and "please confirm your email address" is not a hit — the
+  exclusions are what stop it becoming a check people skip
 - **`npm run check:secrets`** — compares the secrets your code declares in `.dev.vars.example`
   against what the deployed worker actually holds, and runs automatically at the end of
   `deploy:staging` and `deploy:production`. A missing one never throws: `secret()` returns

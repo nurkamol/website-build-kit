@@ -34,7 +34,8 @@
     "preview": "wrangler dev",
     "deploy:staging": "npm run build:staging && wrangler deploy && node scripts/check-secrets.mjs",
     "deploy:production": "npm run build:production && wrangler deploy && node scripts/check-secrets.mjs",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:copy": "node scripts/check-copy.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",

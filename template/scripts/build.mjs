@@ -102,6 +102,11 @@ if (env === 'staging') {
   step(process.execPath, ['scripts/staging-headers.mjs']);
 }
 
+/* Warn on staging, refuse on production. A note in the copy is normal WHILE
+   building and unacceptable at go-live — the same split as
+   `tells --undecided-only`. */
+step(process.execPath, ['scripts/check-copy.mjs', ...(env === 'production' ? ['--strict'] : [])]);
+
 step(process.execPath, ['scripts/check-env.mjs']);
 
 if (env === 'production') {
