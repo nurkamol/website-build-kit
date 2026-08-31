@@ -615,6 +615,25 @@ Four things that make it work rather than merely parse:
 configuration. If it is in the same file as editable content, split the file rather than exposing
 it.
 
+### Every image on a page is a field, or a stated exception
+
+⚠ **A sentence in the config excusing "photographs are chosen in code" covers the fields you
+already wrote and quietly excuses the ones you did not.** On a real build that left the header
+band, four class tiles, the gift-card picture and five more as `name="photos/x"` literals in
+`.astro`. The client opened the page, saw a photograph, and had no way to change it — while the
+config said images were deliberately developer-controlled.
+
+The rule: an image the page renders is **a field, or a deliberate exception you wrote down**.
+Never an oversight dressed as a principle. Two checks catch it:
+
+- every `name=` / `image=` / `poster=` in a page is an expression, never a string literal
+- every key in every CMS-backed file resolves to a declared field — `npm run check:cms`
+
+**Alt text defaults from the shared data, and a page overrides only when it has something
+different to say.** A required `alt` prop means every page passes one, which on one site meant the
+same sentence hardcoded twenty-one times: a correction was twenty-one edits, and any missed one
+was an inconsistency only a screen-reader user would ever meet.
+
 ### Media, and the direction that breaks it
 
 ⚠ **Point a CMS media source at the pipeline's INPUT, never its output.** `optimize-media.mjs`

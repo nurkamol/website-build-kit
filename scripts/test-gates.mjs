@@ -1384,6 +1384,49 @@ gate('refuses uploads pointed at generated output', {
   contains: 'GENERATED output',
 });
 
+/*
+ * ⚠ THE BUG THE TOLERANT READER MADE POSSIBLE. <Img> accepts a manifest key as
+ *   well as a picker path, so a field converted to `type: image` without
+ *   migrating its values renders identically — green build, clean types, clean
+ *   a11y, byte-identical HTML — while every picker in the CMS is an empty
+ *   square. Nothing the site renders can see it.
+ */
+const CMS_IMAGE = {
+  '.pages.yml': [
+    'media:',
+    '  - name: uploads',
+    '    input: media/source/uploads',
+    '    output: /img/uploads',
+    '    extensions: [jpg]',
+    'content:',
+    '  - name: services',
+    '    type: collection',
+    '    path: src/content/services',
+    '    fields:',
+    '      - { name: title, type: string }',
+    '      - { name: image, type: image, options: { media: uploads } }',
+    '',
+  ].join('\n'),
+  'media/source/uploads/.keep': '',
+};
+
+gate('refuses a manifest key stored in a type: image field', {
+  script: 'check-cms.mjs',
+  files: { ...CMS_IMAGE, 'src/content/services/a.md': '---\ntitle: A\nimage: photos/hero\n---\n' },
+  expect: 1,
+  contains: 'not a path under "/img/uploads"',
+});
+
+gate('accepts the migrated picker path', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_IMAGE,
+    'src/content/services/a.md': '---\ntitle: A\nimage: /img/uploads/hero.jpg\n---\n',
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
 /* Warnings, not failures — but they must still fire, or the complaint that
    started this ("whole sections are missing") stays invisible. */
 gate('warns about content no CMS entry points at', {

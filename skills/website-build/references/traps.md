@@ -14,6 +14,33 @@ deploy, wrong result. Check this list before debugging anything strange.
 
 ---
 
+### A reader that accepts two formats cannot tell you which one you stored
+
+`<Img>` takes a manifest key (`photos/hero`). A CMS image picker returns a path
+(`/img/photos/hero-1200.webp`). Making the component accept both is what lets an image field be a
+picker instead of a free-text box — and it is the dangerous half.
+
+`type: image` is built around the **path**: the picker returns one, the thumbnail loads one, the
+repository link resolves one. Convert a field to `type: image` without migrating its stored
+values and the site is unaffected, because the reader is tolerant.
+
+*Symptom:* **eighteen grey squares in the editor**, and a repo link 404ing on
+`/blob/main/photos-v2/hero-band`. Meanwhile the build is green, `astro check` is clean, pa11y is
+clean, and the rendered HTML is **byte-identical** to before the change. Every automated check
+says the site is fine, because the CMS is not a page and nothing renders it.
+
+The client finds it. You do not.
+
+*Fix:* convert the field **and** migrate the data in the same change — the manifest already knows
+the answer, so it is one line: `if (v && !v.startsWith(mediaOutput)) v = manifest[v].src`. Then
+`npm run check:cms`, which asserts every `type: image` value is a path under that media source's
+`output`.
+
+Same class, found in the same pass: an `options.path` scoped to `public/img/brand` when the files
+live in `brand-v2/` opens the picker on an empty folder — silently.
+
+---
+
 ### `wrangler r2 object put` writes to LOCAL storage by default
 
 Twelve videos uploaded, every one reporting **"Upload complete"**. `wrangler r2 object get` read

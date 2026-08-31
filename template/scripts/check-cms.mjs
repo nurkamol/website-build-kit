@@ -172,6 +172,12 @@ for (const entry of entries) {
 
 /* ── media ───────────────────────────────────────────────────────────────── */
 
+/* Declared here, not beside the image checks that read it: the media loop below
+   fills it, and a `const` used above its own declaration is a TDZ
+   ReferenceError that `node --check` cannot see. This file shipped that way for
+   exactly one run. */
+const mediaByName = new Map();
+
 /* Where optimize-media.mjs writes. An upload here is not an input, it is a
    file dropped into generated output. */
 const GENERATED = ['public/img', 'dist', '.astro'];
@@ -185,6 +191,7 @@ for (const source of media) {
     problems.push({ label: `media ${name}`, why: 'has no `input`' });
     continue;
   }
+  if (typeof source === 'object' && source.name) mediaByName.set(source.name, source);
   const normalised = input.replace(/^\.?\//, '').replace(/\/$/, '');
   if (GENERATED.some((g) => normalised === g || normalised.startsWith(`${g}/`))) {
     problems.push({
@@ -203,6 +210,114 @@ for (const source of media) {
       `media "${name}" declares no \`extensions\` — a bad format is accepted in the UI and ` +
         `fails the build twenty minutes later instead of being refused at the door`,
     );
+  }
+}
+
+/* ── image fields: is the stored VALUE the shape the field type needs? ───── */
+
+/*
+ * ⚠ THIS IS THE CHECK THE TOLERANT READER MADE NECESSARY.
+ *
+ *   `<Img>` accepts a manifest key OR a picker path, which is what lets an
+ *   image field be a real picker. But a reader that accepts two formats will
+ *   never tell you which one you stored — so converting a field to
+ *   `type: image` without migrating its values leaves a site where:
+ *
+ *     the build is green, astro check is clean, pa11y is clean, and the
+ *     rendered HTML is BYTE-IDENTICAL — and every picker in the CMS is broken.
+ *
+ *   That happened on a real site: eighteen grey squares in the editor and a
+ *   GitHub link 404ing, while every automated check said the site was fine.
+ *   Nothing rendered by the site can see it, because the CMS is not a page.
+ *
+ *   `type: image` is built around the PATH — the picker returns one, the
+ *   thumbnail loads one, the repo link resolves one. So the value has to start
+ *   with that media source's `output`. Convert the field and migrate the data
+ *   in the same change.
+ */
+function imageFields(fields, prefix = '') {
+  const out = [];
+  for (const field of fields ?? []) {
+    if (!field?.name) continue;
+    const path = prefix ? `${prefix}.${field.name}` : field.name;
+    if (field.type === 'image') out.push({ path, media: field.options?.media });
+    if (Array.isArray(field.fields)) out.push(...imageFields(field.fields, path));
+  }
+  return out;
+}
+
+/** Every value stored at a dotted path, walking through arrays. */
+function valuesAt(value, parts) {
+  if (value == null) return [];
+  if (!parts.length) return Array.isArray(value) ? value : [value];
+  if (Array.isArray(value)) return value.flatMap((v) => valuesAt(v, parts));
+  if (typeof value !== 'object') return [];
+  const [head, ...rest] = parts;
+  return valuesAt(value[head], rest);
+}
+
+for (const entry of entries) {
+  const fields = imageFields(entry?.fields);
+  if (!fields.length || !existsSync(entry.path ?? '')) continue;
+
+  const documents = [];
+  if (entry.type === 'collection') {
+    /* Frontmatter only; a body image is markdown, not a field. */
+    const walk = (d) =>
+      readdirSync(d).flatMap((e) => {
+        const full = join(d, e);
+        return statSync(full).isDirectory() ? walk(full) : [full];
+      });
+    for (const file of walk(entry.path).filter((f) => /\.mdx?$/.test(f))) {
+      const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, 'utf8'));
+      if (!m) continue;
+      try {
+        documents.push({ where: rel(file), data: parse(m[1]) ?? {} });
+      } catch {
+        /* astro check reports unparseable frontmatter properly. */
+      }
+    }
+  } else if (/\.json$/.test(entry.path)) {
+    try {
+      documents.push({ where: rel(entry.path), data: JSON.parse(readFileSync(entry.path, 'utf8')) });
+    } catch {
+      /* Already reported above. */
+    }
+  }
+
+  for (const { path: fieldPath, media: mediaName } of fields) {
+    const source =
+      (mediaName && mediaByName.get(mediaName)) ?? (media.length === 1 ? media[0] : null);
+    const output = typeof source === 'object' ? source?.output : null;
+    if (!output) continue; // nothing declared to measure against
+    /* `output: /` makes "starts with the output" true of every absolute path, so
+       it only distinguishes a path from a non-path. Still worth reporting — a
+       `type: image` field holding a bare word is a picker showing nothing — but
+       do not pretend the test was stronger than it was. */
+
+    /* ⚠ ONE PROBLEM PER FIELD, NOT PER VALUE. A collection of thirty items with
+       one bad field produced thirty identical lines on a real project — 78 in
+       total for three fields. A gate that floods is a gate that gets switched
+       off, and the fix is always the same edit for the whole field. */
+    const wrong = [];
+    for (const doc of documents) {
+      for (const value of valuesAt(doc.data, fieldPath.split('.'))) {
+        if (typeof value !== 'string' || !value) continue;
+        if (value.startsWith(output)) continue;
+        wrong.push({ value, where: doc.where });
+      }
+    }
+    if (wrong.length) {
+      const samples = [...new Set(wrong.map((w) => w.value))].slice(0, 3);
+      problems.push({
+        label: `${entry.name ?? entry.label} → ${fieldPath}`,
+        why:
+          `is \`type: image\` but ${wrong.length} value(s) are not a path under ${JSON.stringify(output)}` +
+          ` — e.g. ${samples.map((v) => JSON.stringify(v)).join(', ')}`,
+        picker: true,
+        path: wrong[0].where,
+      });
+    }
   }
 }
 
@@ -301,6 +416,16 @@ for (const p of problems) {
       `      ${DIM}These exist in ${rel(p.path)} and are NOT in the schema, so the first\n` +
         `      save from this screen DELETES them. Declare every key — including ones\n` +
         `      the client will never touch — or move them out of a CMS-managed file.${RESET}`,
+    );
+  }
+  if (p.picker) {
+    console.error(
+      `      ${DIM}The site still renders this: <Img> accepts a manifest key as well as a\n` +
+        `      picker path. The CMS does not — \`type: image\` is built around the path, so\n` +
+        `      the picker shows an empty square and the repo link 404s, while the build,\n` +
+        `      the types and the rendered HTML all stay clean.\n\n` +
+        `      A reader that accepts two formats cannot tell you which one you stored.\n` +
+        `      Convert the field and migrate the values in the same change.${RESET}`,
     );
   }
   if (p.direction) {

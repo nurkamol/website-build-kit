@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-09-01c — 0.1.15, the tolerant reader, and the check it made necessary
+
+Round 2 of the media backport, and it corrects something **I shipped two days ago**.
+
+⚠ **`<Img>` accepting both a manifest key and a picker path is necessary — and it is the
+dangerous half.** `type: image` is built around the PATH: the picker returns one, the thumbnail
+loads one, the repo link resolves one. Convert a field to `type: image` without migrating its
+stored values and the site is unaffected, because the reader is tolerant.
+
+On a real build that meant **eighteen grey squares in the editor** and a repo link 404ing, while
+the build was green, `astro check` clean, pa11y clean, and the rendered HTML **byte-identical**.
+Every automated check said the site was fine. *The CMS is not a page, so nothing that renders the
+site can see it.*
+
+> **A reader that accepts two formats cannot tell you which one you stored.**
+
+**`check:cms` now validates the stored value against the declared field type** — every
+`type: image` value must be a path under that media source's `output`. It is the only check that
+looks at the *editing* surface rather than the rendered one. Against the five audited sites it
+found key-form values sitting in image fields on getmiohome (`heroes/home.jpg`,
+`services/landscaping.webp`) that nothing else could see.
+
+⚠ **And it was too noisy at first** — 78 problems for three fields, because a collection of thirty
+items reported the same bad field thirty times. A gate that floods is a gate that gets switched
+off, and the fix is one edit for the whole field either way. Now one problem per field with sample
+values: **78 → 12**.
+
+⚠ **The check itself shipped a `ReferenceError` for exactly one run.** `const mediaByName` was
+declared below its first use — a temporal dead zone error that `node --check` passes, which is the
+class already documented in `CLAUDE.md` from `recon`. Caught by running it, not by reading it.
+
+### Also from the round
+
+**Every image on a page is a field, or a stated exception.** A sentence in the config saying
+"photographs are chosen in code" covered the five fields that existed and quietly excused the eight
+that did not — a header band, four class tiles and a gift-card picture, all string literals in
+`.astro`. The client opened the page, saw a photograph, and had no way to change it.
+
+**Alt text defaults from the shared data.** A required `alt` prop means every page passes one,
+which on one site was the same sentence hardcoded twenty-one times: a correction meant twenty-one
+edits, and any missed one was an inconsistency only a screen-reader user would meet.
+
+**120 cases across 18 gates, 76 proving a refusal.** Documented failures: **37** — the landing page
+and both share cards regenerated to match.
+
+### Deliberately deferred
+
+**A composite-contrast check** (`check-contrast.mjs`) is the most interesting thing in the round —
+axe reports a flat 1.01:1 for text over photographs because no runner composites a transparent
+element over an image, and measuring it off rendered pixels turns "do not let clients choose
+photographs" into a checkable guarantee. It needs a rendering pipeline and is its own piece of
+work, not a line in a release.
+
+**Drift detection**, which the round argues is worth more than everything in it: a project forked
+from this kit sat **19% behind on every image for weeks** and nothing surfaced it. A version stamp
+in scaffolded sites is the cheap first half, and it is next.
+
 ## 2026-09-01b — the two things that made every CMS build diverge
 
 Both root causes, both documentation, **no runtime change to anything a deployed site does**.
