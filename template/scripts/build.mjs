@@ -122,10 +122,22 @@ step(process.execPath, ['scripts/check-env.mjs']);
 
 if (env === 'production') {
   step(process.execPath, ['scripts/check-sitemap.mjs']);
+  /* A redirect map is the one migration artefact edited by hand, in bulk, about
+     URLs nobody can see any more. Every failure it has is invisible at deploy. */
+  step(process.execPath, ['scripts/check-redirects.mjs']);
   /* Production only: it measures the GENERATED images, and a staging build is
      often run before `npm run media` has caught up. A no-op until a project
      declares regions — the template has no design and therefore none. */
   step(process.execPath, ['scripts/check-contrast.mjs']);
+
+  /*
+   * Advisory: it exits 0 whatever it finds, because drift is a decision and not
+   * an error. It runs here because a site is current on the day it is scaffolded
+   * and behind some months later — and the build is the only moment anybody is
+   * reliably looking. A check nobody remembers to run is the failure it exists
+   * to catch, applied to itself.
+   */
+  step(process.execPath, ['scripts/check-drift.mjs']);
 }
 
 /* A sanity line, so the log says which environment actually ran rather than

@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-09-01i — the redirect map nothing had ever checked
+
+Everything still open, closed. Four of the five are small; one is not.
+
+### `npm run check:redirects`
+
+`redirects.mjs` **proposes** a map from the old site's inventory. Nothing had ever checked the map
+a human then edited — and the editing is where the mistakes are, because a redirect file is the one
+migration artefact written by hand, in bulk, under time pressure, about URLs nobody can see any
+more. 298 lines of generator, zero lines of validation.
+
+⚠ **Every failure it catches is invisible at deploy.** The file parses, the site builds, the pages
+are fine. What breaks is a URL that used to rank, weeks later, in somebody else's analytics.
+
+| | |
+| --- | --- |
+| **Duplicate source** | Cloudflare takes the **first** match and ignores the rest, silently — so the later rule, usually the one somebody added deliberately to fix something, never fires, and the fix appears not to work for reasons nothing explains |
+| **Self-redirect** | `/a → /a`, stopped by the browser after ~20 hops. The page is simply gone, and only in production |
+| **Loop** | The same with a step to hide it — and detected **across trailing-slash forms**, which is the one nobody spots by eye |
+| **Unsupported status** | `_redirects` accepts only 200/301/302/303/307/308 |
+| **Chain** | A warning: a redundant round trip on every visit, and Cloudflare resolves one hop per request |
+
+Two things that would have made it wrong:
+
+- ⚠ **Split on runs of whitespace, not a single space.** Columns in a hand-edited file are aligned
+  with spaces, and a naive split reports every aligned rule as malformed — on a real migration,
+  *all of them*.
+- ⚠ **Walk the whole path before deciding what it is.** The first version announced a loop as a
+  chain *and then* as a loop — two messages, the wrong one first. There is a case pinning that it
+  no longer does.
+
+Validated against the four shipped sites that have a map — 18, 21, 48 and 34 rules — **no false
+positives**, and the fifth correctly reports having no map at all.
+
+### The rest
+
+**`check:drift` now runs in `build:production`.** It existed but only ran when somebody thought to
+run it, which is the exact failure it was built for. It exits 0 whatever it finds.
+
+**Reusable components in the CMS recipe**, because ⚠ every copy of a repeated schema is another
+place to forget a key — and a forgotten key is deleted on the client's first save. One definition
+cannot disagree with itself.
+
+**Per-page SEO fields**, with the two dangerous ones held back: ⚠ `noindex` and a canonical
+override can **delist a site silently** — pages render, build passes, traffic goes to zero over
+weeks. Never beside ordinary copy where somebody can toggle one while editing a paragraph.
+
+**And the sentence the README section was missing:** *Neither was found by looking. Both were found
+by accident, months later.* The instinct on reading that section is *I would have noticed*. Nobody
+did, on a site being actively worked on.
+
+**149 cases across 22 gates, 86 proving a refusal.**
+
 ## 2026-09-01h — 0.1.17, navigation becomes a CMS field, because the build can now check it
 
 `stacks.md` said *"keep nav, redirects and structured data OUT of the CMS"*, for a good reason: a

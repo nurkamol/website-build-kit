@@ -20,6 +20,7 @@
     "check:copy": "node scripts/check-copy.mjs",
     "check:drift": "node scripts/check-drift.mjs",
     "check:form": "node scripts/check-form.mjs",
+    "check:redirects": "node scripts/check-redirects.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:sitemap": "node scripts/check-sitemap.mjs",
     "console": "node scripts/check-console.mjs",

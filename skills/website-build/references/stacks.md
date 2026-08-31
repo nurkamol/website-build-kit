@@ -535,6 +535,12 @@ mixes the two either loses its types or loses its editability. Split them: `serv
 holds the rows, `services.ts` holds the type, the derivations and the comments explaining why
 a field exists.
 
+**`npm run check:redirects` validates the map, which nothing used to.** `redirects.mjs` proposes
+one; the mistakes are in the version a human then edited, because it is written by hand, in bulk,
+about URLs nobody can see any more. It refuses a duplicate source (Cloudflare takes the first match
+and the later rule — usually the deliberate fix — never fires), a self-redirect, a loop written
+across trailing-slash forms, and a status Cloudflare does not accept. A chain is a warning.
+
 **Keep redirects and structured data OUT of the CMS.** They look like content and they are not: a
 bad value in a redirect map or a JSON-LD block should fail the build, not publish. ⚠ **A redirect
 especially** — a client toggling one off is silent traffic loss with no visible symptom anywhere.
@@ -619,6 +625,29 @@ content:
       - { name: imageAlt, label: Image description, type: string }
       - { name: body, label: Body, type: rich-text }
 ```
+
+**Declare a schema once and reuse it.** PagesCMS `components` exist for this, and the reason to
+bother is not tidiness: ⚠ **every copy of a repeated schema is another place to forget a key**, and
+a forgotten key is deleted on the client's first save. One definition cannot disagree with itself.
+
+```yaml
+components:
+  seo:
+    type: object
+    fields:
+      - { name: title, label: Meta title, type: string }
+      - { name: description, label: Meta description, type: text }
+      - { name: image, label: Social image, type: image, options: { media: uploads } }
+```
+
+⚠ **Two SEO fields are not like the others.** `noindex` and a canonical override can delist a site
+silently — the pages render, the build passes, and traffic goes to zero over weeks. Treat them as
+technical configuration unless the editor has explicitly asked and understands the consequence,
+and never put them beside ordinary copy where somebody can toggle one while editing a paragraph.
+
+**The CMS SEO values must feed the SEO the site already has.** One source of truth: never a CMS
+title, an Astro title and a JSON-LD title that can disagree. If adding a field means the same fact
+now lives in two places, the field is wrong.
 
 Four things that make it work rather than merely parse:
 

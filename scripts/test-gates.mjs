@@ -1902,6 +1902,89 @@ gate('--json is machine-readable', {
 });
 
 
+
+/* ────────────────────────────────────────────────────────────────────────
+ * check:redirects — the one migration artefact edited by hand, in bulk
+ *
+ * `redirects.mjs` proposes a map; nothing checked the map a human then edited.
+ * ⚠ Every failure here is invisible at deploy: the file parses, the site
+ *   builds, the pages are fine, and a URL that used to rank breaks weeks later
+ *   in somebody else's analytics.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:redirects');
+
+const redirects = (body) => ({ 'public/_redirects': body });
+
+gate('no file is not a failure', {
+  script: 'check-redirects.mjs',
+  files: {},
+  expect: 0,
+  contains: 'nothing to validate',
+});
+
+/* ⚠ Columns in a hand-edited file are aligned with RUNS of spaces. Splitting on
+   a single space reports every aligned rule as malformed, which on a real
+   migration is all of them. */
+gate('accepts a clean file with aligned columns', {
+  script: 'check-redirects.mjs',
+  files: redirects('# a comment\n/old-about      /about/     301\n/old-shop       /shop/      301\n'),
+  expect: 0,
+  contains: 'no duplicates, no loops',
+});
+
+gate('refuses a duplicate source', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /b  301\n/a  /c  301\n'),
+  expect: 1,
+  contains: 'duplicate source',
+});
+
+gate('refuses a self-redirect', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /a  301\n'),
+  expect: 1,
+  contains: 'redirects to itself',
+});
+
+/* ⚠ Written across trailing-slash forms, which is the loop nobody spots by eye. */
+gate('refuses a loop spelled with and without a trailing slash', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /b/  301\n/b  /a   301\n'),
+  expect: 1,
+  contains: 'LOOP',
+});
+
+/* ⚠ A loop must not be announced as a chain first. The first version reported
+   both, wrong one first — walk the whole path before deciding what it is. */
+gate('a loop is not also reported as a chain', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /b/  301\n/b  /a   301\n'),
+  expect: 1,
+  then: (_dir, out) => (out.includes('hops') ? 'called a loop a chain' : null),
+});
+
+gate('warns about a chain without failing', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /b  301\n/b  /c  301\n'),
+  expect: 0,
+  contains: 'hops',
+});
+
+gate('refuses a status Cloudflare does not accept', {
+  script: 'check-redirects.mjs',
+  files: redirects('/a  /b  399\n'),
+  expect: 1,
+  contains: 'not one Cloudflare accepts',
+});
+
+gate('a comments-only file is not a failure', {
+  script: 'check-redirects.mjs',
+  files: redirects('# nothing here yet\n\n'),
+  expect: 0,
+  contains: '0 redirect rule',
+});
+
+
 /* ────────────────────────────────────────────────────────────────────────
  * Report
  * ──────────────────────────────────────────────────────────────────────── */

@@ -162,6 +162,11 @@ does ship is the skeleton of the parts that take longest to get right:
   CMS-managed data against the routes in `src/pages` before the build. The rule used to forbid it —
   a typo'd path renders perfectly and 404s only for a visitor — and the result was navigation
   missing from **all five audited sites**. Verifying beats forbidding
+- **`npm run check:redirects`** — a redirect map that is silently wrong. A duplicate source
+  (Cloudflare takes the **first** match, so the later rule never fires), a self-redirect, a loop
+  written across trailing-slash forms, an unsupported status. None of these stop the file parsing
+  or the site building; they break a URL that used to rank, weeks later, in somebody else's
+  analytics
 - **`npm run check:drift`** — what a **delivered** site is behind on. Every other check here
   protects the next project; the template is copied, not linked, so a shipped site never receives
   any of them. Ten rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images, binary
@@ -310,6 +315,9 @@ because someone happened to read both trees side by side for an unrelated reason
 had never received a second fix either: a source file carrying a literal NUL, which `git diff`
 shows only as `Binary files differ` and which the kit's own provenance sweep — written with
 `grep -I` — cannot see at all.
+
+⚠ **Neither was found by looking. Both were found by accident, months later.** The instinct on
+reading this is *I would have noticed*; nobody did, on a site being actively worked on.
 
 **Which version a site came from** is recorded in its `package.json`, for anything scaffolded from
 0.1.16 onward:
