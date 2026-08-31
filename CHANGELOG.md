@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01j — 0.1.19, one skill, one home for each half
+## 2026-09-01j — one skill, one home for each half
 
 `/media-audit` shipped this morning and is retired this evening. ⚠ **It duplicated
 `site-runbooks`**, which already held the same three phases and the same finding explanations,
@@ -39,6 +39,13 @@ no procedure, and a link to something they would have to go and find.
 clean ones, do not offer a menu before there are findings, then **stop** — repair is a separate job
 with its own judgement and it lives in the runbooks. It deliberately does not describe the
 individual checks, because a second description of them is how the two drift apart.
+
+⚠ **Not released.** This entry carried a `0.1.19` label for about ten minutes. Nothing inside
+`template/` changed — 104 files before and after, none added, none removed — so a user upgrading
+would have received a version number and nothing else, and npm numbers are permanent. Worse, the
+scaffold stamps its version into every new site: stamping `0.1.19` would claim a template that
+differs from `0.1.18` when it is byte-identical. **0.1.18 is the honest answer to "which template
+is this".** Everything here was already live on GitHub, which is where it is read.
 
 ⚠ **And a correction to my own reasoning.** I justified this by saying a command does not
 auto-trigger where a skill does. In this harness a command appears in the skill listing too, so
