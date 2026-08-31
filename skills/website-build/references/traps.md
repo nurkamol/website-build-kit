@@ -36,8 +36,8 @@ the answer, so it is one line: `if (v && !v.startsWith(mediaOutput)) v = manifes
 `npm run check:cms`, which asserts every `type: image` value is a path under that media source's
 `output`.
 
-Same class, found in the same pass: an `options.path` scoped to `public/img/brand` when the files
-live in `brand-v2/` opens the picker on an empty folder — silently.
+Same class, found in the same pass: an `options.path` scoped to a media folder the files no longer
+live in opens the picker on an empty folder — silently.
 
 ---
 

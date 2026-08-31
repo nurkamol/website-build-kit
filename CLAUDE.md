@@ -211,6 +211,13 @@ field across every markdown file, and fails on drift. It found a reference to a 
 longer existed, a section number that had moved, and a pointer to `prompts/website-build.md`
 from a kit structure that has not existed for months — all of which read as correct.
 
+⚠ **It resolves paths against the WORKING TREE, so a generated directory can make a bad reference
+pass locally and fail in CI.** A trap entry quoting `public/img/brand` passed here and failed on
+both runners: the rule allows a path whose *parent* exists, and this machine had an untracked,
+empty `template/public/img` left by a `npm run media` test. Same commit, opposite verdicts. If the
+audit disagrees with CI, clone into a temp directory and run it there before believing your own
+tree — and remember an empty directory is invisible to `git status`.
+
 It also checks the **inverse**: a script that ships and is named in no builder-facing doc, and a
 `references/*.md` that `SKILL.md` never points at — a reference nothing points at is one the
 model never loads, which makes it invisible rather than untidy. `CHANGELOG.md` and `roadmap.md`
