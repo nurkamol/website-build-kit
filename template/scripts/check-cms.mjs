@@ -41,6 +41,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { parse } from 'yaml';
+import { literalImages } from './lib/literal-images.mjs';
 
 const RESET = '\x1b[0m';
 const RED = '\x1b[31m';
@@ -409,6 +410,34 @@ if (existsSync(GUIDE) && entries.length) {
         `contradicted is worse, because they will believe it.`,
     );
   }
+}
+
+/*
+ * ⚠ A SENTENCE SAYING "PHOTOGRAPHS ARE CHOSEN IN CODE" COVERS THE FIELDS THAT
+ *   EXIST AND EXCUSES THE ONES THAT DO NOT.
+ *
+ *   On a real build that left a header band, four class tiles and a gift-card
+ *   picture as string literals in `.astro`, while the config claimed images
+ *   were deliberately developer-controlled. The client opened the page, saw a
+ *   photograph, and had no way to change it. Nothing was broken; the only
+ *   symptom was someone looking for a field that was never there.
+ *
+ *   A warning, because a fixed image IS sometimes right — a logo, an
+ *   illustration that belongs to the layout. The rule is that it must be a
+ *   decision, not an oversight.
+ */
+const literals = literalImages();
+if (literals.length) {
+  warnings.push(
+    `${literals.length} image(s) hardcoded in pages, which the CMS cannot change:\n` +
+      literals
+        .slice(0, 10)
+        .map((l) => `      ${l.file}  ${l.value}`)
+        .join('\n') +
+      (literals.length > 10 ? `\n      …and ${literals.length - 10} more` : '') +
+      `\n      Each is a field the client does not have. Either give it one, or write down ` +
+      `why it is fixed — "chosen in code" stops being true the moment the next one is added.`,
+  );
 }
 
 /*

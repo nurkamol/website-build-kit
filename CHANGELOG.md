@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-09-01g — something that speaks to the sites already shipped
+
+Every gate in this changelog protects the next project. ⚠ **The template is copied, not linked, so
+a delivered site receives none of them** — and there are delivered sites. That is what these three
+are for.
+
+### `npm run check:drift`
+
+Ten rows, **reported and never fixed**, exit 0 whatever it finds: drift is a decision waiting to be
+made, not an error, and a tool that edits before you have read its findings is a surprise rather
+than a tool. `--json` for several sites at once.
+
+⚠ **It does not re-implement the other checks.** Where the kit ships one, drift means *not having
+it*, so it looks for the file. Copying the logic in would leave two implementations free to
+disagree — the failure this entire round was about. It analyses only what nothing else covers:
+AVIF, HEIC, silent skips, binary source files, hardcoded images.
+
+Run against two live sites it separates them properly — **4 of 10 behind** on one that has had work
+this week, **8 of 10** on one that has not.
+
+⚠ **Two false results, caught before shipping, both of the kind the source document warns about:**
+
+- it reported the kit's own template as behind the kit, because the template carries no stamp — the
+  scaffolder writes one into the *copy*. A false positive on the first run is how a report teaches
+  people to ignore it
+- `avif` matched a **comment**. A pipeline with AVIF turned off still documents how to turn it on
+  (`Set FORMATS to ['webp'] to turn AVIF off`), so a bare string search reports the opposite of the
+  truth on exactly the sites this exists for. It reads the `FORMATS` declaration, and both
+  directions are pinned by cases
+
+### Hardcoded images, in `check:cms` and in the drift report
+
+A sentence in a config saying *"photographs are chosen in code"* covered the fields that existed
+and excused the eight that did not. **The client opened the page, saw a photograph, and had no way
+to change it.** Nothing was broken; the only symptom was somebody looking for a field that was
+never there.
+
+⚠ **The naive version returns form fields, icon names and `<meta name="viewport">`** — fifteen hits
+where the truth is zero, and a check that cries wolf on a form field is switched off before it
+finds a photograph. `name=` counts only on an image component; expressions never match, which is
+the point. Verified against exactly those four false positives, and it finds **0 on one live site
+and 4 on another**.
+
+The scan is a lib, and so is the binary-file detection, because `check:binary` and `check:drift`
+both need them and two copies would drift.
+
+### `/media-audit`
+
+Detect → report → ask → fix, and ⚠ **never a menu before there are findings**. *"Shall I fix your
+images?"* is not a decision anybody can make; *"your pipeline emits WebP only and your 94 images
+are 19% larger than they need to be"* is. Four routes with a recommendation, and the reminder that
+fixing everything a report listed is how a working site breaks.
+
+**136 cases across 21 gates, 80 proving a refusal.**
+
 ## 2026-09-01f — the failure no accessibility runner can see, and the README that never mentioned drift
 
 ### `npm run check:contrast`

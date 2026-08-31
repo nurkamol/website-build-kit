@@ -14,29 +14,7 @@ If it does not catch a failure, it is a preference.
 
 ## Open
 
-One item, the remaining half of the drift work. The composite-contrast check has shipped.
-
-### 1. Drift detection — a project cannot tell it is behind the kit
-
-**Catches:** a fix that never reaches the sites already built. The template is **copied, not
-linked**, so nothing propagates. A shipped site sat **19% behind on every image for weeks** after
-the kit added AVIF, and it surfaced only because somebody happened to read both trees for an
-unrelated reason. The same silence covers every trap fixed since: `check:form`, `check:cms`, the
-media pipeline, the honeypot collision.
-
-⚠ **This is ranked first because it is the only item that changes what all the others are worth.**
-Every gate in the Done table below protects new projects and no existing one.
-
-**Half of this has shipped.** The scaffolder stamps `websiteBuildKit.version` into the new site's
-`package.json`, straight after `version` so it is visible without scrolling past the dependency
-list. The open question is settled: `package.json` is the file a developer opens first and nobody
-deletes. The version rather than the commit, because every release is tagged — so it resolves to a
-commit in one lookup, and embedding a commit would let the packer's git state decide what ships.
-
-**What remains** is a `kit:check` command — named here without the `npm run` form on purpose,
-because `audit:docs` resolves those against `package.json` and this one does not exist yet —
-diffing the local `scripts/` and `src/lib/` against the stamped version's tag and reporting what
-moved upstream. Only now worth building, because there is finally something to diff against.
+Nothing. Every ranked item has shipped — see **Done** below, and `CHANGELOG.md` for the detail.
 
 ---
 
@@ -80,6 +58,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |
 | Generated-site tells | A site that clears every templated-look row and is still recognisable in three seconds as LLM output — glass, giant radii, glow, badge decoration. Three are machine-checked |
+| `npm run check:drift` + `/media-audit` | A delivered site silently behind the kit. One sat **19% larger on every image for weeks** and it surfaced by accident. Ten rows, reported never fixed, plus the skill that turns a report into a decision |
 | `npm run check:contrast` | Text on a photograph that no runner can see — axe reports a flat ~1.01:1 because nothing composites a transparent element over an image. Two of three real regions could not fail at all; the exposure was a scrim someone had **lightened** |
 | `scripts/fixture-site.mjs` | A network-facing script silently changing what it *reports* — 0.1.11 shipped a redirect cap that turned a live page into a 302 in the inventory, with every gate green. `verify` is 1,069 lines deciding go-live and had no case proving any of its three `exit(1)` paths still fired |
 | `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 29 cases, 15 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |

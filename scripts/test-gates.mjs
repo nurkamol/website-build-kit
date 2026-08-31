@@ -1731,6 +1731,106 @@ gate('refuses a media-picker path where a manifest key belongs', {
 });
 
 
+
+/* ────────────────────────────────────────────────────────────────────────
+ * check:drift — the only check that speaks to sites already shipped
+ *
+ * Everything else here protects the next project. The template is copied, not
+ * linked, so a delivered site never receives any of it.
+ *
+ * ⚠ IT REPORTS AND EXITS 0. A remediation tool that fails a build it was only
+ *   asked to inspect is one nobody runs twice, and drift is not an error — it
+ *   is a decision waiting to be made.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:drift');
+
+const CURRENT_PIPELINE =
+  "const FORMATS = ['avif', 'webp'];\nconst RASTER = /heic|heif/;\n" +
+  "// produced no image\n// failed to process\n";
+
+gate('a site with everything reports no drift', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'src/data/contrast.json': '{"regions":[]}',
+    'src/pages/index.astro': '<p>no images</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'nothing behind',
+});
+
+/* ⚠ THE DECLARATION, NOT THE WORD. A pipeline with AVIF off still documents how
+   to turn it on, so a bare search for "avif" reports the opposite of the truth
+   on exactly the sites this exists for. */
+gate('reads the FORMATS declaration, not a comment mentioning avif', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x' }),
+    'scripts/optimize-media.mjs':
+      "/* Set FORMATS to ['webp'] to turn 'avif' off. */\nconst FORMATS = ['webp'];\n",
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'WebP only',
+});
+
+gate('an unstamped site is named as such', {
+  script: 'check-drift.mjs',
+  files: { 'package.json': JSON.stringify({ name: 'x' }), 'src/pages/index.astro': '<p>x</p>\n' },
+  setup: initRepo,
+  expect: 0,
+  contains: 'no stamp',
+});
+
+/* The kit's own template must not report itself as behind the kit. */
+gate('the template itself is not a drifted site', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'site-name' }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'nothing behind',
+});
+
+gate('finds an image the client cannot change', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'src/pages/index.astro': '<Img name="photos/hero" alt="a" />\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'hardcoded in pages',
+});
+
+gate('--json is machine-readable', {
+  script: 'check-drift.mjs',
+  from: undefined,
+  args: ['--json'],
+  files: { 'package.json': JSON.stringify({ name: 'x' }), 'src/pages/index.astro': '<p>x</p>\n' },
+  setup: initRepo,
+  expect: 0,
+  then: (_dir, out) => {
+    try {
+      const parsed = JSON.parse(out);
+      return Array.isArray(parsed.findings) && parsed.findings.length ? null : 'no findings array';
+    } catch {
+      return 'output is not valid JSON';
+    }
+  },
+});
+
+
 /* ────────────────────────────────────────────────────────────────────────
  * Report
  * ──────────────────────────────────────────────────────────────────────── */

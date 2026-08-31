@@ -101,6 +101,9 @@ nothing the kit fixes later reaches this site. A trap closed upstream, a gate ad
 improved: none of it arrives. One site sat 19% behind on every image for weeks after AVIF landed.
 Compare that version against the kit's releases when something here looks older than it should.
 
+**`npm run check:drift` says what this site is behind on.** The kit is copied, not linked, so
+nothing fixed upstream arrives here. It reports and changes nothing.
+
 **Text over a photograph is measured, not forbidden.** Declare the region in
 `src/data/contrast.json` — image, box, scrim strength, text colour — and `npm run check:contrast`
 composites it and fails production below 4.5:1. ⚠ **The danger is never the photograph, it is a

@@ -18,6 +18,7 @@
     "check:cms": "node scripts/check-cms.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:copy": "node scripts/check-copy.mjs",
+    "check:drift": "node scripts/check-drift.mjs",
     "check:form": "node scripts/check-form.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:sitemap": "node scripts/check-sitemap.mjs",

@@ -158,6 +158,12 @@ does ship is the skeleton of the parts that take longest to get right:
   template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
   built — and without a stamp, *"is this site current?"* is archaeology against a repo whose
   history you have to guess at
+- **`npm run check:drift`** — what a **delivered** site is behind on. Every other check here
+  protects the next project; the template is copied, not linked, so a shipped site never receives
+  any of them. Ten rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images, binary
+  source files, the CMS checks, the client guide — reported and never fixed, because drift is a
+  decision waiting to be made, not an error. `--json` for many sites at once. `/media-audit` is the
+  procedure that uses it
 - **`npm run check:contrast`** — text on a photograph, measured off the generated pixels. ⚠ **No
   accessibility runner can see this failure**: axe and pa11y report a flat ~1.01:1 for every one,
   because neither composites a transparent element over the image behind it. Measuring it dissolves
@@ -310,10 +316,14 @@ shows only as `Binary files differ` and which the kit's own provenance sweep —
 
 Sites older than that carry no stamp; compare `scripts/` against a release by hand.
 
-**What to do about it, today.** There is no upgrade command, and a wholesale copy of the current
-`template/` over a live site would overwrite the design that makes it that client's site. The
-checks are the portable part — copy the ones you want into the project's `scripts/`, add them to
-`package.json`, and run them:
+**What to do about it, today.** Run **`npm run check:drift`** — or copy `scripts/check-drift.mjs`
+and `scripts/lib/` in first, if the site predates it. It reads only, and reports the clean rows as
+well as the drifted ones. **`/media-audit`** is the procedure that turns that report into a
+decision and then a fix.
+
+A wholesale copy of the current `template/` over a live site would overwrite the design that makes
+it that client's site, so the checks are the portable part — copy the ones you want into the
+project's `scripts/`, add them to `package.json`, and run them:
 
 ```bash
 npm run check:cms      # a CMS config that deletes content on the client's first save
