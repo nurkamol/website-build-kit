@@ -535,10 +535,28 @@ mixes the two either loses its types or loses its editability. Split them: `serv
 holds the rows, `services.ts` holds the type, the derivations and the comments explaining why
 a field exists.
 
-**Keep nav, redirects and structured data OUT of the CMS.** They look like content and they
-are not: a bad value in a redirect map or a JSON-LD block should fail the build, not publish.
-Anything whose failure mode is "the site is silently wrong for search engines" belongs in
-code, where a type error stops it.
+**Keep redirects and structured data OUT of the CMS.** They look like content and they are not: a
+bad value in a redirect map or a JSON-LD block should fail the build, not publish. ⚠ **A redirect
+especially** — a client toggling one off is silent traffic loss with no visible symptom anywhere.
+
+**Navigation is the exception, and it took evidence to change.** This rule used to cover nav too,
+for the same reason: a typo'd path gives a menu item that renders perfectly and 404s only for a
+visitor. ⚠ **The result was that navigation was missing from all five audited sites**, so every
+client had to ask for a menu change — the second most common request after changing text. That is
+not a rule being respected; it is a gap the rule creates.
+
+The fix is not to forbid the field, it is to **verify it**. `npm run check:cms` resolves every
+internal path in CMS-managed data against the routes in `src/pages` — before the build, while
+somebody is still looking at the config — so a bad value still fails rather than publishing.
+
+Two things that make it safe rather than merely strict:
+
+- ⚠ **A dynamic route is a pattern, not a route.** `[slug].astro` serves every legal page, so
+  treating routes as literal strings reports most of a real site as broken. Verified against five
+  live sites carrying up to twelve dynamic patterns each: **zero false positives.**
+- **External links, `mailto:` and `tel:` are left alone.** `verify` checks those against the
+  deployed site, where they can actually be resolved; guessing here is the false-positive machine
+  that gets a check switched off.
 
 > ⚠ **A CMS rewrites the whole file from its schema, so any key the schema does not declare is
 > dropped on first save.** Not flagged, not merged, not warned about — the editor opens a

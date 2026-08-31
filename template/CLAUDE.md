@@ -111,6 +111,11 @@ weakened scrim.** On a real site two of three regions could not fail at any phot
 exposure was a scrim lightened from 92% to 62% so a client's photography could show its colour.
 This check is what makes weakening one safe.
 
+**Navigation may be CMS-managed; redirects may not.** `check:cms` resolves every internal path in
+CMS-managed data against `src/pages`, so a menu item pointing at a missing page fails the build
+rather than 404ing for a visitor. A redirect has no such check — a client toggling one off is
+silent traffic loss — so it stays in code.
+
 ⚠ **A CMS DELETES EVERY KEY ITS SCHEMA FORGOT.** It rewrites the whole file from the schema, so
 anything undeclared is absent from what it writes back — the client changes one field, saves, and
 the rest is gone, looking like an ordinary content commit. `npm run check:cms` refuses a

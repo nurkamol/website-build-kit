@@ -1478,6 +1478,77 @@ gate('warns when a field looks like technical configuration', {
   contains: 'technical configuration',
 });
 
+/* ⚠ WHAT MAKES NAVIGATION SAFE TO PUT IN A CMS AT ALL. The rule kept nav out
+   because a bad value should fail the build rather than publish; this is the
+   check that lets the field exist and still keep that property. */
+const NAV_FILES = {
+  'src/pages/index.astro': '---\n---\n<p>home</p>\n',
+  'src/pages/contact.astro': '---\n---\n<p>contact</p>\n',
+  'src/pages/[slug].astro': '---\n---\n<p>legal</p>\n',
+  '.pages.yml': [
+    'content:',
+    '  - name: navigation',
+    '    type: file',
+    '    path: src/data/nav.json',
+    '    fields:',
+    '      - name: items',
+    '        type: list',
+    '        fields:',
+    '          - { name: label, type: string }',
+    '          - { name: href, type: string }',
+    '',
+  ].join('\n'),
+};
+
+/* ⚠ TWO SEGMENTS, DELIBERATELY. `/prices/` would be served by the `[slug]`
+   catch-all in this fixture, so asserting it broken would be asserting the
+   check is WRONG. The first draft of this case did exactly that and failed —
+   which is the dynamic-route handling working. */
+gate('refuses a menu item pointing at a page that does not exist', {
+  script: 'check-cms.mjs',
+  files: {
+    ...NAV_FILES,
+    'src/data/nav.json': JSON.stringify({ items: [{ label: 'Prices', href: '/shop/prices/' }] }),
+  },
+  expect: 1,
+  contains: 'point at a page this site does not serve',
+});
+
+gate('accepts a menu item pointing at a real page', {
+  script: 'check-cms.mjs',
+  files: {
+    ...NAV_FILES,
+    'src/data/nav.json': JSON.stringify({ items: [{ label: 'Contact', href: '/contact/' }] }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/* ⚠ A DYNAMIC ROUTE IS A PATTERN. `[slug].astro` serves every legal page, so
+   treating routes as literal strings would report most of a real site as
+   broken — the failure that gets a check switched off within a day. */
+gate('a link through a dynamic route is not reported broken', {
+  script: 'check-cms.mjs',
+  files: {
+    ...NAV_FILES,
+    'src/data/nav.json': JSON.stringify({ items: [{ label: 'Privacy', href: '/privacy/' }] }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+gate('an external link is left to verify, not guessed at', {
+  script: 'check-cms.mjs',
+  files: {
+    ...NAV_FILES,
+    'src/data/nav.json': JSON.stringify({
+      items: [{ label: 'Book', href: 'https://booking.example.com' }, { label: 'Call', href: 'tel:+123' }],
+    }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
 gate('refuses a content path that does not exist', {
   script: 'check-cms.mjs',
   files: {

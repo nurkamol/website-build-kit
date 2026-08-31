@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-01h — navigation becomes a CMS field, because the build can now check it
+
+`stacks.md` said *"keep nav, redirects and structured data OUT of the CMS"*, for a good reason: a
+typo'd path gives a menu item that renders perfectly and 404s only for a visitor.
+
+⚠ **The result was navigation missing from all five audited sites.** Every client had to ask for a
+menu change — the second most common request after changing text. That is not a rule being
+respected; it is a gap the rule creates.
+
+**The answer is not to forbid the field, it is to verify it.** `check:cms` now resolves every
+internal path in CMS-managed data against the routes in `src/pages` — before the build, while
+somebody is still looking at the config — so a bad value fails rather than publishing. The property
+the rule protected is kept; the gap it caused is not.
+
+**Not `dist/`, and not the sitemap.** `check:cms` runs before the build, so `routesFromPages()`
+reads the page tree directly. Failing while the config is open beats failing after a deploy.
+
+⚠ **A DYNAMIC ROUTE IS A PATTERN, NOT A ROUTE.** `[slug].astro` serves every legal page, so
+treating routes as literal strings reports most of a real site as broken — the failure that gets a
+check switched off within a day. **Verified against five live sites carrying up to twelve dynamic
+patterns each: zero false positives**, and it still fires on a genuinely unreachable path.
+
+⚠ **My own first test case asserted the wrong thing** and failed: it claimed `/prices/` was broken
+in a fixture that had a `[slug]` catch-all, which would have been asserting the check is *wrong*.
+The corrected case uses a two-segment path the catch-all cannot serve. A test that has to be
+loosened to pass is usually telling you something.
+
+**External links, `mailto:` and `tel:` are left alone.** `verify` checks those against the deployed
+site, where they can actually be resolved; guessing here is exactly the false-positive machine this
+was trying to avoid.
+
+**Redirects stay out**, unchanged and for the sharper reason: a client toggling one off is silent
+traffic loss with no visible symptom anywhere, and there is no equivalent way to make that
+unrepresentable.
+
+**140 cases across 21 gates, 81 proving a refusal.**
+
 ## 2026-09-01g — 0.1.16, something that speaks to the sites already shipped
 
 Every gate in this changelog protects the next project. ⚠ **The template is copied, not linked, so

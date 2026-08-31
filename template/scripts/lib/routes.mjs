@@ -96,3 +96,70 @@ export async function discoverRoutes(origin, fetcher = fetch) {
 
   return { routes: [], source: 'nothing — no sitemap and no dist/' };
 }
+
+/**
+ * Routes derived from `src/pages`, without building anything.
+ *
+ * ── WHY NOT routesFromDist ─────────────────────────────────────────────────
+ * `check-cms.mjs` runs BEFORE the build, so `dist/` does not exist yet. The
+ * point of checking a navigation target early is to fail while somebody is
+ * still looking at the config, not after a deploy.
+ *
+ * Returns `{ static: Set<string>, dynamic: RegExp[] }`.
+ *
+ * ⚠ A DYNAMIC ROUTE IS A PATTERN, NOT A ROUTE. `[slug].astro` serves every
+ *   legal page and `[...path].astro` serves any depth. Treating those as
+ *   literal strings would report every real link through them as broken, which
+ *   on a site with a `[slug]` catch-all is *most of the site* — a check that
+ *   confident and that wrong gets switched off within a day.
+ *
+ * ⚠ ENDPOINTS ARE NOT PAGES. `robots.txt.ts` and `api/contact.ts` produce
+ *   responses, never navigable pages, so they are excluded — nobody puts them
+ *   in a menu and reporting them as available would be noise.
+ */
+export function routesFromPages(dir = 'src/pages') {
+  const out = { static: new Set(), dynamic: [] };
+  if (!existsSync(dir)) return out;
+
+  const walk = (d) =>
+    readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+      const full = join(d, e.name);
+      return e.isDirectory() ? walk(full) : [full];
+    });
+
+  for (const file of walk(dir)) {
+    const rel = relative(dir, file).split(sep).join('/');
+    /* `_` prefixed files and directories are not routed by Astro. */
+    if (rel.split('/').some((part) => part.startsWith('_'))) continue;
+    if (!/\.(astro|md|mdx)$/.test(rel)) continue; // .ts endpoints are not pages
+
+    const path =
+      '/' +
+      rel
+        .replace(/\.(astro|md|mdx)$/, '')
+        .replace(/(^|\/)index$/, '$1')
+        .replace(/\/$/, '');
+    const route = path === '/' ? '/' : `${path}/`.replace(/\/+/g, '/');
+
+    if (route.includes('[')) {
+      /* [...rest] matches any depth; [slug] matches one segment. */
+      const pattern = route
+        .replace(/[.*+?^${}()|\\]/g, '\\$&')
+        .replace(/\[\.\.\.[^\]]+\]/g, '.+')
+        .replace(/\[[^\]]+\]/g, '[^/]+');
+      out.dynamic.push(new RegExp(`^${pattern}$`));
+    } else {
+      out.static.add(route);
+    }
+  }
+
+  return out;
+}
+
+/** Does `href` correspond to a page this site serves? */
+export function routeExists(href, routes) {
+  const path = href.split('#')[0].split('?')[0];
+  const normalised = path.endsWith('/') || path === '' ? path || '/' : `${path}/`;
+  if (routes.static.has(normalised)) return true;
+  return routes.dynamic.some((re) => re.test(normalised));
+}

@@ -158,6 +158,10 @@ does ship is the skeleton of the parts that take longest to get right:
   template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
   built — and without a stamp, *"is this site current?"* is archaeology against a repo whose
   history you have to guess at
+- **Navigation can be a CMS field**, because `check:cms` resolves every internal path in
+  CMS-managed data against the routes in `src/pages` before the build. The rule used to forbid it —
+  a typo'd path renders perfectly and 404s only for a visitor — and the result was navigation
+  missing from **all five audited sites**. Verifying beats forbidding
 - **`npm run check:drift`** — what a **delivered** site is behind on. Every other check here
   protects the next project; the template is copied, not linked, so a shipped site never receives
   any of them. Ten rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images, binary

@@ -42,6 +42,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { parse } from 'yaml';
 import { literalImages } from './lib/literal-images.mjs';
+import { routeExists, routesFromPages } from './lib/routes.mjs';
 
 const RESET = '\x1b[0m';
 const RED = '\x1b[31m';
@@ -322,6 +323,83 @@ for (const entry of entries) {
   }
 }
 
+/* ── internal links a client can type ────────────────────────────────────── */
+
+/*
+ * ⚠ THIS IS WHAT MAKES NAVIGATION SAFE TO PUT IN A CMS.
+ *
+ *   `stacks.md` kept nav out of the CMS for a good reason — a bad value should
+ *   fail the build, not publish. A typo'd path gives a menu item leading to a
+ *   404: the page renders, nothing errors, and only a visitor finds it.
+ *
+ *   But navigation was missing from all five audited sites, so every client had
+ *   to ask for a menu change. That is not a rule being respected, it is a gap
+ *   the rule creates. The answer is not to forbid the field, it is to verify
+ *   it — before the build, while somebody is still looking at the config.
+ *
+ * ⚠ A DYNAMIC ROUTE IS A PATTERN. `[slug].astro` serves every legal page, so
+ *   treating routes as literal strings would report most of a site as broken.
+ *   `routesFromPages` returns patterns for those and `routeExists` matches them.
+ *
+ * External links, `mailto:`, `tel:` and bare anchors are somebody else's
+ * problem — `verify` checks those against the deployed site, where they can
+ * actually be resolved.
+ */
+const LINKISH = /(^|\.)(href|url|link|to|target|destination)$/i;
+const routes = routesFromPages();
+const brokenLinks = [];
+
+if (routes.static.size || routes.dynamic.length) {
+  for (const entry of entries) {
+    const documents = [];
+    if (entry?.type === 'collection' && existsSync(entry.path ?? '')) {
+      const walk = (d) =>
+        readdirSync(d).flatMap((e) => {
+          const full = join(d, e);
+          return statSync(full).isDirectory() ? walk(full) : [full];
+        });
+      for (const file of walk(entry.path).filter((f) => /\.mdx?$/.test(f))) {
+        const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, 'utf8'));
+        if (!m) continue;
+        try {
+          documents.push({ where: rel(file), data: parse(m[1]) ?? {} });
+        } catch {
+          /* reported elsewhere */
+        }
+      }
+    } else if (/\.json$/.test(entry?.path ?? '') && existsSync(entry.path)) {
+      try {
+        documents.push({ where: rel(entry.path), data: JSON.parse(readFileSync(entry.path, 'utf8')) });
+      } catch {
+        /* reported above */
+      }
+    }
+
+    for (const doc of documents) {
+      const visit = (value, path) => {
+        if (Array.isArray(value)) return value.forEach((v) => visit(v, path));
+        if (value && typeof value === 'object') {
+          for (const [k, v] of Object.entries(value)) visit(v, path ? `${path}.${k}` : k);
+          return;
+        }
+        if (typeof value !== 'string' || !LINKISH.test(path)) return;
+        if (!value.startsWith('/')) return; // external, mailto:, tel:, #anchor
+        if (routeExists(value, routes)) return;
+        brokenLinks.push({ where: doc.where, path, value });
+      };
+      visit(doc.data, '');
+    }
+  }
+}
+
+if (brokenLinks.length) {
+  problems.push({
+    label: 'internal links',
+    why: `${brokenLinks.length} point at a page this site does not serve`,
+    links: brokenLinks,
+  });
+}
+
 /* ── coverage, and secrets ───────────────────────────────────────────────── */
 
 /*
@@ -481,6 +559,16 @@ for (const p of problems) {
       `      ${DIM}These exist in ${rel(p.path)} and are NOT in the schema, so the first\n` +
         `      save from this screen DELETES them. Declare every key — including ones\n` +
         `      the client will never touch — or move them out of a CMS-managed file.${RESET}`,
+    );
+  }
+  if (p.links) {
+    for (const l of p.links.slice(0, 8)) {
+      console.error(`      ${DIM}${l.where}  ${l.path} = ${JSON.stringify(l.value)}${RESET}`);
+    }
+    console.error(
+      `      ${DIM}A menu item pointing at a missing page renders perfectly and 404s only\n` +
+        `      for a visitor. This is what lets navigation be a CMS field at all: the\n` +
+        `      value is checked before the build rather than trusted.${RESET}`,
     );
   }
   if (p.picker) {
