@@ -553,6 +553,68 @@ code, where a type error stops it.
 > **all five failed** — 27 keys were at risk, including every analytics ID and the opening hours
 > on one site, and the homepage images of another in three languages.
 
+### A worked `.pages.yml`, because everyone was inventing one
+
+⚠ **The kit ships no CMS config, and for five shipped sites that meant five people writing one
+from a blank file. All five diverged and all five failed `check:cms`.** The config below is the
+shape to start from — not to copy wholesale, because the content model must follow the actual
+site.
+
+```yaml
+media:
+  - name: uploads
+    label: Photographs
+    input: media/source/uploads      # what `npm run media` READS
+    output: /img/uploads             # what it WRITES, once processed
+    extensions: [jpg, jpeg, png, heic, heif]
+
+content:
+  - name: settings
+    label: Site settings
+    type: file
+    path: src/data/site.json
+    fields:
+      # ⚠ EVERY key in the file, including ones the client will never open.
+      #    An undeclared key is deleted on the first save.
+      - { name: name, label: Business name, type: string, required: true }
+      - { name: tagline, label: Tagline, type: string }
+      - name: contact
+        label: Contact
+        type: object
+        fields:
+          - { name: email, label: Email, type: string }
+          - { name: phone, label: Phone, type: string }
+
+  - name: services
+    label: Services
+    type: collection
+    path: src/content/services
+    view: { fields: [title, featured] }
+    fields:
+      - { name: title, label: Name, type: string, required: true }
+      - { name: featured, label: Show on the home page, type: boolean }
+      - name: image
+        label: Photograph
+        type: image
+        # A picker returns /img/uploads/x.jpg; <Img> maps it back to the key.
+        options: { media: uploads }
+      - { name: imageAlt, label: Image description, type: string }
+      - { name: body, label: Body, type: rich-text }
+```
+
+Four things that make it work rather than merely parse:
+
+- **Group by what the business recognises** — `Pages`, `Services`, `Team` — not by `src/content`
+  and `src/data`. The sidebar is the client's map of their own website.
+- **Declare every key**, then run `npm run check:cms`. That is the whole defence against the
+  silent delete.
+- **Media points at the pipeline's input**, with `extensions` set.
+- **Alt text sits beside the image**, as its own field.
+
+⚠ **Anything technical stays out**: analytics IDs, tokens, redirects, `robots.txt`, route
+configuration. If it is in the same file as editable content, split the file rather than exposing
+it.
+
 ### Media, and the direction that breaks it
 
 ⚠ **Point a CMS media source at the pipeline's INPUT, never its output.** `optimize-media.mjs`

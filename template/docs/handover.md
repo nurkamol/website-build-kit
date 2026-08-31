@@ -131,6 +131,36 @@ how.
 once — the header, the footer, every button, the notification emails, and what Google reads.
 Ask for them to be changed in that one file rather than page by page, or they will drift.
 
+### Editing it yourself
+
+⚠ *Delete this whole subsection if the site has no content editor.*
+
+You sign in at ⚠ **editor URL** with your ⚠ **GitHub / provider** account. Ask ⚠ **name** to add
+anyone else who needs access.
+
+| Section | What it changes |
+| --- | --- |
+| ⚠ Site settings | ⚠ business name, contact details, the main button |
+| ⚠ Pages | ⚠ the words on Home, About, Contact |
+| ⚠ Services | ⚠ each service, its photograph and description |
+| ⚠ Blog | ⚠ posts |
+
+**A change is live a few minutes after you save.** ⚠ *Confirm the real timing before sending
+this.* To check it worked, open the page in a private window — an ordinary window may show you
+the version you had before.
+
+**Photographs.** Upload them in the ⚠ **Photographs** area, then choose one in the field on the
+page you are editing. Always fill in the short description beside the image: it is what a
+blind visitor hears and what Google reads. Describe what is in the picture, not the file name.
+
+**You cannot break the website from here.** If a change is wrong, the version before it stays
+live until the new one is ready — so a mistake means your change does not appear, not that the
+site goes down. Tell ⚠ **name** what you changed and it can be put back.
+
+**Things to leave alone.** ⚠ *List anything the editor can reach that it should not — otherwise
+delete this line.* If a screen asks for something that looks technical rather than something a
+customer would read, stop and ask.
+
 ---
 
 ## 7. Accessibility

@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-01b — the two things that made every CMS build diverge
+
+Both root causes, both documentation, **no runtime change to anything a deployed site does**.
+
+**1. The kit gave nobody a starting `.pages.yml`.** Zero references mentioned the file. So five
+shipped sites meant five people writing a config from a blank page — and all five diverged, and
+all five failed `check:cms`. `stacks.md` §4 now carries a worked one: a `file` entry declaring
+every key including nested, a collection with an image field and its alt text beside it, media
+pointed at the pipeline's input with `extensions` set, and grouping by what the business
+recognises rather than by `src/content` and `src/data`.
+
+It is a shape to start from, not a config to copy — the content model has to follow the actual
+site, and an empty section reads as broken.
+
+**2. `handover.md` mentioned a CMS zero times.** The client received a site with a content editor
+and no instructions for it, which is most of what "confusing" meant. It now has an **Editing it
+yourself** subsection, written for the business owner rather than a developer: where to sign in,
+what each section changes, that a change is live in minutes and how to confirm it in a private
+window, how to upload a photograph and why the description beside it matters.
+
+⚠ **Including the sentence that actually reduces support calls:** *you cannot break the website
+from here.* A bad change means the previous version stays live and the new one does not appear —
+not that the site goes down. An editor who does not know that treats every uncertainty as a
+reason to call, or worse, not to touch the site at all.
+
+Every field in it is a ⚠ placeholder, because a blank left in reads as a completed answer.
+
+### Deliberately not taken
+
+⚠ **§4's "refactor `business.ts` into a CMS-fed adapter" is the one to refuse.** It is the single
+most load-bearing file in every site built from this kit — the header, the footer, every
+call-to-action, the notification emails and the JSON-LD all read it. Rewiring it to a CMS is a
+breaking change to every project for a benefit that a `.json`/`.ts` split already delivers.
+
+Nav and redirect managers, the page builder, and the Keystatic/Sanity/Payload implementations
+remain out for the reasons already recorded.
+
 ## 2026-09-01a — what a client may edit, and what they must never see
 
 Took the rest of the usable half of the CMS proposal. Doc-only except two new **warnings** in
