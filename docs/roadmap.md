@@ -66,10 +66,19 @@ not the photograph, it is a weakened scrim** — the one real failure was a scri
 to 62% so a client's new photography could show its colour. The check is what makes weakening one
 safe to do.
 
-**Cost, honestly:** it needs a rendering pipeline and a real browser, so it belongs with the
-browser-dependent scripts in the `UNCOVERED` ledger rather than beside the offline gates. That is
-why it is second and not first.
+**Cost, corrected.** This entry previously said it needs a rendering pipeline and a real browser,
+and ranked it second for that reason. ⚠ **That was wrong.** The reference implementation is 175
+lines importing `sharp` and `node:fs` and nothing else — it composites the scrim in code over the
+generated image and never renders a page. `sharp` is already a template dependency, so it runs
+offline beside the other gates rather than with the browser-dependent ones.
 
+**The real cost is elsewhere, and it is a design question rather than a coding one.** The
+measurement is portable; *what to measure* is not. The reference reads three project-specific data
+files and two palette constants, because a region is a box, a scrim strength and a text colour —
+all of which belong to a project's design, and ⚠ **the template has no design.** So the kit can
+ship the measurement and a way to declare regions; it cannot ship the regions. Getting that
+declaration right is the work, and getting it wrong ships a design decision in a starter that is
+supposed to have none.
 ---
 
 The bar is what keeps this section near-empty rather than full of preferences: *would you write
@@ -94,6 +103,7 @@ Kept so they are not re-proposed as new ideas.
 | **A component library** | The reason the template has no design. See `CLAUDE.md` |
 | **Style-preset skills** (`taste-skill` and similar) | They ship named looks — minimal, brutalist, soft. `design.md` explains why something reads as expensive and **never prescribes a look**; adopting presets would put two philosophies in one build. Not a criticism of those projects, which solve a different problem |
 | **Animation skills as a kit recommendation** | Genuinely good, and the author uses several. But nothing here has shipped a build with them, and "we already use it" is not the bar the provider rule sets. Revisit with build evidence |
+| **Fleet tooling for 100+ client sites** | Asked on Reddit, not by a build. Seven shipped sites is not a fleet, and the audit that found 27 keys of silent data loss across five of them was a `for` loop in one command — at this scale that *is* the tool. ⚠ **It stops being true somewhere around fifty**, where you would also want to invert the kit's core trade and make the shared parts a versioned dependency rather than a copy. The version stamp is the primitive that would make a fleet query possible; build the query when there is a fleet to query |
 | **Structured-data validation** | Ranked, then rejected on its own note. Offline JSON-LD validation is awkward and the useful check is Google's own Rich Results Test, which needs the live URL and a browser. It is a runbook link, not a script — and `verify` already catches the failure that is mechanical (a `logo` or `og:image` pointing at a 404) |
 
 ---
