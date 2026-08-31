@@ -171,8 +171,9 @@ does ship is the skeleton of the parts that take longest to get right:
   protects the next project; the template is copied, not linked, so a shipped site never receives
   any of them. Ten rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images, binary
   source files, the CMS checks, the client guide — reported and never fixed, because drift is a
-  decision waiting to be made, not an error. `--json` for many sites at once. `/media-audit` is the
-  procedure that uses it
+  decision waiting to be made, not an error. `--json` for many sites at once. The repair procedure
+  lives in [site-runbooks](https://github.com/nurkamol/site-runbooks), which calls this rather than
+  restating it
 - **`npm run check:contrast`** — text on a photograph, measured off the generated pixels. ⚠ **No
   accessibility runner can see this failure**: axe and pa11y report a flat ~1.01:1 for every one,
   because neither composites a transparent element over the image behind it. Measuring it dissolves
@@ -330,8 +331,13 @@ Sites older than that carry no stamp; compare `scripts/` against a release by ha
 
 **What to do about it, today.** Run **`npm run check:drift`** — or copy `scripts/check-drift.mjs`
 and `scripts/lib/` in first, if the site predates it. It reads only, and reports the clean rows as
-well as the drifted ones. **`/media-audit`** is the procedure that turns that report into a
-decision and then a fix.
+well as the drifted ones. The repair procedure — what to fix first, what to leave, and what to ask
+the client — lives in **[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
+
+⚠ **That split is deliberate.** An executable check belongs here, where `test:gates` proves it
+still refuses and it ships into every project. A repair procedure is long-form judgement that
+cannot be tested, and keeping a second copy of one here is how the two drift apart while nothing
+says so — which is the failure this whole section is about.
 
 A wholesale copy of the current `template/` over a live site would overwrite the design that makes
 it that client's site, so the checks are the portable part — copy the ones you want into the

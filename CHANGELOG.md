@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-01j — one skill, one home for each half
+
+`/media-audit` shipped this morning and is retired this evening. ⚠ **It duplicated
+`site-runbooks`**, which already held the same three phases and the same finding explanations,
+written vendor-neutral and better.
+
+**The operational problem was worse than the duplication.** Both skills triggered on nearly
+identical prompts — *"a client cannot change something on their own site"*, *"a site built from an
+older template"* — so which one answered was arbitrary. That is not a drift risk in six months, it
+is wrong on the first invocation.
+
+**And the detection existed twice.** `kit-drift-remediation.md` defined D1–D8 as bash; the template
+implements D1–D8 as a script. I built the script *from* that runbook, so a spec and an
+implementation of the same eight checks were sitting in two repositories, free to move apart.
+
+**The division that holds:**
+
+| | |
+| --- | --- |
+| **Executable checks** | Here — where `test:gates` proves they still refuse and they ship into every project |
+| **Repair procedures** | `site-runbooks` — long-form judgement that cannot be tested, and should not be duplicated where it cannot be |
+
+So the runbook's Phase 1 now runs `npm run check:drift` and its eight bash blocks are deleted. The
+script is where *how* lives; the runbook keeps *what it means*, which is the half no script carries.
+D1 keeps its measurement block, because the script deliberately does not measure the AVIF saving —
+that depends on the photography, and quoting another project's number is how you lose the reader.
+
+⚠ **Recorded in Rejected, not just deleted**, so it is not rebuilt in three months by someone
+reading the changelog and seeing only that it once existed.
+
 ## 2026-09-01i — 0.1.18, the redirect map nothing had ever checked
 
 Everything still open, closed. Four of the five are small; one is not.
