@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01k — the last two spec-and-implementation pairs, closed
+## 2026-09-01k — 0.1.19, the last two spec-and-implementation pairs, closed
 
 `pagescms-field-mapping.md` and `pagescms-media-playbook.md` opened with detection phases the kit
 already executes. Mapped row by row, **A1, A2, A3 and playbook sections 0–5 and 7 were all things
