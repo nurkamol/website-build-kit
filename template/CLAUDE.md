@@ -95,6 +95,12 @@ The rules whose failure looks like success — double-counted pageviews, a conve
 two pipes, a trigger on `sent=1` that catches almost nothing — are in `docs/analytics.md`.
 Read it before adding any tag.
 
+**`package.json` records which kit this site came from.** `websiteBuildKit.version` is stamped at
+scaffold time and is never updated afterwards, because ⚠ **the template is copied, not linked** —
+nothing the kit fixes later reaches this site. A trap closed upstream, a gate added, a pipeline
+improved: none of it arrives. One site sat 19% behind on every image for weeks after AVIF landed.
+Compare that version against the kit's releases when something here looks older than it should.
+
 ⚠ **A CMS DELETES EVERY KEY ITS SCHEMA FORGOT.** It rewrites the whole file from the schema, so
 anything undeclared is absent from what it writes back — the client changes one field, saves, and
 the rest is gone, looking like an ordinary content commit. `npm run check:cms` refuses a

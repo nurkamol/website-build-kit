@@ -108,9 +108,41 @@ if (!existsSync(join(dest, '.gitignore'))) {
 const pkgPath = join(dest, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 pkg.name = name.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'site';
-writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 
-console.log(`  ${GREEN}✓${RESET} template → ${dir}/`);
+/*
+ * ── WHICH KIT THIS SITE CAME FROM ──────────────────────────────────────────
+ * ⚠ THE TEMPLATE IS COPIED, NOT LINKED. Nothing the kit fixes afterwards ever
+ *   reaches a site already built — not a trap, not a gate, not a pipeline
+ *   change. A shipped site sat 19% behind on every image for weeks after AVIF
+ *   landed, and it surfaced only because somebody happened to read both trees
+ *   for an unrelated reason.
+ *
+ *   Without a stamp, "is this site current?" is archaeology: compare files by
+ *   eye against a repo whose history you have to guess at. With one it is
+ *   reading a line.
+ *
+ * The VERSION, not the commit: every release is tagged, so this resolves to a
+ * commit in one lookup, and embedding a commit would mean the packer's git
+ * state deciding what ships. It goes in package.json because that is the file
+ * a developer opens first and nobody deletes.
+ */
+const kitPkg = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'package.json'), 'utf8'),
+);
+const stamp = { version: kitPkg.version, scaffolded: new Date().toISOString().slice(0, 10) };
+
+/* Placed straight after `version` rather than appended, so it is visible
+   without scrolling past the dependency list. */
+const ordered = {};
+for (const [key, value] of Object.entries(pkg)) {
+  ordered[key] = value;
+  if (key === 'version') ordered.websiteBuildKit = stamp;
+}
+if (!ordered.websiteBuildKit) ordered.websiteBuildKit = stamp;
+
+writeFileSync(pkgPath, `${JSON.stringify(ordered, null, 2)}\n`);
+
+console.log(`  ${GREEN}✓${RESET} template → ${dir}/${DIM}  (kit ${stamp.version})${RESET}`);
 
 const run = (cmd, args, label) => {
   const r = spawnSync(cmd, args, { cwd: dest, stdio: 'ignore', shell: process.platform === 'win32' });

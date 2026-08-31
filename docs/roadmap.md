@@ -28,16 +28,16 @@ media pipeline, the honeypot collision.
 ⚠ **This is ranked first because it is the only item that changes what all the others are worth.**
 Every gate in the Done table below protects new projects and no existing one.
 
-**Shape, cheapest first:** stamp the kit version and commit into the scaffolded site — `create/`
-knows both at scaffold time and writes nothing today. That alone turns "is this site current?"
-from an archaeology exercise into reading a file. A `kit:check` command — named here without the
-`npm run` form on purpose, because `audit:docs` resolves those against `package.json` and this one
-does not exist yet — diffing the local `scripts/` and `src/lib/` against a named upstream tag is
-the second half, and only worth building
-once the stamp exists to diff against.
+**Half of this has shipped.** The scaffolder stamps `websiteBuildKit.version` into the new site's
+`package.json`, straight after `version` so it is visible without scrolling past the dependency
+list. The open question is settled: `package.json` is the file a developer opens first and nobody
+deletes. The version rather than the commit, because every release is tagged — so it resolves to a
+commit in one lookup, and embedding a commit would let the packer's git state decide what ships.
 
-**Open question:** whether the stamp lives in `package.json`, a dotfile, or `BUILD-STATE.md`. It
-has to survive a client's own commits and be obvious to a developer who did not scaffold it.
+**What remains** is a `kit:check` command — named here without the `npm run` form on purpose,
+because `audit:docs` resolves those against `package.json` and this one does not exist yet —
+diffing the local `scripts/` and `src/lib/` against the stamped version's tag and reporting what
+moved upstream. Only now worth building, because there is finally something to diff against.
 
 ### 2. A composite-contrast check for text over photographs
 

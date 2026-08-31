@@ -154,6 +154,10 @@ does ship is the skeleton of the parts that take longest to get right:
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
   and render-blocking counts — bytes and counts, never a timing, because a hand-rolled number
   from one machine disagrees with Lighthouse and nothing tells you it is wrong
+- **The scaffolder stamps `websiteBuildKit.version` into the new site's `package.json`.** The
+  template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
+  built — and without a stamp, *"is this site current?"* is archaeology against a repo whose
+  history you have to guess at
 - **`npm run check:cms`** — a CMS config that will silently destroy content. **A CMS rewrites the
   whole file from its schema, so any key the schema does not declare is gone after the client's
   first save** — not merged, not flagged, and in the diff it reads as an ordinary content commit.

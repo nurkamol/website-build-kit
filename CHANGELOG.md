@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-09-01d — a site can finally say which kit it came from
+
+⚠ **The template is copied, not linked.** Nothing the kit fixes afterwards reaches a site already
+built — not a trap, not a gate, not a pipeline change. Every gate in this changelog protects new
+projects and **no existing one**, and until now nothing anywhere said so.
+
+The cost is already paid: a shipped site sat **19% behind on every image for weeks** after AVIF
+landed, and it surfaced only because somebody happened to read both trees for an unrelated reason.
+
+The scaffolder now stamps the new site's `package.json`:
+
+```json
+"name": "mysite",
+"version": "1.0.0",
+"websiteBuildKit": { "version": "0.1.15", "scaffolded": "2026-08-31" },
+```
+
+Three decisions inside that, each of which could have gone the other way:
+
+- **`package.json`**, not a dotfile or `BUILD-STATE.md` — it is the file a developer opens first
+  and the one nobody deletes. Placed straight after `version` so it is visible without scrolling
+  past the dependency list.
+- **The version, not the commit.** Every release is tagged, so this resolves to a commit in one
+  lookup — and embedding a commit would let the packer's git state decide what ships, which is the
+  same class of problem `prepack` was just fixed for.
+- **Never updated after scaffold.** It records where the site came *from*. A stamp that tracked
+  something else would be describing a link that does not exist.
+
+Verified from a packed tarball rather than the repo — `create/template` only exists between
+`prepack` and `postpack`, so running the CLI in place fails by design. The scaffolded
+`package.json` gained exactly one key, lost none, and its scripts and dependencies are
+byte-identical to the template's.
+
+**This is half of roadmap item 1.** The other half — a `kit:check` diffing a project against its
+stamped version's tag — is only now worth building, because there is finally something to diff
+against.
+
 ## 2026-09-01c — 0.1.15, the tolerant reader, and the check it made necessary
 
 Round 2 of the media backport, and it corrects something **I shipped two days ago**.
