@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01i — the redirect map nothing had ever checked
+## 2026-09-01i — 0.1.18, the redirect map nothing had ever checked
 
 Everything still open, closed. Four of the five are small; one is not.
 
