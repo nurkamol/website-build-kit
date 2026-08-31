@@ -212,9 +212,11 @@ longer existed, a section number that had moved, and a pointer to `prompts/websi
 from a kit structure that has not existed for months — all of which read as correct.
 
 ⚠ **It resolves paths against the WORKING TREE, so a generated directory can make a bad reference
-pass locally and fail in CI.** A trap entry quoting `public/img/brand` passed here and failed on
-both runners: the rule allows a path whose *parent* exists, and this machine had an untracked,
-empty `template/public/img` left by a `npm run media` test. Same commit, opposite verdicts. If the
+pass locally and fail in CI.** A trap entry quoting a path under the generated image directory
+passed here and failed on both runners: the rule allows a path whose *parent* exists, and this
+machine had that directory left behind, untracked and empty, by a `npm run media` test. Same
+commit, opposite verdicts. **I then made the identical mistake writing this warning**, by quoting
+the offending path inside it. If the
 audit disagrees with CI, clone into a temp directory and run it there before believing your own
 tree — and remember an empty directory is invisible to `git status`.
 
