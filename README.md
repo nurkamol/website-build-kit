@@ -160,7 +160,10 @@ does ship is the skeleton of the parts that take longest to get right:
   Audited across five shipped sites, **all five failed**: one was dropping every analytics ID and
   the opening hours the moment the client saved Site Settings, another lost its homepage images in
   three languages, and two pointed uploads at `public/img` — the media pipeline's *output*. A
-  no-op when there is no `.pages.yml`
+  no-op when there is no `.pages.yml`. It also **warns** — never fails — about content in the repo
+  that no CMS entry points at (*"whole sections are missing"* is how a client reports that; one
+  audited site had an entire services collection it could not edit) and about fields that look
+  like technical configuration rather than content
 - **`npm run check:form`** — two form controls sharing a `name`. **The honeypot is called
   `company`**, and `api/contact.ts` discards any submission that fills it in — silently, with a 200
   and a thank-you page. Add a real Company field, as a B2B site eventually does, and every enquiry

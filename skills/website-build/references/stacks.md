@@ -475,6 +475,58 @@ wrong.
 **Rule:** git-based unless the client publishes several times a week, needs draft
 collaboration, or has more than a handful of editors.
 
+**Choosing a CMS is a content-architecture decision, not an installation step.** Inventory the
+site, model the content that actually exists, keep one source of truth, protect the technical
+configuration, and verify the client can find things without knowing Astro or the repo layout.
+⚠ **The complexity of the CMS follows the complexity of the project** — never create a Team
+collection with no team, Locations for one location, or an empty category. An empty section is
+worse than an absent one: it reads as broken.
+
+### Decide what goes in the CMS before configuring one
+
+⚠ **"Professional CMS" does not mean making every string editable.** It means the right things
+are editable and the rest is protected. Inventory the site first — routes, content collections,
+`src/data`, navigation, services, testimonials, FAQs, legal pages, forms, SEO metadata, JSON-LD —
+and put every value in one of five buckets:
+
+| | | |
+| --- | --- | --- |
+| **Editorial content** | copy, photos, prices, hours, staff | CMS-managed |
+| **Editorial configuration** | featured flags, ordering, a global CTA | may be CMS-managed |
+| **Design / presentation** | spacing, variants, component choice | stays in code |
+| **Technical configuration** | routes, redirects, canonical rules, build config | developer-controlled |
+| **Secrets** | API keys, tokens, analytics IDs, environment variables | ⚠ **never** in a CMS |
+
+The deciding question is not technical:
+
+> **Would a reasonable non-technical owner expect to update this after handover?**
+
+If no, it does not belong in the CMS — and if it is in the same *file* as something that does,
+that file is the problem. `getmiohome.com` had `analytics` sitting in the same `site.json` as the
+business name; the client never had to touch it for it to be deleted.
+
+⚠ **Never expose `robots.txt`, or a raw redirects file, to a client.** A CMS can edit any file in
+the repo, which makes this easy to do and unrecoverable to notice: a client who blocks the site in
+`robots.txt` sees no error, no broken page and no failed build. Traffic simply stops, and the
+cause is a file nobody thinks to re-read. Advanced SEO files belong to the developer, or to an
+editor who has explicitly asked for them and understands the consequence.
+
+### Fields the client can actually use
+
+A field is part of the deliverable, not a wrapper around a key name.
+
+- **Label it in the client's language.** `Meta description`, `Booking URL`, `Featured service` —
+  never `desc`, `url2`, `isFeat`.
+- **Constrain what can be typed.** A select beats free text; a reference beats a re-typed name; a
+  required field beats a validation rule nobody reads. The failure a constrained field cannot
+  represent is a failure that cannot happen.
+- **Describe only where it is ambiguous.** A description on an obvious field is noise, and noise
+  trains people to skip the ones that matter.
+- **Every editorial image carries its own alt text** as a field beside the file. ⚠ **Never derive
+  alt text from the filename** — `DSC_0481` and `hero-final-v3-USE-THIS` are what filenames
+  actually look like, and a plausible-looking wrong alt is worse than none because a reviewer
+  scrolls past it.
+
 ### What the CMS may edit, and what it must never see
 
 **Content the client changes goes in `.json`; the reasoning and the types stay in `.ts`

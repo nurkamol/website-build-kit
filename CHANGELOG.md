@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-09-01a — what a client may edit, and what they must never see
+
+Took the rest of the usable half of the CMS proposal. Doc-only except two new **warnings** in
+`check:cms`, both of which found real things on shipped sites.
+
+**A five-way classification, and one question that decides it.** Editorial content · editorial
+configuration · design · technical configuration · **secrets**. The question is not technical:
+
+> Would a reasonable non-technical owner expect to update this after handover?
+
+⚠ **And if a value that fails that test lives in the same FILE as one that passes, the file is the
+problem.** getmiohome.com had `analytics` sitting in the same `site.json` as the business name —
+the client never had to touch it for it to be deleted.
+
+⚠ **Never expose `robots.txt` or a raw redirects file to a client.** A CMS can edit any file in
+the repo, which makes this easy to do and impossible to notice: a client who blocks the site sees
+no error, no broken page and no failed build. Traffic simply stops, and the cause is a file nobody
+re-reads.
+
+**Fields are part of the deliverable.** Label in the client's language; constrain rather than
+describe, because a failure a field cannot represent cannot happen; describe only where genuinely
+ambiguous, since noise trains people to skip the descriptions that matter. And ⚠ **never derive
+alt text from a filename** — `DSC_0481` and `hero-final-v3-USE-THIS` are what filenames actually
+look like, and a plausible wrong alt is worse than none because a reviewer scrolls past it.
+
+### Two warnings, because the complaint was real
+
+**Content no CMS entry points at.** *"Whole sections are missing"* was the report from delivered
+sites, and it is checkable. On the five audited, **navigation was absent from all five** and
+testimonials from four; one had an **entire `src/content/services` collection the client could not
+edit**. A warning, never a failure — what belongs in a CMS is a judgement, and a gate that insists
+otherwise gets switched off.
+
+**Fields shaped like technical configuration.** It found `gtmId` exposed as an editable field on a
+live site: a client can change it, nothing validates it, and the failure is silent.
+
+⚠ **The generated-file exclusion started as a two-name list and immediately produced a false
+positive** on a project's `media-manifest.json`. That is the denylist problem in miniature, in a
+repo whose own `CLAUDE.md` warns about it — now matched by shape, `*manifest.json`.
+
+**118 cases across 18 gates, 75 proving a refusal.**
+
+**Still not taken, and why:** the nav and redirect managers (`stacks.md` forbids both — a bad
+redirect should fail the build, not publish), the page builder (its blocks map to Astro components
+the template deliberately does not ship), and the Keystatic/Sanity/Payload implementations (not
+deployed on a real project). The nav rule is worth revisiting on the evidence — 5/5 is a gap, not
+a rule being respected — but overturning it is a decision, not a cleanup.
+
 ## 2026-08-31a — the CMS was quietly deleting client content, on live sites
 
 Audited the `.pages.yml` of **five shipped sites. All five failed.**

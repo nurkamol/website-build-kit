@@ -206,6 +206,78 @@ for (const source of media) {
   }
 }
 
+/* ── coverage, and secrets ───────────────────────────────────────────────── */
+
+/*
+ * ⚠ WARNINGS, NEVER FAILURES. What belongs in a CMS is a judgement — a single
+ *   -location business has no business needing a Locations collection, and a
+ *   gate that insists otherwise gets switched off. But "the client says whole
+ *   sections are missing" was the actual complaint from five delivered sites,
+ *   and it is checkable: content exists in the repo that no CMS entry points at.
+ *
+ *   Audited across those five, navigation was absent from ALL FIVE, and
+ *   testimonials from four. Nothing reported it, because nothing looked.
+ */
+const covered = new Set(
+  entries.map((e) => (e?.path ?? '').replace(/^\.?\//, '').replace(/\/$/, '')).filter(Boolean),
+);
+
+/*
+ * Generated files — a CMS editing these would be editing build output.
+ *
+ * ⚠ MATCHED BY SHAPE, NOT BY NAME. This began as a two-name list and
+ *   immediately produced a false positive on a real project's
+ *   `media-manifest.json`, which is the denylist problem in miniature: it knows
+ *   only the files already thought of. Anything `*manifest.json` is written by
+ *   a build step, and `lastmod.json` is named because dates are generated too.
+ */
+const isGenerated = (file) => /manifest\.json$/.test(file) || file === 'lastmod.json';
+
+const uncovered = [];
+
+if (existsSync('src/content')) {
+  for (const dir of readdirSync('src/content', { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    const path = `src/content/${dir.name}`;
+    if (![...covered].some((c) => c === path || c.startsWith(`${path}/`))) uncovered.push(path);
+  }
+}
+
+if (existsSync('src/data')) {
+  for (const file of readdirSync('src/data')) {
+    if (!file.endsWith('.json') || isGenerated(file)) continue;
+    const path = `src/data/${file}`;
+    if (!covered.has(path)) uncovered.push(path);
+  }
+}
+
+if (uncovered.length) {
+  warnings.push(
+    `${uncovered.length} content source(s) exist that no CMS entry points at — the client cannot ` +
+      `edit them, and "whole sections are missing" is how that gets reported:\n` +
+      uncovered.map((u) => `      ${u}`).join('\n') +
+      `\n      Each is either a deliberate developer-controlled file or a gap. Decide which.`,
+  );
+}
+
+/*
+ * ⚠ A SECRET IN A CMS IS A SECRET THE CLIENT CAN READ AND CHANGE. Analytics
+ *   IDs, tokens and keys are technical configuration: their failure mode is
+ *   silent (tracking stops, mail stops) and no editor can diagnose it.
+ */
+const SECRET_SHAPED = /(^|[._-])(api|secret|token|key|password|credential|apikey)([._-]|$)|(ga4|gtm|analytics|measurement)/i;
+
+for (const entry of entries) {
+  const risky = [...schemaPaths(entry?.fields)].filter((f) => SECRET_SHAPED.test(f));
+  if (risky.length) {
+    warnings.push(
+      `"${entry?.name ?? entry?.label}" exposes field(s) that look like technical configuration ` +
+        `rather than content: ${risky.join(', ')}. A client cannot diagnose what breaks when one ` +
+        `is changed, and the failure is silent.`,
+    );
+  }
+}
+
 /* ── report ──────────────────────────────────────────────────────────────── */
 
 for (const w of warnings) console.log(`  ${YELLOW}!${RESET} ${w}`);

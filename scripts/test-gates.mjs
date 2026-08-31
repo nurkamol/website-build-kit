@@ -1384,6 +1384,32 @@ gate('refuses uploads pointed at generated output', {
   contains: 'GENERATED output',
 });
 
+/* Warnings, not failures — but they must still fire, or the complaint that
+   started this ("whole sections are missing") stays invisible. */
+gate('warns about content no CMS entry points at', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/content/services/one.md': '---\ntitle: A\n---\n',
+    'src/data/image-manifest.json': '{}',
+  },
+  expect: 0,
+  contains: 'src/content/services',
+  then: (_dir, out) =>
+    out.includes('image-manifest.json') ? 'flagged a generated manifest as missing coverage' : null,
+});
+
+gate('warns when a field looks like technical configuration', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    '.pages.yml': CMS_CLEAN['.pages.yml'].replace('- { name: ga4, type: string }', '- { name: apiToken, type: string }'),
+    'src/data/site.json': JSON.stringify({ title: 'x', analytics: { apiToken: 't' } }),
+  },
+  expect: 0,
+  contains: 'technical configuration',
+});
+
 gate('refuses a content path that does not exist', {
   script: 'check-cms.mjs',
   files: {
