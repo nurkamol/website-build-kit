@@ -27,7 +27,34 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, basename, resolve } from 'node:path';
 
-import puppeteer from 'puppeteer';
+/*
+ * ⚠ puppeteer IS A TRANSITIVE DEPENDENCY, NOT A DECLARED ONE. The comment above
+ *   is true only while `pa11y-ci` is a devDependency of this project. Run pa11y
+ *   as `npx --yes pa11y-ci` instead — which a project reasonably might — and
+ *   puppeteer is never installed here at all.
+ *
+ *   A fork that did exactly that compensated by hunting for a puppeteer inside
+ *   `~/.npm/_npx`, found a stale one whose bundled Chrome would not launch, and
+ *   timed out after thirty seconds with nothing pointing at the cause.
+ *
+ *   So say it plainly rather than let a bare import throw ERR_MODULE_NOT_FOUND:
+ *   a script whose dependency is a side effect of how you happened to run a
+ *   different script is a script that breaks later, on someone else's machine,
+ *   for reasons that look unrelated.
+ */
+let puppeteer;
+try {
+  puppeteer = (await import('puppeteer')).default;
+} catch {
+  console.error(
+    `\nmd-to-pdf needs puppeteer, which is not installed.\n\n` +
+      `  It normally arrives with pa11y-ci, so this usually means pa11y-ci was\n` +
+      `  removed from devDependencies, or is being run as \`npx --yes pa11y-ci\`\n` +
+      `  rather than installed.\n\n` +
+      `  Fix: npm install --save-dev puppeteer\n`,
+  );
+  process.exit(1);
+}
 
 const [, , input, outputArg] = process.argv;
 if (!input) {

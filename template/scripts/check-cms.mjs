@@ -376,6 +376,42 @@ if (uncovered.length) {
 }
 
 /*
+ * ⚠ A CLIENT GUIDE DOES NOT GO OUT OF DATE GRACEFULLY. IT STARTS LYING.
+ *
+ *   `docs/handover.md` is the only document written for the client. One
+ *   project's was written when the CMS had six entries; it had thirteen by the
+ *   time anyone looked, and nothing noticed. That is the mild half.
+ *
+ *   The serious half is that it still said the address and phone number "are
+ *   not editable" — which stopped being true the day those moved into the CMS.
+ *   A client reading that either asks you to do something she can do herself,
+ *   or assumes her address updates everywhere on its own because the document
+ *   told her the site owned it.
+ *
+ *   Only the client ever finds out. So: every entry the CMS shows should be
+ *   named in the guide. A warning, not a failure — what the guide says is a
+ *   judgement, and a section deliberately left out is a decision.
+ */
+const GUIDE = join('docs', 'handover.md');
+
+if (existsSync(GUIDE) && entries.length) {
+  const guide = readFileSync(GUIDE, 'utf8').toLowerCase();
+  const unmentioned = entries
+    .map((e) => e?.label ?? e?.name)
+    .filter(Boolean)
+    .filter((label) => !guide.includes(String(label).toLowerCase()));
+  if (unmentioned.length) {
+    warnings.push(
+      `${unmentioned.length} CMS section(s) the client guide never mentions: ` +
+        `${unmentioned.join(', ')}.\n` +
+        `      ${GUIDE} is the only document written for the client. A section it omits is one ` +
+        `they will not know they can edit — and a claim it makes that the CMS has since ` +
+        `contradicted is worse, because they will believe it.`,
+    );
+  }
+}
+
+/*
  * ⚠ A SECRET IN A CMS IS A SECRET THE CLIENT CAN READ AND CHANGE. Analytics
  *   IDs, tokens and keys are technical configuration: their failure mode is
  *   silent (tracking stops, mail stops) and no editor can diagnose it.

@@ -83,14 +83,16 @@ function fixture(files) {
  * 1 means it must refuse. `contains` additionally pins the reason, so a gate
  * that fails for an unrelated reason is not counted as catching the bug.
  */
-function gate(label, { script, files, env = {}, args = [], expect, contains, then, setup }) {
+function gate(label, { script, files, env = {}, args = [], expect, contains, then, setup, from }) {
   const dir = fixture(files);
   try {
     /* `setup` prepares state the file map cannot express — a real git history
        with pinned commit dates, for the one script whose entire output is
        dates. */
     if (setup) setup(dir);
-    const run = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, script), ...args], {
+    /* `from` runs a KIT script instead of a template one — check:binary guards
+       this repository's own provenance sweep, so it has no template copy. */
+    const run = spawnSync(process.execPath, [join(from ?? TEMPLATE_SCRIPTS, script), ...args], {
       cwd: dir,
       encoding: 'utf8',
       env: { ...process.env, ...env },
@@ -1442,6 +1444,29 @@ gate('warns about content no CMS entry points at', {
     out.includes('image-manifest.json') ? 'flagged a generated manifest as missing coverage' : null,
 });
 
+/* The guide that starts lying: written when the CMS had six entries, still
+   claiming the address was not editable long after it was. */
+gate('warns about a CMS section the client guide never mentions', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'docs/handover.md': '# Handover\n\n## 6. Making changes\n\nYou can edit nothing in particular.\n',
+  },
+  expect: 0,
+  contains: 'the client guide never mentions',
+});
+
+gate('silent once the guide names the section', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'docs/handover.md': '# Handover\n\n## 6. Making changes\n\nYou can edit Site settings.\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('the client guide never mentions') ? 'warned about a section the guide names' : null,
+});
+
 gate('warns when a field looks like technical configuration', {
   script: 'check-cms.mjs',
   files: {
@@ -1530,6 +1555,84 @@ gate('a non-raster file is reported, not silently dropped', {
   },
   expect: 0,
   contains: 'produced no image',
+});
+
+
+
+/* ────────────────────────────────────────────────────────────────────────
+ * check:binary — the hole that was in the provenance gate itself
+ *
+ * CLAUDE.md records a script that used a literal NUL as a sentinel, which made
+ * it binary, which made it invisible to a provenance sweep written with
+ * `grep -I` — while carrying a client's whole brand. The fix was to that one
+ * file; nothing was added that would catch the next.
+ *
+ * ⚠ THE OBVIOUS IMPLEMENTATION IS A CHECK THAT ALWAYS PASSES.
+ *   `git grep -I --files-without-match ''` reads like the answer and prints
+ *   nothing either way. So these cases matter more than usual: one proves it
+ *   NAMES a NUL-bearing file, one proves an empty file is not mistaken for one.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:binary');
+
+const KIT_SCRIPTS = join(KIT, 'scripts');
+
+/** A tiny repo, because the check asks git rather than the filesystem. */
+const initRepo = (dir) => {
+  const run = (...args) =>
+    spawnSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_SYSTEM: '/dev/null',
+        GIT_AUTHOR_NAME: 't',
+        GIT_AUTHOR_EMAIL: 't@e',
+        GIT_COMMITTER_NAME: 't',
+        GIT_COMMITTER_EMAIL: 't@e',
+      },
+    });
+  run('init', '-q');
+  run('add', '-A');
+};
+
+gate('a tree of ordinary source files passes', {
+  script: 'check-binary.mjs',
+  from: KIT_SCRIPTS,
+  files: { 'a.mjs': 'export const a = 1;\n', 'b.md': '# b\n' },
+  setup: initRepo,
+  expect: 0,
+  contains: 'readable as text',
+});
+
+gate('names a source file carrying a NUL', {
+  script: 'check-binary.mjs',
+  from: KIT_SCRIPTS,
+  files: { 'a.mjs': 'export const a = 1;\n', 'sneaky.mjs': 'const S = "a\u0000b";\n' },
+  setup: initRepo,
+  expect: 1,
+  contains: 'sneaky.mjs',
+});
+
+/* ⚠ `git grep ''` matches LINES, and a zero-byte file has none — so the naive
+   difference reports every empty file as binary. */
+gate('an empty file is not mistaken for a binary one', {
+  script: 'check-binary.mjs',
+  from: KIT_SCRIPTS,
+  files: { 'a.mjs': 'export const a = 1;\n', 'empty.md': '' },
+  setup: initRepo,
+  expect: 0,
+  contains: 'readable as text',
+});
+
+/* A check that passes when git reports nothing has proved nothing. */
+gate('refuses to pass vacuously with no tracked files', {
+  script: 'check-binary.mjs',
+  from: KIT_SCRIPTS,
+  files: { 'note.rtf': 'not a source extension\n' },
+  setup: initRepo,
+  expect: 1,
+  contains: 'refusing to pass vacuously',
 });
 
 

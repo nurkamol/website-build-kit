@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-09-01e — the provenance gate had a hole in itself
+
+Three from the backport's round 3, and the first one is about this repository.
+
+### `npm run check:binary` — the file the gate cannot see
+
+⚠ **`CLAUDE.md` already records that a literal NUL makes a source file binary and therefore
+invisible to `grep -I` — and the provenance sweep is written with `grep -I`.** The one file that
+defeats the gate is the one file the gate cannot see. It carried a client's entire brand, both
+typefaces and a base64 palette, for two commits.
+
+The round-1 fix was to *that file*. Nothing was added that would catch the next one.
+
+What makes it worth a check is that the tools fail **quietly**: `grep` returns nothing and exits 1,
+exactly as it does for no-match; `git diff` says only `Binary files differ`, so changes never
+appear in review.
+
+⚠ **And the obvious implementation is a check that always passes.**
+`git grep -I --files-without-match ''` reads like the answer and prints nothing either way. Asking
+git for its tracked files, asking again for the ones it can read as text, and taking the difference
+is what actually works — with one correction the source doc did not have: **`git grep ''` matches
+LINES, so a zero-byte file has none and is reported as binary.** Excluded by size.
+
+Verified in both directions before being trusted, and in CI from now on. Four cases, including one
+that refuses to pass when git reports no files at all.
+
+### The client guide that starts lying
+
+A guide written when the CMS had six entries had thirteen by the time anyone looked. That is the
+mild half. The serious half is that it still said the address and phone number *"are not editable"*
+— which stopped being true the day those moved into the CMS. **A client reading that either asks
+you to do something she can do herself, or assumes her address updates everywhere on its own,
+because the document told her the site owned it.**
+
+`check:cms` now warns when a CMS section is never named in `docs/handover.md`. A warning, because
+what the guide says is a judgement and an omission can be deliberate.
+
+⚠ **Writing it turned up something worse than the check catches:** none of the audited shipped
+sites has a `docs/handover.md` at all. The one document the kit writes for the client is not
+reaching clients.
+
+### `md-to-pdf` assumed a dependency it never declared
+
+It said Chrome "comes from puppeteer, which arrives as part of pa11y-ci — already a
+devDependency". True only while that is so. Run pa11y as `npx --yes pa11y-ci` — which a project
+reasonably might — and puppeteer is never installed. A fork that did exactly that hunted for one in
+`~/.npm/_npx`, found a stale copy whose Chrome would not launch, and timed out after thirty seconds
+with nothing pointing at the cause.
+
+It now imports puppeteer dynamically and says what is wrong and how to fix it. **A script whose
+dependency is a side effect of how you happened to run a different script is a script that breaks
+later, on someone else's machine, for reasons that look unrelated.**
+
+**126 cases across 19 gates, 78 proving a refusal.**
+
 ## 2026-09-01d — a site can finally say which kit it came from
 
 ⚠ **The template is copied, not linked.** Nothing the kit fixes afterwards reaches a site already

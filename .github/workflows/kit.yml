@@ -64,6 +64,11 @@ jobs:
       - name: Lib exports are imported where used
         run: npm run check:refs
 
+      # A tracked source file that git calls binary is invisible to review AND
+      # to the provenance sweep, which is written with `grep -I`.
+      - name: No source file hides from review
+        run: npm run check:binary
+
       # The promise: the template builds green from a clean checkout with no
       # content, no images and no secrets.
       - name: Install the template from the lockfile

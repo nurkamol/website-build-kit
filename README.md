@@ -158,6 +158,11 @@ does ship is the skeleton of the parts that take longest to get right:
   template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
   built — and without a stamp, *"is this site current?"* is archaeology against a repo whose
   history you have to guess at
+- **`npm run check:binary`** *(kit repo)* — a tracked source file that git treats as **binary**.
+  One script used a literal NUL as a string sentinel, which made it invisible to `git diff`, to
+  `grep`, and — the part that matters — **to the provenance sweep, which is written with `grep -I`**.
+  It carried a client's entire brand for two commits. The obvious implementation is a check that
+  always passes, so this one is tested in both directions
 - **`npm run check:cms`** — a CMS config that will silently destroy content. **A CMS rewrites the
   whole file from its schema, so any key the schema does not declare is gone after the client's
   first save** — not merged, not flagged, and in the diff it reads as an ordinary content commit.

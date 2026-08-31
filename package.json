@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "audit:docs": "node scripts/audit-docs.mjs",
+    "cards:brand": "node scripts/brand-cards.mjs",
+    "check:binary": "node scripts/check-binary.mjs",
     "check:refs": "node scripts/check-refs.mjs",
-    "test:gates": "node scripts/test-gates.mjs",
-    "cards:brand": "node scripts/brand-cards.mjs"
+    "test:gates": "node scripts/test-gates.mjs"
   },
   "license": "MIT"
 }
