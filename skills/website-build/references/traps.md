@@ -3,6 +3,15 @@
 Every one of these failed **silently** during the build — clean build, clean types, clean
 deploy, wrong result. Check this list before debugging anything strange.
 
+**Documented elsewhere, and belonging on this list by symptom:**
+
+- **Fields vanish from a data file after the client edits it in the CMS.** They change a price,
+  save, and keys nobody touched are gone from the repo — a CMS rewrites the whole file from its
+  schema, so anything the schema does not declare is absent from what it writes back. Not
+  flagged, not merged; in the diff it reads as an ordinary content commit. Full rule in
+  `stacks.md` §4. It lives there rather than here because **the kit ships no CMS** — you pick one
+  per project, so there is nothing in the template to gate and no schema for a check to read.
+
 ---
 
 ### `wrangler r2 object put` writes to LOCAL storage by default
