@@ -14,8 +14,7 @@ If it does not catch a failure, it is a preference.
 
 ## Open
 
-Both deferred from the media backport of 31 August 2026, and both named in `CHANGELOG.md` before
-they were written down here — which is the oversight side of this file's own line.
+One item, the remaining half of the drift work. The composite-contrast check has shipped.
 
 ### 1. Drift detection — a project cannot tell it is behind the kit
 
@@ -39,46 +38,6 @@ because `audit:docs` resolves those against `package.json` and this one does not
 diffing the local `scripts/` and `src/lib/` against the stamped version's tag and reporting what
 moved upstream. Only now worth building, because there is finally something to diff against.
 
-### 2. A composite-contrast check for text over photographs
-
-**Catches:** unreadable copy over an image, which **no current tool can see**. axe reports a flat
-**1.01:1** for every one of these, because no runner composites a transparent element over the
-pixels behind it. So the choice has looked binary — forbid clients from choosing photographs, or
-let them break the navigation.
-
-It is not binary. Measuring the composite off the **rendered** pixels — per-channel maxima, every
-format served — makes a photograph that breaks the nav a red build, and the last good deploy stays
-live.
-
-**What made this worth ranking** is what happened when the check was fed a hostile frame on a real
-site:
-
-| | | |
-| --- | --- | --- |
-| band, 82% ink scrim | near-white photo | **9.66:1** — cannot fail |
-| tile label, 72% ink | near-white photo | **6.76:1** — cannot fail |
-| script line, 62% ink | near-black photo | **2.86:1** ✗ rejected |
-
-⚠ **For two of the three the fear was unfounded** — those scrims are strong enough that no
-photograph gets through them. The kit's "guarantee the ground instead of hoping for it" pattern had
-already solved the problem and everyone was still behaving as though it had not. **The danger is
-not the photograph, it is a weakened scrim** — the one real failure was a scrim lightened from 92%
-to 62% so a client's new photography could show its colour. The check is what makes weakening one
-safe to do.
-
-**Cost, corrected.** This entry previously said it needs a rendering pipeline and a real browser,
-and ranked it second for that reason. ⚠ **That was wrong.** The reference implementation is 175
-lines importing `sharp` and `node:fs` and nothing else — it composites the scrim in code over the
-generated image and never renders a page. `sharp` is already a template dependency, so it runs
-offline beside the other gates rather than with the browser-dependent ones.
-
-**The real cost is elsewhere, and it is a design question rather than a coding one.** The
-measurement is portable; *what to measure* is not. The reference reads three project-specific data
-files and two palette constants, because a region is a box, a scrim strength and a text colour —
-all of which belong to a project's design, and ⚠ **the template has no design.** So the kit can
-ship the measurement and a way to declare regions; it cannot ship the regions. Getting that
-declaration right is the work, and getting it wrong ships a design decision in a starter that is
-supposed to have none.
 ---
 
 The bar is what keeps this section near-empty rather than full of preferences: *would you write
@@ -121,6 +80,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |
 | Generated-site tells | A site that clears every templated-look row and is still recognisable in three seconds as LLM output — glass, giant radii, glow, badge decoration. Three are machine-checked |
+| `npm run check:contrast` | Text on a photograph that no runner can see — axe reports a flat ~1.01:1 because nothing composites a transparent element over an image. Two of three real regions could not fail at all; the exposure was a scrim someone had **lightened** |
 | `scripts/fixture-site.mjs` | A network-facing script silently changing what it *reports* — 0.1.11 shipped a redirect cap that turned a live page into a 302 in the inventory, with every gate green. `verify` is 1,069 lines deciding go-live and had no case proving any of its three `exit(1)` paths still fired |
 | `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 29 cases, 15 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |
 | `npm run check:secrets` | A deploy that captures leads and silently cannot email them — `secret()` returns `undefined`, the form returns 200, nobody is notified |

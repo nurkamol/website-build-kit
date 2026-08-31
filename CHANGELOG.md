@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-09-01f — the failure no accessibility runner can see, and the README that never mentioned drift
+
+### `npm run check:contrast`
+
+⚠ **axe and pa11y report a flat ~1.01:1 for text on a photograph**, because neither composites a
+transparent element over the pixels behind it. So the failure is invisible to `a11y`, invisible to
+the build, and invisible to the client who swapped the photo — which is what forces the bad choice
+between letting them change a header image and refusing to let them choose at all.
+
+It composites the scrim in code over the generated image and takes **per-channel extremes, not the
+average** — an average hides exactly the highlight that breaks a word. Both extremes, because light
+text fails against a bright pixel and dark text against a dark one, and a check that knows only one
+is half a check.
+
+**The interesting result was the opposite of the fear.** Reproduced here on a hostile near-white
+frame:
+
+| | |
+| --- | --- |
+| 82% scrim, white text | **11.43:1** — cannot fail |
+| the same frame, scrim weakened to 20% | **1.62:1** ✗ rejected |
+
+⚠ **The danger is never the photograph. It is a weakened scrim.** On the site this came from, two
+of three regions could not fail at any photograph; the single exposure was a scrim lightened from
+92% to 62% so a client's photography could show its colour. **This check is what makes weakening
+one safe to do.**
+
+**The regions are declared, never detected.** A region is a box, a scrim strength and a text
+colour — all design, and ⚠ *this template has no design*. So the kit ships the measurement and the
+format, and exits 0 saying so when a project declares none.
+
+⚠ **The first version imported `toImageKey` from `src/lib/image-key.ts`, which a `.mjs` script
+cannot load** — `ERR_MODULE_NOT_FOUND`, found by running it. Copying the function in would have
+left two implementations of one mapping free to drift, which is the failure this entire round was
+about. It asks for a manifest key instead and says so when handed a picker path.
+
+Production only: it measures generated images, and staging is often built before `npm run media`
+has caught up.
+
+### The README never told anyone that fixes do not reach them
+
+Verified before writing: no mention of drift, "already built" or "existing project" anywhere —
+only one clause buried in a bullet about a script. So a reader learned the kit has gates, traps and
+a pipeline, and never learned **none of them reach a site already built**.
+
+There is now a section that says it, names the cost in the two concrete forms it has taken —
+images 19% larger for weeks, and a source file that `git diff` shows only as `Binary files differ`
+— explains where the version stamp lives, and gives the honest answer about what to do today: copy
+the checks in and run them, expecting them to fail. **Five audited sites, five failures.**
+
+**130 cases across 20 gates, 80 proving a refusal.**
+
 ## 2026-09-01e — the provenance gate had a hole in itself
 
 Three from the backport's round 3, and the first one is about this repository.

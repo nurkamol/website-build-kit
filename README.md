@@ -158,6 +158,12 @@ does ship is the skeleton of the parts that take longest to get right:
   template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
   built — and without a stamp, *"is this site current?"* is archaeology against a repo whose
   history you have to guess at
+- **`npm run check:contrast`** — text on a photograph, measured off the generated pixels. ⚠ **No
+  accessibility runner can see this failure**: axe and pa11y report a flat ~1.01:1 for every one,
+  because neither composites a transparent element over the image behind it. Measuring it dissolves
+  the false choice between letting a client swap a header photo and refusing to let them choose.
+  Production only, and a no-op until a project declares regions — a region is a box, a scrim and a
+  text colour, all of which are design, and the template has none
 - **`npm run check:binary`** *(kit repo)* — a tracked source file that git treats as **binary**.
   One script used a literal NUL as a string sentinel, which made it invisible to `git diff`, to
   `grep`, and — the part that matters — **to the provenance sweep, which is written with `grep -I`**.
@@ -277,6 +283,49 @@ for.
 
 The one thing worth asking: if the method here is useful, say where it came from. That is a
 request, not a term.
+
+## If you already built a site with this
+
+⚠ **The template is copied, not linked. Nothing the kit fixes afterwards reaches a site already
+built.** Not a trap, not a gate, not a pipeline improvement. Every check listed above protects the
+next project and none of the ones you have shipped.
+
+That is a deliberate trade — the client owns a self-contained repository that will still build in
+five years, with no dependency on this one — and it has a cost that is easy to forget because
+nothing reports it.
+
+**The cost is not hypothetical.** A site built from an earlier version was serving every image
+about **19% larger** than intended for weeks after the pipeline gained AVIF, and it surfaced only
+because someone happened to read both trees side by side for an unrelated reason. The same site
+had never received a second fix either: a source file carrying a literal NUL, which `git diff`
+shows only as `Binary files differ` and which the kit's own provenance sweep — written with
+`grep -I` — cannot see at all.
+
+**Which version a site came from** is recorded in its `package.json`, for anything scaffolded from
+0.1.16 onward:
+
+```json
+"websiteBuildKit": { "version": "0.1.15", "scaffolded": "2026-08-31" }
+```
+
+Sites older than that carry no stamp; compare `scripts/` against a release by hand.
+
+**What to do about it, today.** There is no upgrade command, and a wholesale copy of the current
+`template/` over a live site would overwrite the design that makes it that client's site. The
+checks are the portable part — copy the ones you want into the project's `scripts/`, add them to
+`package.json`, and run them:
+
+```bash
+npm run check:cms      # a CMS config that deletes content on the client's first save
+npm run check:form     # a real field colliding with the honeypot
+npm run check:copy     # notes to yourself, shipped as body copy
+npm run tells          # what is still undecided, and the generated-site tells
+```
+
+⚠ **Expect them to fail.** Five shipped sites were audited with `check:cms`; **all five failed**,
+and two were losing client data — one deleted every analytics ID and its opening hours the moment
+the owner opened Site Settings. That is what a gate arriving late looks like, and it is the
+argument for running them rather than assuming.
 
 ## Provenance
 

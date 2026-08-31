@@ -101,6 +101,13 @@ nothing the kit fixes later reaches this site. A trap closed upstream, a gate ad
 improved: none of it arrives. One site sat 19% behind on every image for weeks after AVIF landed.
 Compare that version against the kit's releases when something here looks older than it should.
 
+**Text over a photograph is measured, not forbidden.** Declare the region in
+`src/data/contrast.json` — image, box, scrim strength, text colour — and `npm run check:contrast`
+composites it and fails production below 4.5:1. ⚠ **The danger is never the photograph, it is a
+weakened scrim.** On a real site two of three regions could not fail at any photograph; the one
+exposure was a scrim lightened from 92% to 62% so a client's photography could show its colour.
+This check is what makes weakening one safe.
+
 ⚠ **A CMS DELETES EVERY KEY ITS SCHEMA FORGOT.** It rewrites the whole file from the schema, so
 anything undeclared is absent from what it writes back — the client changes one field, saves, and
 the rest is gone, looking like an ordinary content commit. `npm run check:cms` refuses a

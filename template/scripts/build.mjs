@@ -122,6 +122,10 @@ step(process.execPath, ['scripts/check-env.mjs']);
 
 if (env === 'production') {
   step(process.execPath, ['scripts/check-sitemap.mjs']);
+  /* Production only: it measures the GENERATED images, and a staging build is
+     often run before `npm run media` has caught up. A no-op until a project
+     declares regions — the template has no design and therefore none. */
+  step(process.execPath, ['scripts/check-contrast.mjs']);
 }
 
 /* A sanity line, so the log says which environment actually ran rather than
