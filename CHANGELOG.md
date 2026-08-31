@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-09-01k — the last two spec-and-implementation pairs, closed
+
+`pagescms-field-mapping.md` and `pagescms-media-playbook.md` opened with detection phases the kit
+already executes. Mapped row by row, **A1, A2, A3 and playbook sections 0–5 and 7 were all things
+`check:cms`, `check:contrast` and the media pipeline already do.** Both runbooks now call the
+checks; their bash is gone. What stays is the half no script carries — what a finding means, what
+to fix first on a live site, and the judgement calls (⚠ A4, *is the sidebar organised or merely a
+list*, has no check and cannot have one).
+
+### The gap that mapping found
+
+⚠ **`options.path` pointing at a folder that does not exist.** It narrows which directory the media
+browser shows; point it at one that has moved and the editor gets an **empty folder** — no error,
+no warning, the build does not care. Visible only to the person trying to choose an image, which is
+the one person who cannot fix it. `check:cms` now refuses it.
+
+**And a rule no check can enforce:** ⚠ never store a derived value in the CMS. A `tel:` link beside
+the phone number it is built from means **two fields hold one fact** — which is exactly how a
+tap-to-call button ends up dialling last year's number. Somebody changes the number they can see
+and has no reason to suspect a second copy.
+
+### Auditing a site that predates all of this
+
+This was the question worth answering, because several shipped sites have none of these checks.
+**They do not need them.** Every check resolves paths from the working directory, so a clone of
+this repository audits a project in place:
+
+```bash
+cd path/to/the-site
+node path/to/website-build-kit/template/scripts/check-drift.mjs
+```
+
+**Verified on a shipped site carrying none of the four scripts:** all ran, and `git status`
+reported **zero changed files**. That matters twice — no tooling committed to a client's
+repository in order to read it, and the checks are the *current* ones rather than a copy that has
+itself gone stale.
+
+**151 cases across 22 gates, 87 proving a refusal.**
+
 ## 2026-09-01j — one skill, one home for each half
 
 `/media-audit` shipped this morning and is retired this evening. ⚠ **It duplicated

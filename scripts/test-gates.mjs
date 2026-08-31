@@ -1419,6 +1419,38 @@ gate('refuses a manifest key stored in a type: image field', {
   contains: 'not a path under "/img/uploads"',
 });
 
+/* ⚠ Same silent class as the media direction bug: no error, no warning, the
+   build does not care, and it is visible only to the person trying to choose an
+   image — the one person who cannot fix it. */
+gate('refuses a picker scoped to a folder that does not exist', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_IMAGE,
+    '.pages.yml': CMS_IMAGE['.pages.yml'].replace(
+      '{ name: image, type: image, options: { media: uploads } }',
+      '{ name: image, type: image, options: { media: uploads, path: public/img/gone } }',
+    ),
+    'src/content/services/a.md': '---\ntitle: A\nimage: /img/uploads/hero.jpg\n---\n',
+  },
+  expect: 1,
+  contains: 'the picker opens on an empty folder',
+});
+
+gate('accepts a picker scoped to a folder that exists', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_IMAGE,
+    '.pages.yml': CMS_IMAGE['.pages.yml'].replace(
+      '{ name: image, type: image, options: { media: uploads } }',
+      '{ name: image, type: image, options: { media: uploads, path: public/img/brand } }',
+    ),
+    'public/img/brand/.keep': '',
+    'src/content/services/a.md': '---\ntitle: A\nimage: /img/uploads/hero.jpg\n---\n',
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
 gate('accepts the migrated picker path', {
   script: 'check-cms.mjs',
   files: {

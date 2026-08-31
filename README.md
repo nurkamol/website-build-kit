@@ -340,9 +340,26 @@ still refuses and it ships into every project. A repair procedure is long-form j
 cannot be tested, and keeping a second copy of one here is how the two drift apart while nothing
 says so — which is the failure this whole section is about.
 
-A wholesale copy of the current `template/` over a live site would overwrite the design that makes
-it that client's site, so the checks are the portable part — copy the ones you want into the
-project's `scripts/`, add them to `package.json`, and run them:
+⚠ **You do not have to copy anything in.** Every check resolves paths from the **current working
+directory**, so a clone of this repository can audit any project in place — including one built
+before these checks existed:
+
+```bash
+cd path/to/the-site
+node path/to/website-build-kit/template/scripts/check-drift.mjs      # what it is behind on
+node path/to/website-build-kit/template/scripts/check-cms.mjs        # content the CMS deletes or cannot reach
+node path/to/website-build-kit/template/scripts/check-redirects.mjs  # a map that is silently wrong
+node path/to/website-build-kit/template/scripts/check-contrast.mjs   # text on photographs
+```
+
+Verified against a shipped site carrying **none** of the four scripts: all ran, and `git status`
+reported **0 changed files**. That matters twice — you are not committing tooling to a client's
+repository to read it, and you are running the **current** checks rather than a copy that has
+itself gone stale.
+
+Copying them in is still an option if you want them in that project's own build. A wholesale copy
+of `template/` over a live site is not: it overwrites the design that makes it that client's site.
+The checks are the portable part:
 
 ```bash
 npm run check:cms      # a CMS config that deletes content on the client's first save

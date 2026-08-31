@@ -484,6 +484,15 @@ worse than an absent one: it reads as broken.
 
 ### Decide what goes in the CMS before configuring one
 
+**Converting a site whose content already lives in code** — splitting modules into JSON with a
+typed façade, grouping by how nervously a thing is edited, choosing field types by what a wrong
+value costs — is a procedure rather than a rule, and it is written up in
+[site-runbooks](https://github.com/nurkamol/site-runbooks) (`pagescms-field-mapping.md`). ⚠ **Run
+`npm run check:cms` first**: it already detects the three things that runbook's audit phase looks
+for — content living in code, data files with no form behind them, and keys inside a declared file
+with no field.
+
+
 ⚠ **"Professional CMS" does not mean making every string editable.** It means the right things
 are editable and the rest is protected. Inventory the site first — routes, content collections,
 `src/data`, navigation, services, testimonials, FAQs, legal pages, forms, SEO metadata, JSON-LD —
@@ -657,6 +666,12 @@ Four things that make it work rather than merely parse:
   silent delete.
 - **Media points at the pipeline's input**, with `extensions` set.
 - **Alt text sits beside the image**, as its own field.
+
+⚠ **Never put a derived value in the CMS.** If a `tel:` link, a `mailto:` or a maps URL is stored
+beside the phone number, email or address it is built from, **two fields hold one fact** — and that
+is exactly how a tap-to-call button ends up dialling last year's number. Somebody changes the
+number they can see and has no reason to suspect a second copy. Derive them in code; show the
+client only the values that genuinely differ.
 
 ⚠ **Anything technical stays out**: analytics IDs, tokens, redirects, `robots.txt`, route
 configuration. If it is in the same file as editable content, split the file rather than exposing

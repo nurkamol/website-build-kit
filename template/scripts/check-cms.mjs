@@ -237,12 +237,18 @@ for (const source of media) {
  *   with that media source's `output`. Convert the field and migrate the data
  *   in the same change.
  */
+/** Dotted field path → the `options.path` it is scoped to, when it declares one. */
+const scopedPaths = new Map();
+
 function imageFields(fields, prefix = '') {
   const out = [];
   for (const field of fields ?? []) {
     if (!field?.name) continue;
     const path = prefix ? `${prefix}.${field.name}` : field.name;
-    if (field.type === 'image') out.push({ path, media: field.options?.media });
+    if (field.type === 'image') {
+      out.push({ path, media: field.options?.media });
+      if (field.options?.path) scopedPaths.set(path, String(field.options.path).replace(/^\.?\//, ''));
+    }
     if (Array.isArray(field.fields)) out.push(...imageFields(field.fields, path));
   }
   return out;
@@ -290,6 +296,24 @@ for (const entry of entries) {
   for (const { path: fieldPath, media: mediaName } of fields) {
     const source =
       (mediaName && mediaByName.get(mediaName)) ?? (media.length === 1 ? media[0] : null);
+
+    /*
+     * ⚠ A PICKER SCOPED TO A FOLDER THAT DOES NOT EXIST OPENS ON NOTHING.
+     *   `options.path` narrows which directory the media browser shows. Point it
+     *   at `public/img/brand` when the files live in `brand-v2/` and the editor
+     *   gets an empty folder — no error, no warning, and the build does not
+     *   care. It is visible only to the person trying to choose an image, which
+     *   is the one person who cannot fix it.
+     */
+    if (fieldPath && typeof entry.fields === 'object') {
+      const scoped = scopedPaths.get(fieldPath);
+      if (scoped && !existsSync(scoped)) {
+        problems.push({
+          label: `${entry.name ?? entry.label} → ${fieldPath}`,
+          why: `\`options.path\` is ${JSON.stringify(scoped)}, which does not exist — the picker opens on an empty folder`,
+        });
+      }
+    }
     const output = typeof source === 'object' ? source?.output : null;
     if (!output) continue; // nothing declared to measure against
     /* `output: /` makes "starts with the output" true of every absolute path, so
