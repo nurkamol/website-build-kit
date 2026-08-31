@@ -14,10 +14,66 @@ If it does not catch a failure, it is a preference.
 
 ## Open
 
-Nothing. Every ranked item has shipped — see **Done** below, and `CHANGELOG.md` for the detail.
+Both deferred from the media backport of 31 August 2026, and both named in `CHANGELOG.md` before
+they were written down here — which is the oversight side of this file's own line.
 
-The bar is what keeps this section empty rather than full of preferences: *would you write this
-from scratch on the next project, and would you get it wrong the first time?* When the next
+### 1. Drift detection — a project cannot tell it is behind the kit
+
+**Catches:** a fix that never reaches the sites already built. The template is **copied, not
+linked**, so nothing propagates. A shipped site sat **19% behind on every image for weeks** after
+the kit added AVIF, and it surfaced only because somebody happened to read both trees for an
+unrelated reason. The same silence covers every trap fixed since: `check:form`, `check:cms`, the
+media pipeline, the honeypot collision.
+
+⚠ **This is ranked first because it is the only item that changes what all the others are worth.**
+Every gate in the Done table below protects new projects and no existing one.
+
+**Shape, cheapest first:** stamp the kit version and commit into the scaffolded site — `create/`
+knows both at scaffold time and writes nothing today. That alone turns "is this site current?"
+from an archaeology exercise into reading a file. A `kit:check` command — named here without the
+`npm run` form on purpose, because `audit:docs` resolves those against `package.json` and this one
+does not exist yet — diffing the local `scripts/` and `src/lib/` against a named upstream tag is
+the second half, and only worth building
+once the stamp exists to diff against.
+
+**Open question:** whether the stamp lives in `package.json`, a dotfile, or `BUILD-STATE.md`. It
+has to survive a client's own commits and be obvious to a developer who did not scaffold it.
+
+### 2. A composite-contrast check for text over photographs
+
+**Catches:** unreadable copy over an image, which **no current tool can see**. axe reports a flat
+**1.01:1** for every one of these, because no runner composites a transparent element over the
+pixels behind it. So the choice has looked binary — forbid clients from choosing photographs, or
+let them break the navigation.
+
+It is not binary. Measuring the composite off the **rendered** pixels — per-channel maxima, every
+format served — makes a photograph that breaks the nav a red build, and the last good deploy stays
+live.
+
+**What made this worth ranking** is what happened when the check was fed a hostile frame on a real
+site:
+
+| | | |
+| --- | --- | --- |
+| band, 82% ink scrim | near-white photo | **9.66:1** — cannot fail |
+| tile label, 72% ink | near-white photo | **6.76:1** — cannot fail |
+| script line, 62% ink | near-black photo | **2.86:1** ✗ rejected |
+
+⚠ **For two of the three the fear was unfounded** — those scrims are strong enough that no
+photograph gets through them. The kit's "guarantee the ground instead of hoping for it" pattern had
+already solved the problem and everyone was still behaving as though it had not. **The danger is
+not the photograph, it is a weakened scrim** — the one real failure was a scrim lightened from 92%
+to 62% so a client's new photography could show its colour. The check is what makes weakening one
+safe to do.
+
+**Cost, honestly:** it needs a rendering pipeline and a real browser, so it belongs with the
+browser-dependent scripts in the `UNCOVERED` ledger rather than beside the offline gates. That is
+why it is second and not first.
+
+---
+
+The bar is what keeps this section near-empty rather than full of preferences: *would you write
+this from scratch on the next project, and would you get it wrong the first time?* When the next
 build produces something that answers both, it goes here first and gets built second.
 
 
