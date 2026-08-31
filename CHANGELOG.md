@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01h — navigation becomes a CMS field, because the build can now check it
+## 2026-09-01h — 0.1.17, navigation becomes a CMS field, because the build can now check it
 
 `stacks.md` said *"keep nav, redirects and structured data OUT of the CMS"*, for a good reason: a
 typo'd path gives a menu item that renders perfectly and 404s only for a visitor.
