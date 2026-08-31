@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01g — something that speaks to the sites already shipped
+## 2026-09-01g — 0.1.16, something that speaks to the sites already shipped
 
 Every gate in this changelog protects the next project. ⚠ **The template is copied, not linked, so
 a delivered site receives none of them** — and there are delivered sites. That is what these three
