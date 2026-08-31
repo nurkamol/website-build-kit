@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-01j — one skill, one home for each half
+## 2026-09-01j — 0.1.19, one skill, one home for each half
 
 `/media-audit` shipped this morning and is retired this evening. ⚠ **It duplicated
 `site-runbooks`**, which already held the same three phases and the same finding explanations,
