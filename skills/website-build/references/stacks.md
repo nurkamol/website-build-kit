@@ -496,6 +496,50 @@ code, where a type error stops it.
 > So: the schema must declare **every** key in the file, including ones the client will never
 > touch, and adding a field to the data means adding it to the schema in the same commit.
 > Review the first save from each collection as a diff before trusting it.
+>
+> **`npm run check:cms` enforces this.** It was written after auditing five shipped sites, where
+> **all five failed** — 27 keys were at risk, including every analytics ID and the opening hours
+> on one site, and the homepage images of another in three languages.
+
+### Media, and the direction that breaks it
+
+⚠ **Point a CMS media source at the pipeline's INPUT, never its output.** `optimize-media.mjs`
+**reads** `media/source/` and **writes** `public/img/`. Two of the five audited sites uploaded
+into `public/img`, where a file is servable but has no responsive variants, no width/height and
+no manifest entry — so `<Img>` throws and the client's own edit turns the build red.
+
+```yaml
+media:
+  - name: uploads
+    label: New photographs
+    input: media/source/uploads     # what `npm run media` READS
+    output: /img/uploads            # what it will WRITE, once processed
+    extensions: [jpg, jpeg, png, heic, heif, tif, tiff]
+```
+
+**Declare `extensions` on every media source.** It is the only layer that refuses a bad format
+*in the UI*, instead of failing a build twenty minutes later.
+
+**An image field can be a real picker.** A picker returns a public path
+(`/img/photos/hero-1200.webp`), never a manifest key — so without help every image field has to be
+a free-text box asking a non-technical editor to type a key from memory, which is a quiz rather
+than a field. `<Img>` runs the path back through `toImageKey()`; the mapping is exact because the
+pipeline writes exactly one shape, `/img/` + key + `-<width>.<ext>`. Which variant the editor
+clicks does not matter, and a key ending in a digit survives.
+
+**If uploads must work without a developer**, the build has to run `npm run media` first — the
+manifest is generated, not committed by the CMS. Two things to get right:
+
+- ⚠ **The deploy must not fire on the CMS's own commit.** That commit contains a source image and
+  no manifest entry, so the build throws. Optimise first, deploy from the result.
+- ⚠ **`og-cards.mjs` needs ImageMagick, which a Cloudflare build image does not have.** Not fatal —
+  cards only regenerate when a card's photo changes and their output is committed — but a project
+  running media in CI has to know before it finds out.
+
+⚠ **A project forked before a pipeline change keeps the old pipeline, silently.** One shipped site
+was still emitting WebP only, months after the kit added AVIF — every image on it about **26%
+larger** than intended, with nothing anywhere reporting the drift. When the kit's media pipeline
+changes, existing projects do not get it; say so in the handover or check it at the next visit.
 
 ---
 

@@ -16,9 +16,18 @@
 import sharp from 'sharp';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/*
+ * ⚠ THE PROJECT ROOT IS THE CWD, as it is in every other script here.
+ *
+ *   This resolved from the SCRIPT's own location. In every supported flow the
+ *   two are the same directory — `npm run media` runs with the cwd at the
+ *   package root — so the change is a no-op in use. What it was not was
+ *   testable: the script read its own media/source/ no matter where it was
+ *   pointed, so a fixture could not exercise it at all, and the run that added
+ *   a non-zero exit had nothing proving the exit fires.
+ */
+const ROOT = process.cwd();
 const SRC = path.join(ROOT, 'media/source');
 const OUT = path.join(ROOT, 'public/img');
 const MANIFEST = path.join(ROOT, 'src/data/image-manifest.json');
@@ -56,7 +65,25 @@ const WEBP = { quality: 78, effort: 6 };
 const AVIF = { quality: 55, effort: 4 };
 const FORMATS = ['avif', 'webp'];
 
-const RASTER = /\.(jpe?g|png|webp|tiff?)$/i;
+const RESET = '\x1b[0m';
+const RED = '\x1b[31m';
+const YELLOW = '\x1b[33m';
+const DIM = '\x1b[2m';
+
+/*
+ * ⚠ heic/heif ARE HERE ON PURPOSE. libvips in the sharp this kit already ships
+ *   reads them — check with `node -e "console.log(require('sharp').format.heif)"`.
+ *   Leaving them out meant the single likeliest wrong format, a photo straight
+ *   off an iPhone, was discarded by our own regex while the library underneath
+ *   handled it fine. It produced no output, no warning and no manifest entry.
+ */
+const RASTER = /\.(jpe?g|png|webp|tiff?|heic|heif)$/i;
+
+/* Sources are committed forever. Output is capped by the width ladder, so a
+   huge original costs visitors nothing and costs the REPO permanently — say so
+   in those words, or someone "fixes" a page-speed problem that does not exist. */
+const BIG_PIXELS = 24_000_000;
+const BIG_BYTES = 8 * 1024 * 1024;
 
 /*
  * ── DO NOT RESET THIS TO {} ────────────────────────────────────────────────
@@ -362,11 +389,45 @@ const before = await bytes(SRC);
 console.log('optimizing media…');
 await copyBrand(files.filter((f) => f.includes(`${path.sep}brand${path.sep}`)));
 
-for (const file of files.filter((f) => RASTER.test(f))) {
+/*
+ * ⚠ THE RUN MUST NAME EVERYTHING IT DID NOT PRODUCE.
+ *
+ *   This loop used to be `files.filter(RASTER)`. Anything else was dropped with
+ *   no output, no warning and no manifest entry — so a `.heic` in media/source/
+ *   simply was not on the site, and the failure surfaced much later as <Img>
+ *   throwing "no manifest entry for …" against a file plainly sitting in the
+ *   repo. That reads as a bug in the kit rather than a rejected upload.
+ *
+ *   And there was no try/catch, so one corrupt file aborted the run midway —
+ *   after outputs were written and the manifest was partly updated, leaving the
+ *   manifest describing a state on disk that no longer matched it.
+ */
+const skipped = [];
+const failed = [];
+const oversized = [];
+
+for (const file of files) {
   if (file.includes(`${path.sep}brand${path.sep}`)) continue;
-  if (file.includes(`${path.sep}certifications${path.sep}`)) await emitSingle(file);
-  else if (file.includes(`${path.sep}blog${path.sep}`)) await emitResponsive(file, BLOG_WIDTHS);
-  else await emitResponsive(file, PHOTO_WIDTHS);
+  const rel = path.relative(SRC, file);
+
+  if (!RASTER.test(file)) {
+    skipped.push(rel);
+    continue;
+  }
+
+  try {
+    const { size } = await fs.stat(file);
+    const meta = await sharp(file).metadata();
+    if (size > BIG_BYTES || (meta.width ?? 0) * (meta.height ?? 0) > BIG_PIXELS) {
+      oversized.push(`${rel}  ${meta.width}x${meta.height}, ${mb(size)}`);
+    }
+
+    if (file.includes(`${path.sep}certifications${path.sep}`)) await emitSingle(file);
+    else if (file.includes(`${path.sep}blog${path.sep}`)) await emitResponsive(file, BLOG_WIDTHS);
+    else await emitResponsive(file, PHOTO_WIDTHS);
+  } catch (err) {
+    failed.push(`${rel}  ← ${String(err.message).split('\n')[0]}`);
+  }
 }
 
 await emitFavicons();
@@ -378,3 +439,29 @@ await fs.writeFile(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
 const after = await bytes(OUT);
 console.log(`\nsource ${mb(before)}  →  dist ${mb(after)}  (${Math.round((1 - after / before) * 100)}% smaller)`);
 console.log(`${Object.keys(manifest).length} images in manifest`);
+
+/* A report, not an error. A PDF or a .txt in media/source/ is legitimate — the
+   kit's own comp lives there — so this says what produced no image and lets the
+   reader judge. Only a genuine processing failure exits non-zero. */
+if (skipped.length) {
+  console.log(`\n${YELLOW}!${RESET} ${skipped.length} file(s) produced no image (not a raster format):`);
+  for (const f of skipped) console.log(`    ${DIM}${f}${RESET}`);
+}
+
+if (oversized.length) {
+  console.log(`\n${YELLOW}!${RESET} ${oversized.length} oversized source(s) — the SITE is unaffected:`);
+  for (const f of oversized) console.log(`    ${DIM}${f}${RESET}`);
+  console.log(
+    `    ${DIM}Output is capped by the width ladder, so visitors never download these.\n` +
+      `    The cost is the repository, which carries them forever.${RESET}`,
+  );
+}
+
+if (failed.length) {
+  console.error(`\n${RED}✗ ${failed.length} file(s) failed to process:${RESET}`);
+  for (const f of failed) console.error(`    ${f}`);
+  console.error(
+    `\n  ${DIM}Every other file was still written and the manifest is complete for them.${RESET}\n`,
+  );
+  process.exit(1);
+}

@@ -201,6 +201,12 @@ string that only a failure path renders do not.
 before handover — `grep -rnE '\(?[0-9]{3}\)? ?[0-9]{3}-[0-9]{4}' src/` — and treat a hit
 inside `src/lib` or `src/pages/api` as a bug regardless of which client it belongs to.
 
+**And the same strings must be pure ASCII.** The Cloudflare adapter puts a prerender failure
+into the `x-astro-prerender-error` **HTTP header**, and a header carrying non-ASCII prints a
+warning about a browser `TypeError` and arrives mangled — an em dash in an `<Img>` build error
+came back as `â`, in the one message whose whole job is telling somebody what to do. The house
+style's dashes are fine in comments and prose; inside a **thrown** string they are not.
+
 ---
 
 ### Astro's CSRF protection rejects `Origin`-less POSTs with 403

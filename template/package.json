@@ -36,7 +36,8 @@
     "deploy:production": "npm run build:production && wrangler deploy && node scripts/check-secrets.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:copy": "node scripts/check-copy.mjs",
-    "check:form": "node scripts/check-form.mjs"
+    "check:form": "node scripts/check-form.mjs",
+    "check:cms": "node scripts/check-cms.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",
@@ -51,6 +52,7 @@
     "sharp": "^0.35.3",
     "turndown": "^7.2.4",
     "typescript": "^6.0.3",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.118.0",
+    "yaml": "^2.9.0"
   }
 }

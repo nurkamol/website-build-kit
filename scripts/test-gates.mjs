@@ -1279,6 +1279,191 @@ gate('an unreachable origin stops the run', {
 });
 
 
+
+/* ────────────────────────────────────────────────────────────────────────
+ * check:cms — the config that silently destroys content
+ *
+ * Written after auditing five shipped sites. ALL FIVE failed: two were losing
+ * data on the client's first save (analytics IDs, opening hours, image
+ * references across three languages), two pointed uploads at the pipeline's
+ * OUTPUT directory, and one dropped a frontmatter key from every news post.
+ *
+ * ⚠ Every one of those configs was VALID YAML with paths that all resolved.
+ *   That is the whole difficulty: the config is not wrong, it is INCOMPLETE,
+ *   and nothing in a build can see the difference.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:cms');
+
+const CMS_CLEAN = {
+  '.pages.yml': [
+    'media:',
+    '  - name: uploads',
+    '    input: media/source/uploads',
+    '    output: /img/uploads',
+    '    extensions: [jpg, png]',
+    'content:',
+    '  - name: site',
+    '    type: file',
+    '    path: src/data/site.json',
+    '    fields:',
+    '      - { name: title, type: string }',
+    '      - name: analytics',
+    '        type: object',
+    '        fields:',
+    '          - { name: ga4, type: string }',
+    '',
+  ].join('\n'),
+  'src/data/site.json': JSON.stringify({ title: 'x', analytics: { ga4: 'G-1' } }, null, 2),
+  'media/source/uploads/.keep': '',
+};
+
+gate('no .pages.yml is not a failure', {
+  script: 'check-cms.mjs',
+  files: { 'src/data/site.json': '{}' },
+  expect: 0,
+  contains: 'no CMS to check',
+});
+
+gate('a config declaring every key passes', {
+  script: 'check-cms.mjs',
+  files: CMS_CLEAN,
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/* The 27-keys-at-risk case, reduced. `analytics.ga4` is declared and
+   `analytics.gtm` is not — so the nested check has to fire even though the
+   PARENT is declared. Comparing only top-level names misses this, and that is
+   the shape the real getmiohome.com config had. */
+gate('refuses a nested key the schema forgot', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/data/site.json': JSON.stringify({ title: 'x', analytics: { ga4: 'G-1', gtm: 'GTM-9' } }, null, 2),
+  },
+  expect: 1,
+  contains: 'analytics.gtm',
+});
+
+gate('refuses a top-level key the schema forgot', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/data/site.json': JSON.stringify({ title: 'x', openingHours: { opens: '09:00' }, analytics: { ga4: 'G' } }, null, 2),
+  },
+  expect: 1,
+  contains: 'openingHours',
+});
+
+gate('refuses a collection frontmatter key the schema forgot', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'content:',
+      '  - name: news',
+      '    type: collection',
+      '    path: src/content/news',
+      '    fields:',
+      '      - { name: title, type: string }',
+      '',
+    ].join('\n'),
+    'src/content/news/one.md': '---\ntitle: One\nlang: en\n---\n\nBody.\n',
+  },
+  expect: 1,
+  contains: 'lang',
+});
+
+/* ⚠ The media DIRECTION bug, which hit two of five shipped sites. */
+gate('refuses uploads pointed at generated output', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [jpg]', 'content: []', ''].join('\n'),
+    'public/img/.keep': '',
+  },
+  expect: 1,
+  contains: 'GENERATED output',
+});
+
+gate('refuses a content path that does not exist', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': ['content:', '  - name: site', '    type: file', '    path: src/data/missing.json', ''].join('\n'),
+  },
+  expect: 1,
+  contains: 'path does not exist',
+});
+
+gate('refuses a config that does not parse', {
+  script: 'check-cms.mjs',
+  files: { '.pages.yml': 'content:\n  - name: site\n   path: bad indent\n\t- tab\n' },
+  expect: 1,
+  contains: 'does not parse',
+});
+
+/* Nested inside a group. Getting the key wrong — `content` instead of `items` —
+   reports a grouped config as having zero entries, which reads as a clean pass.
+   That is how the first version of the audit missed three of the five sites. */
+gate('looks inside groups, where PagesCMS nests entries', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'content:',
+      '  - name: pages',
+      '    type: group',
+      '    items:',
+      '      - name: site',
+      '        type: file',
+      '        path: src/data/site.json',
+      '        fields:',
+      '          - { name: title, type: string }',
+      '',
+    ].join('\n'),
+    'src/data/site.json': JSON.stringify({ title: 'x', stray: 1 }),
+  },
+  expect: 1,
+  contains: 'stray',
+});
+
+
+
+/* ────────────────────────────────────────────────────────────────────────
+ * optimize-media — it now refuses, so it needs a case that proves it
+ *
+ * The pipeline used to have no try/catch at all: one corrupt file threw midway,
+ * AFTER outputs were written and the manifest was partly updated, so the
+ * manifest described a state on disk that no longer matched it. It also
+ * silently dropped anything that was not a raster — a .heic produced no output,
+ * no warning and no manifest entry, and surfaced much later as <Img> throwing
+ * against a file plainly sitting in the repo.
+ *
+ * No sharp needed here: garbage bytes named .jpg exercise the failure path, and
+ * a .txt exercises the skip report.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('optimize-media');
+
+gate('a file it cannot decode fails the run, by name', {
+  script: 'optimize-media.mjs',
+  files: {
+    'media/source/photos/corrupt.jpg': 'this is definitely not a jpeg',
+    'src/data/image-manifest.json': '{}',
+  },
+  expect: 1,
+  contains: 'failed to process',
+  then: (_dir, out) =>
+    out.includes('corrupt.jpg') ? null : 'did not name the file that failed',
+});
+
+gate('a non-raster file is reported, not silently dropped', {
+  script: 'optimize-media.mjs',
+  files: {
+    'media/source/notes.txt': 'a comp note, legitimately here',
+    'src/data/image-manifest.json': '{}',
+  },
+  expect: 0,
+  contains: 'produced no image',
+});
+
+
 /* ────────────────────────────────────────────────────────────────────────
  * Report
  * ──────────────────────────────────────────────────────────────────────── */

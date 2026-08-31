@@ -95,6 +95,19 @@ The rules whose failure looks like success — double-counted pageviews, a conve
 two pipes, a trigger on `sent=1` that catches almost nothing — are in `docs/analytics.md`.
 Read it before adding any tag.
 
+⚠ **A CMS DELETES EVERY KEY ITS SCHEMA FORGOT.** It rewrites the whole file from the schema, so
+anything undeclared is absent from what it writes back — the client changes one field, saves, and
+the rest is gone, looking like an ordinary content commit. `npm run check:cms` refuses a
+`.pages.yml` that does not declare every key in the files it edits. **Declare keys the client will
+never touch**, or move them out of a CMS-managed file.
+
+⚠ **UPLOADS GO TO `media/source/`, NEVER `public/img/`.** The direction is the whole bug:
+`optimize-media.mjs` **reads** `media/source/` and **writes** `public/img/`. A CMS media source
+pointed at the output produces files with no variants, no width/height and no manifest entry, so
+`<Img>` throws and the client's own edit turns the build red. `<Img>` accepts a picker path like
+`/img/photos/hero-1200.webp` and normalises it back to the key, so an image field can be a real
+picker instead of asking the client to type a manifest key from memory.
+
 ⚠ **THE HONEYPOT IS CALLED `company`.** `api/contact.ts` discards any submission that fills it in,
 silently and with a 200, so a bot learns nothing. Add a real "Company" field to that form — an
 ordinary client request — and every enquiry from a company that types its name is thrown away, with

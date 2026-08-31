@@ -101,6 +101,12 @@ if (env === 'production') {
    environments — nobody ever meant two controls to share a name. */
 step(process.execPath, ['scripts/check-form.mjs']);
 
+/* Same reasoning, and the same timing: a CMS config that does not declare every
+   key in the file it edits will delete content the first time the client saves.
+   That is a source bug, it is invisible in a build, and it costs nothing to
+   check. A no-op on projects with no `.pages.yml`. */
+step(process.execPath, ['scripts/check-cms.mjs']);
+
 run(['build']);
 
 if (env === 'staging') {

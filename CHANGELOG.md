@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-08-31a — the CMS was quietly deleting client content, on live sites
+
+Audited the `.pages.yml` of **five shipped sites. All five failed.**
+
+| | |
+| --- | --- |
+| getmiohome.com | `site.json` — **every analytics ID**, `openingHours`, `businessType`, `socials.google` |
+| nag-global.com | homepage images in **three languages** — `cta.image.*`, `quote.image.*` |
+| arnicadentalclinic.com | `lang` on every news post |
+| inner vision pilates | uploads pointed at `public/img` **×2** |
+| implantwide.com | uploads pointed at `public/img`, no `extensions` |
+
+⚠ **Read the first row again.** The moment that client opened Site Settings and pressed save,
+every analytics ID was deleted. Tracking stops, opening hours vanish from the JSON-LD, and
+nothing reports it — in the diff it is an ordinary content commit. **27 keys were at risk.**
+
+A CMS rewrites the whole file from its schema, so anything the schema does not declare is absent
+from what it writes back. Every one of those configs was **valid YAML with paths that all
+resolved**. That is the difficulty: the config is not wrong, it is *incomplete*, and nothing in a
+build can see the difference.
+
+**`npm run check:cms`** refuses a config that does not declare every key in the files it edits —
+nested keys included, because `analytics` being declared while `analytics.gtmId` is not is exactly
+the shape that cost getmiohome its tracking. It runs before the build in both environments and is
+a no-op with no `.pages.yml`. Nine cases; mutation-tested four ways.
+
+**And uploads were pointed the wrong way round.** `optimize-media.mjs` **reads** `media/source/`
+and **writes** `public/img/`. Two sites uploaded into the output, where a file is servable but has
+no variants, no width/height and no manifest entry — so `<Img>` throws and *the client's own edit
+turns the build red*. The gate refuses it and explains the direction.
+
+### The media pipeline, from a second backport
+
+- **HEIC is accepted.** libvips in the sharp this kit already ships reads it; our own regex was
+  discarding the single likeliest wrong format — a photo straight off an iPhone — with no output,
+  no warning and no manifest entry.
+- **Nothing is dropped in silence.** The run now names every file that produced no image. A `.txt`
+  or a comp PDF in `media/source/` is legitimate, so it is a report, not an error.
+- **One bad file no longer aborts the run.** There was no try/catch, so a corrupt upload threw
+  midway — after outputs were written and the manifest was partly updated, leaving the manifest
+  describing a state on disk that no longer matched it.
+- **Oversized sources are flagged**, saying explicitly that the *site* is unaffected and the cost
+  is the repository — otherwise someone fixes a page-speed problem that does not exist.
+
+**`toImageKey()` makes a CMS image field a real picker.** A picker returns
+`/img/photos/hero-1200.webp`, never `photos/hero`, so every image field had to be a free-text box
+asking a non-technical editor to type a manifest key from memory — a quiz, not a field. The
+mapping back is exact because the pipeline writes exactly one shape. Which variant the editor
+clicks does not matter, and a key ending in a digit survives.
+
+⚠ **`optimize-media.mjs` resolved paths from the SCRIPT's location**, alone among the template
+scripts. Identical in every supported flow, and it meant the script read its own `media/source/`
+wherever it was pointed — so the run that added a non-zero exit had nothing able to prove the exit
+fires. Now the cwd, like everything else. **The mechanical coverage ledger caught this**, not me:
+it noticed a script had gained an `exit(1)` with no case behind it.
+
+⚠ **A thrown error string must be pure ASCII.** The Cloudflare adapter puts a prerender failure
+into the `x-astro-prerender-error` **HTTP header**; non-ASCII warns about a browser `TypeError`
+and arrives mangled — an em dash came back as `â`, in the one message whose entire job is telling
+somebody what to do. Recorded on the existing error-string trap rather than as a new entry, so the
+documented-failure count stays honest at 36.
+
+**116 cases across 18 gates, 75 proving a refusal** — from 105/16/67.
+
 ## 2026-08-30n — 0.1.14, "needs a deployed site" was the wrong reason, on every entry
 
 **And cutting this release caught a packing bug that had nothing to do with it.** The file count

@@ -154,6 +154,13 @@ does ship is the skeleton of the parts that take longest to get right:
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
   and render-blocking counts — bytes and counts, never a timing, because a hand-rolled number
   from one machine disagrees with Lighthouse and nothing tells you it is wrong
+- **`npm run check:cms`** — a CMS config that will silently destroy content. **A CMS rewrites the
+  whole file from its schema, so any key the schema does not declare is gone after the client's
+  first save** — not merged, not flagged, and in the diff it reads as an ordinary content commit.
+  Audited across five shipped sites, **all five failed**: one was dropping every analytics ID and
+  the opening hours the moment the client saved Site Settings, another lost its homepage images in
+  three languages, and two pointed uploads at `public/img` — the media pipeline's *output*. A
+  no-op when there is no `.pages.yml`
 - **`npm run check:form`** — two form controls sharing a `name`. **The honeypot is called
   `company`**, and `api/contact.ts` discards any submission that fills it in — silently, with a 200
   and a thank-you page. Add a real Company field, as a B2B site eventually does, and every enquiry

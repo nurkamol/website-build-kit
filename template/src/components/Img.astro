@@ -9,6 +9,7 @@
  * content migration.
  */
 import manifest from '../data/image-manifest.json';
+import { isPickerPath, toImageKey } from '../lib/image-key';
 
 interface Props {
   /** Manifest key, e.g. "photos/hero-home". */
@@ -36,13 +37,29 @@ const {
   style,
 } = Astro.props;
 
-const entry = (manifest as Record<string, { src: string; srcset: string; width: number; height: number; widths?: number[]; avifSrcset?: string | null }>)[name];
+/* A CMS picker returns `/img/photos/hero-1200.webp`, never `photos/hero`.
+   Normalising here is what lets an image field be a real picker instead of a
+   free-text box asking the client to type a manifest key from memory. */
+const key = toImageKey(name);
+const entry = (manifest as Record<string, { src: string; srcset: string; width: number; height: number; widths?: number[]; avifSrcset?: string | null }>)[key];
 
 if (!entry) {
   // Fail the build, not the page. A missing image is a content bug and should
   // never reach a deploy as a silently broken <img>.
+  //
+  // ⚠ THE THROWN TEXT IS PURE ASCII ON PURPOSE. The Cloudflare adapter puts a
+  //   prerender failure into the `x-astro-prerender-error` HTTP HEADER, and a
+  //   header carrying non-ASCII warns loudly and arrives mangled: an em dash
+  //   came back as `â`. Comments may use the house style; anything inside a
+  //   thrown string may not. See docs/traps.md.
   throw new Error(
-    `Img: no manifest entry for "${name}". Run \`npm run media\` after adding it to media/source/.`,
+    isPickerPath(name)
+      ? `Img: "${name}" was uploaded straight into public/img/, which is where the media pipeline ` +
+        `WRITES, so it has no responsive variants, no width/height and no manifest entry.\n\n` +
+        `Point the CMS media source at media/source/ (what the pipeline READS), re-upload, ` +
+        `then run \`npm run media\`.\n\n` +
+        `The last good deploy is still live; this change just will not appear.`
+      : `Img: no manifest entry for "${name}" (resolved to "${key}"). Run \`npm run media\` after adding it to media/source/.`,
   );
 }
 
