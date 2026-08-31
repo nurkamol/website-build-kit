@@ -30,6 +30,23 @@ that depends on the photography, and quoting another project's number is how you
 ⚠ **Recorded in Rejected, not just deleted**, so it is not rebuilt in three months by someone
 reading the changelog and seeing only that it once existed.
 
+**Reconsidered an hour later, and the command came back.** Retiring the *skill* was right; removing
+the entry point with it was not. ⚠ **The kit is what people install** — `site-runbooks` is a
+separate repository a kit user may never have, so the first version of this left them with checks,
+no procedure, and a link to something they would have to go and find.
+
+`/media-audit` is back as a **thin runner**: run `check:drift`, report every row including the
+clean ones, do not offer a menu before there are findings, then **stop** — repair is a separate job
+with its own judgement and it lives in the runbooks. It deliberately does not describe the
+individual checks, because a second description of them is how the two drift apart.
+
+⚠ **And a correction to my own reasoning.** I justified this by saying a command does not
+auto-trigger where a skill does. In this harness a command appears in the skill listing too, so
+that distinction is weaker than I claimed. What actually resolves the collision is that the
+descriptions are now **disjoint** — *"report what a site is behind on"* against *"audit and repair
+a Git-backed CMS site"* — with none of the four phrases that previously matched both.
+
+
 ## 2026-09-01i — 0.1.18, the redirect map nothing had ever checked
 
 Everything still open, closed. Four of the five are small; one is not.

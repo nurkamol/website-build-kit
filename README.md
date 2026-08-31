@@ -331,8 +331,9 @@ Sites older than that carry no stamp; compare `scripts/` against a release by ha
 
 **What to do about it, today.** Run **`npm run check:drift`** — or copy `scripts/check-drift.mjs`
 and `scripts/lib/` in first, if the site predates it. It reads only, and reports the clean rows as
-well as the drifted ones. The repair procedure — what to fix first, what to leave, and what to ask
-the client — lives in **[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
+well as the drifted ones. **`/media-audit`** runs it and reports; the repair procedure — what to fix
+first, what to leave, and what to ask the client — lives in
+**[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
 
 ⚠ **That split is deliberate.** An executable check belongs here, where `test:gates` proves it
 still refuses and it ships into every project. A repair procedure is long-form judgement that
