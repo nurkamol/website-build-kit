@@ -2038,6 +2038,84 @@ gate('a non-raster file is reported, not silently dropped', {
   contains: 'produced no image',
 });
 
+/*
+ * ── A PHOTOGRAPH FROM AN iPHONE ───────────────────────────────────────────
+ *
+ * ⚠ THE FAILURE: a `.heic` was dropped with no output, no warning and no
+ *   manifest entry, while the libvips already shipped in this kit reads the
+ *   format fine. The client uploads a photo straight off their phone and it
+ *   simply is not there.
+ *
+ * `heic` is in the pipeline's RASTER pattern and nothing proved it. Six of
+ * eight delivered sites are still behind on this and the fixed pipeline has
+ * never run on any of them, so this case is the only thing standing behind it.
+ *
+ * ⚠ THE FIXTURE IS AV1-IN-HEIF, NOT HEVC, AND THAT IS NOT A SHORTCUT — IT IS
+ *   THE ONLY THING THAT CAN BE BUILT. No prebuilt sharp can *write* HEVC:
+ *   `heifsave: Unsupported compression`, on this machine and on the runners,
+ *   because the encoder is patent-encumbered and excluded. So a real iPhone
+ *   file cannot be generated here by anything.
+ *
+ *   What this therefore proves: the `.heic` EXTENSION is accepted, a HEIF
+ *   container decodes, and variants plus a manifest entry come out. What it
+ *   does not prove is the HEVC decode path specifically. That gap is real and
+ *   is written here rather than left for someone to assume away.
+ */
+function heifFixture(dir, rel) {
+  /* sharp is a TEMPLATE dependency and does not resolve from the kit root, so
+     generate through a node run whose cwd is template/ — the same sharp the
+     pipeline itself will use, rather than a second one that could differ. */
+  const script = `
+    const sharp = require('sharp');
+    const out = process.argv[1];
+    if (!sharp.format.heif?.output?.file) { console.error('NO_HEIF_ENCODER'); process.exit(2); }
+    sharp({ create: { width: 1600, height: 1200, channels: 3, background: { r: 200, g: 120, b: 60 } } })
+      .heif({ compression: 'av1', quality: 50 })
+      .toFile(out)
+      .then(() => process.exit(0), (e) => { console.error(e.message); process.exit(3); });
+  `;
+  const full = join(dir, rel);
+  mkdirSync(dirname(full), { recursive: true });
+  const run = spawnSync(process.execPath, ['-e', script, full], {
+    cwd: join(KIT, 'template'),
+    encoding: 'utf8',
+  });
+  if (run.status !== 0) {
+    throw new Error(
+      run.stderr.includes('NO_HEIF_ENCODER')
+        ? 'sharp in template/ cannot encode HEIF, so this case cannot build its fixture'
+        : `could not write the HEIF fixture: ${run.stderr.trim().split('\n')[0]}`,
+    );
+  }
+}
+
+gate('a .heic is converted, not silently discarded', {
+  script: 'optimize-media.mjs',
+  files: { 'src/data/image-manifest.json': '{}' },
+  setup: (dir) => heifFixture(dir, 'media/source/photos/from-a-phone.heic'),
+  expect: 0,
+  then: (dir, out) => {
+    if (/produced no image/.test(out) && /from-a-phone/.test(out)) return 'reported the .heic as producing nothing';
+    let manifest;
+    try {
+      manifest = JSON.parse(readFileSync(join(dir, 'src/data/image-manifest.json'), 'utf8'));
+    } catch (err) {
+      return `manifest unreadable after the run — ${err.message}`;
+    }
+    const key = Object.keys(manifest).find((k) => k.includes('from-a-phone'));
+    if (!key) return `no manifest entry; keys were ${JSON.stringify(Object.keys(manifest))}`;
+    const widths = manifest[key].widths ?? [];
+    if (!widths.length) return 'manifest entry has no widths';
+    /* Assert the path the manifest ITSELF advertises, rather than rebuilding a
+       filename here — a second copy of the naming rule is a second thing to
+       keep in step, and this check is about the file a page will request. */
+    const src = String(manifest[key].src ?? '');
+    if (!src.startsWith('/img/')) return `manifest src is not a servable path: ${JSON.stringify(src)}`;
+    const onDisk = join(dir, 'public', src.replace(/^\//, ''));
+    return existsSync(onDisk) ? null : `manifest advertises ${src}, which was not written`;
+  },
+});
+
 
 
 /* ────────────────────────────────────────────────────────────────────────
