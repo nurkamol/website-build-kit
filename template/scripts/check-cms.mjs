@@ -474,13 +474,20 @@ for (const entry of entries) {
         const full = join(d, e);
         return statSync(full).isDirectory() ? walk(full) : [full];
       });
-    for (const file of walk(entry.path).filter((f) => /\.mdx?$/.test(f))) {
-      const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(file, 'utf8'));
-      if (!m) continue;
+    /* JSON items count too — see the note on `collectionPaths`. Filtering to
+       markdown here meant image fields in a JSON collection were never
+       type-checked at all. */
+    for (const file of walk(entry.path).filter((f) => /\.(mdx?|json)$/.test(f))) {
+      const raw = readFileSync(file, 'utf8');
       try {
-        documents.push({ where: rel(file), data: parse(m[1]) ?? {} });
+        if (/\.json$/.test(file)) {
+          documents.push({ where: rel(file), data: JSON.parse(raw) ?? {} });
+        } else {
+          const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+          if (m) documents.push({ where: rel(file), data: parse(m[1]) ?? {} });
+        }
       } catch {
-        /* astro check reports unparseable frontmatter properly. */
+        /* astro check reports unparseable content properly. */
       }
     }
   } else if (/\.json$/.test(entry.path)) {
@@ -512,7 +519,55 @@ for (const entry of entries) {
         });
       }
     }
-    const output = typeof source === 'object' ? source?.output : null;
+    /*
+   * ⚠ A BLANK IMAGE SLOT THE CMS WROTE, WHICH BREAKS THE BUILD ON SAVE.
+   *
+   *   PagesCMS writes an object for every declared object field whether or not
+   *   the editor filled it in. A picture left empty therefore arrives as
+   *   `{ "isRender": false }` — the boolean has a default, the required
+   *   strings do not — and that is NOT a missing optional. It is a present
+   *   object failing validation, so `.optional()` on the schema does not save
+   *   you.
+   *
+   *   Observed: the first save by a non-developer broke a production deploy
+   *   this way, and the client saw only a failed build in a log they cannot
+   *   read. It is the single most likely way a CMS commit takes a site down.
+   *
+   *   The durable fix is in the SCHEMA, not here — strip a src-less object
+   *   before validating:
+   *
+   *     z.preprocess(
+   *       (v) => (v && typeof v === 'object' && !('src' in v) ? undefined : v),
+   *       imageObject.optional(),
+   *     )
+   *
+   *   This reports the state so it is caught before the deploy rather than by
+   *   the client.
+   */
+  for (const { path: fieldPath } of fields) {
+    if (!fieldPath.includes('.')) continue; // a bare image field has no wrapper
+    const parts = fieldPath.split('.');
+    const key = parts.pop();
+    const blanks = [];
+    for (const doc of documents) {
+      for (const parent of valuesAt(doc.data, parts)) {
+        if (!parent || typeof parent !== 'object' || Array.isArray(parent)) continue;
+        if (key in parent) continue;
+        blanks.push(doc.where);
+      }
+    }
+    if (blanks.length) {
+      problems.push({
+        label: `${entry.name ?? entry.label} → ${parts.join('.')}`,
+        why:
+          `is an image slot the CMS filled in PARTIALLY — the object exists but has no \`${key}\`, ` +
+          `so it is a present object that fails validation rather than a missing optional. ` +
+          `${blanks.length} file(s), e.g. ${blanks[0]}`,
+      });
+    }
+  }
+
+  const output = typeof source === 'object' ? source?.output : null;
     if (!output) continue; // nothing declared to measure against
     /* `output: /` makes "starts with the output" true of every absolute path, so
        it only distinguishes a path from a non-path. Still worth reporting — a

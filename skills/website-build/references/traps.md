@@ -39,6 +39,39 @@ the answer, so it is one line: `if (v && !v.startsWith(mediaOutput)) v = manifes
 Same class, found in the same pass: an `options.path` scoped to a media folder the files no longer
 live in opens the picker on an empty folder — silently.
 
+### The way a CMS commit takes the site down
+
+⚠ **PagesCMS writes an object for every declared object field, filled in or not.**
+
+An untouched picture is committed as:
+
+```json
+"image": { "isRender": false }
+```
+
+The boolean has a default; the required strings do not. That is **not a missing optional** — it is
+a present object failing validation, so `.optional()` on the schema does not save you. The build
+goes red on the client's first save, in a log they cannot read, on a deploy they triggered.
+
+*Measured:* **45 of them in one file**, written by a single save on one page, while the same page
+in two other languages had no image slots at all. Nothing was lost — the CMS invented slots that
+never existed.
+
+*Fix, in the schema, not in a check:* strip a src-less object before validating.
+
+```ts
+const optionalImage = (image) =>
+  z.preprocess(
+    (v) => (v && typeof v === 'object' && !('src' in v) ? undefined : v),
+    imageObject(image).optional(),
+  );
+```
+
+⚠ **Use it on every image field a CMS can reach.** A field the editor cannot see is safe with a
+plain `.optional()`; one they can is not, and the difference is invisible until somebody saves.
+
+`check-cms.mjs` reports the state, so an existing site can be cleaned. Only the schema prevents it.
+
 ### And the one that leaves no field at all
 
 ⚠ **A photograph imported at the top of a page is not a field, however idiomatic it looks.**

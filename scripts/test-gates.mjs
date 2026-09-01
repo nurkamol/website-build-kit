@@ -2301,6 +2301,73 @@ gate('finds an image the client cannot change', {
  *   delivered site had EIGHT of these while this check reported zero.
  */
 /*
+ * ⚠ THE WAY A CMS COMMIT TAKES A SITE DOWN.
+ *
+ *   PagesCMS writes an object for every declared object field whether or not
+ *   the editor filled it in, so an untouched picture arrives as
+ *   `{"isRender": false}` — the boolean has a default, the required strings do
+ *   not. That is NOT a missing optional; it is a present object failing
+ *   validation, so `.optional()` on the schema does not save you.
+ *
+ *   Found live: 45 of them in one file, written by a single save.
+ */
+const CMS_BLANK = {
+  '.pages.yml': [
+    'media:',
+    '  - name: uploads',
+    '    input: media/source/uploads',
+    '    output: /img/uploads',
+    'components:',
+    '  image_field:',
+    '    type: object',
+    '    fields:',
+    '      - { name: src, type: image }',
+    '      - { name: isRender, type: boolean }',
+    'content:',
+    '  - name: site',
+    '    type: file',
+    '    path: src/data/site.json',
+    '    fields:',
+    '      - { name: title, type: string }',
+    '      - { name: picture, component: image_field }',
+    '',
+  ].join('\n'),
+  'media/source/uploads/.keep': '',
+};
+
+gate('refuses a blank image slot the CMS wrote', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLANK,
+    'src/data/site.json': JSON.stringify({ title: 'x', picture: { isRender: false } }),
+  },
+  expect: 1,
+  contains: 'PARTIALLY',
+});
+
+/* Both halves that must NOT be reported, or the check above would be noise:
+   a picture properly filled in, and one genuinely absent. */
+gate('accepts a picture that is filled in', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLANK,
+    'src/data/site.json': JSON.stringify({
+      title: 'x',
+      picture: { src: '/img/uploads/a.jpg', isRender: false },
+    }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+gate('accepts a picture that is simply absent', {
+  script: 'check-cms.mjs',
+  files: { ...CMS_BLANK, 'src/data/site.json': JSON.stringify({ title: 'x' }) },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/*
  * ⚠ A PICTURE IS OFTEN AN OBJECT REACHED THROUGH A COMPONENT, and reading
  *   `f.type` on the wrapper finds `undefined`. That reported 18 working
  *   pickers as unset text boxes on a live site, while never descending far
