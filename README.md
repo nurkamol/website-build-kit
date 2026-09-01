@@ -335,6 +335,11 @@ well as the drifted ones. **`/media-audit`** runs it and reports; the repair pro
 first, what to leave, and what to ask the client — lives in
 **[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
 
+**→ [docs/auditing-a-shipped-site.md](docs/auditing-a-shipped-site.md)** — the whole procedure for
+a live site: pointing the current checks at it without copying anything in, what every CMS and
+media finding means, the order to repair them in, and how to prove you changed only what you meant
+to.
+
 ⚠ **That split is deliberate.** An executable check belongs here, where `test:gates` proves it
 still refuses and it ships into every project. A repair procedure is long-form judgement that
 cannot be tested, and keeping a second copy of one here is how the two drift apart while nothing

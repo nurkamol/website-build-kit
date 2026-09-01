@@ -26,6 +26,9 @@ leave on a live site, what to ask the client — and it lives in
 [site-runbooks](https://github.com/nurkamol/site-runbooks), which calls this script rather than
 restating it.
 
+The kit's own companion is `docs/auditing-a-shipped-site.md` — the order to repair findings in on a
+site with a client already editing it, and how to prove the deploy changed only what you intended.
+
 This command deliberately does **not** describe the individual checks. `check-drift.mjs` is the
 one place they are written down; a second description here is how the two drift apart while
 nothing says so, which is the failure the script exists to catch.
