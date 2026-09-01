@@ -59,8 +59,9 @@ ready before you begin, and what the first ten minutes should look like.
 
 | | |
 | --- | --- |
-| `skills/website-build/` | The Claude Code skill. `SKILL.md` plus eight references |
-| `commands/website-build.md` | Slash-command entry point |
+| `skills/website-build/` | The build skill. `SKILL.md` plus eight references |
+| `skills/site-repair/` | The repair skill — for a site already delivered, and drifting |
+| `commands/` | Slash-command entry points: `/website-build`, `/media-audit` |
 | `template/` | Astro + Cloudflare starter that builds from a clean clone |
 | `docs/` | How to use it, and how to extend it |
 | `install.sh` | Symlinks skills and commands into `~/.claude` |
@@ -337,6 +338,10 @@ and `scripts/lib/` in first, if the site predates it. It reads only, and reports
 well as the drifted ones. **`/media-audit`** runs it and reports; the repair procedure — what to fix
 first, what to leave, and what to ask the client — lives in
 **[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
+
+The **`site-repair` skill** fires on the situation rather than a command, so *"the client says
+they cannot change the photo on their homepage"* reaches it without anyone remembering a name.
+It audits read-only first and changes nothing until the findings have been read.
 
 **→ [docs/auditing-a-shipped-site.md](docs/auditing-a-shipped-site.md)** — the whole procedure for
 a live site: pointing the current checks at it without copying anything in, what every CMS and
