@@ -1462,6 +1462,188 @@ gate('accepts the migrated picker path', {
 });
 
 /*
+ * ── The five 2026-09-02 failures, each pinned ─────────────────────────────
+ *
+ * Found by running this gate against two shipped sites and checking every
+ * finding against the files instead of trusting it. FOUR of the five were
+ * SILENT — the gate reported clean on real defects — which is why each gets a
+ * case here rather than a line in the changelog.
+ */
+
+/* 1 · A shape borrowed from `components:` is declared. Reading only
+   `field.fields` reported six phantom data-loss problems on a live site, and
+   the remedy it printed would have pasted duplicate declarations into a
+   config that was already right. */
+gate('a key declared through a component is not reported', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'components:',
+      '  image_field:',
+      '    type: object',
+      '    fields:',
+      '      - { name: src, type: string }',
+      '      - { name: alt, type: string }',
+      'content:',
+      '  - name: site',
+      '    type: file',
+      '    path: src/data/site.json',
+      '    fields:',
+      '      - { name: title, type: string }',
+      '      - { name: picture, component: image_field }',
+      '',
+    ].join('\n'),
+    'src/data/site.json': JSON.stringify({ title: 'x', picture: { src: '/a.jpg', alt: 'A' } }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/* 2 · A `type: block` variant missing a field its SIBLING declares. The flat
+   set unioned the variants, so this passed — and it is the shape that let
+   PagesCMS delete card links from a live page on 2026-08-25. */
+const CMS_BLOCK = {
+  '.pages.yml': [
+    'content:',
+    '  - name: page',
+    '    type: file',
+    '    path: src/data/page.json',
+    '    fields:',
+    '      - name: sections',
+    '        type: block',
+    '        blockKey: _type',
+    '        blocks:',
+    '          - name: hero',
+    '            type: object',
+    '            fields:',
+    '              - { name: title, type: string }',
+    '              - { name: path, type: string }',
+    '          - name: cards',
+    '            type: object',
+    '            fields:',
+    '              - { name: title, type: string }',
+    '',
+  ].join('\n'),
+};
+
+gate('refuses a block field only a SIBLING variant declares', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLOCK,
+    'src/data/page.json': JSON.stringify({
+      sections: [
+        { _type: 'hero', title: 'H', path: '/h' },
+        { _type: 'cards', title: 'C', path: '/c' },
+      ],
+    }),
+  },
+  expect: 1,
+  contains: 'sections[type=cards].path',
+});
+
+gate('accepts a block where each variant declares what it holds', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLOCK,
+    'src/data/page.json': JSON.stringify({
+      sections: [
+        { _type: 'hero', title: 'H', path: '/h' },
+        { _type: 'cards', title: 'C' },
+      ],
+    }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/* 3 · A collection of JSON items. Filtering to `.md`/`.mdx` meant a whole
+   collection passed without one file being opened — 60 items on a live site,
+   never read, reported clean. */
+gate('reads JSON collection items, not only markdown', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'content:',
+      '  - name: news',
+      '    type: collection',
+      '    path: src/content/news',
+      '    format: json',
+      '    fields:',
+      '      - { name: title, type: string }',
+      '',
+    ].join('\n'),
+    'src/content/news/one.json': JSON.stringify({ title: 'One', lang: 'en' }),
+  },
+  expect: 1,
+  contains: 'lang',
+});
+
+/* 4 · `exclude` names a file that lives in the directory but belongs to its
+   own entry. Ignoring it reported six confident, wrong problems against a
+   config that had already handled the case correctly. */
+gate('honours exclude on a collection', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'content:',
+      '  - name: pages',
+      '    type: collection',
+      '    path: src/content/pages',
+      '    format: json',
+      "    exclude: ['home.json']",
+      '    fields:',
+      '      - { name: title, type: string }',
+      '  - name: home',
+      '    type: file',
+      '    path: src/content/pages/home.json',
+      '    fields:',
+      '      - { name: hero, type: string }',
+      '',
+    ].join('\n'),
+    'src/content/pages/about.json': JSON.stringify({ title: 'About' }),
+    'src/content/pages/home.json': JSON.stringify({ hero: 'H' }),
+  },
+  expect: 0,
+  contains: 'every key declared',
+});
+
+/* 5 · A picture field shaped by a component. Reading only `field.type` meant
+   the unpickable-path check went quiet on exactly the fields most likely to
+   have one — confirmed against a live CMS screenshot showing an empty square
+   and a 404 "View on GitHub" link on a page this gate called clean. */
+gate('type-checks an image field reached through a component', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'media:',
+      '  - name: uploads',
+      '    input: media/source/uploads',
+      '    output: /img/uploads',
+      'components:',
+      '  image_field:',
+      '    type: object',
+      '    fields:',
+      '      - { name: src, type: image }',
+      'content:',
+      '  - name: site',
+      '    type: file',
+      '    path: src/data/site.json',
+      '    fields:',
+      '      - { name: picture, component: image_field }',
+      '',
+    ].join('\n'),
+    'src/data/site.json': JSON.stringify({ picture: { src: '../../assets/a.jpg' } }),
+    'media/source/uploads/.keep': '',
+  },
+  expect: 1,
+  /* ⚠ ASSERT THE TYPE-CHECK MESSAGE, NOT THE FIELD PATH. Before the component
+     fix this case passed for the WRONG reason: the path was reported as an
+     UNDECLARED key, which is a different failure with a different remedy.
+     Matching the path alone let a broken gate look green. */
+  contains: 'not a path under',
+});
+
+/*
  * ── `--fix`, the declarations to paste ────────────────────────────────────
  *
  * ⚠ THE ONLY CASE THAT PROVES ANYTHING HERE IS THE ROUND TRIP. Asserting that
