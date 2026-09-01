@@ -1375,7 +1375,18 @@ gate('refuses a collection frontmatter key the schema forgot', {
   contains: 'lang',
 });
 
-/* ⚠ The media DIRECTION bug, which hit two of five shipped sites. */
+/*
+ * ⚠ The media DIRECTION bug, which hit two of five shipped sites — but ONLY
+ *   where nothing maps a picked path back to a manifest key.
+ *
+ *   `src/lib/image-key.ts` exists in the template precisely because a picker
+ *   "returns the public path of what it found, /img/photos/hero-1200.webp",
+ *   which requires the source to point AT the output. A check that failed on
+ *   that unconditionally was telling people to break the feature the kit ships
+ *   to make image fields usable — and it reported two delivered sites as
+ *   broken when one had 386 files under public/img, 95 manifest keys and zero
+ *   orphans after months of use.
+ */
 gate('refuses uploads pointed at generated output', {
   script: 'check-cms.mjs',
   files: {
@@ -1384,6 +1395,32 @@ gate('refuses uploads pointed at generated output', {
   },
   expect: 1,
   contains: 'GENERATED output',
+});
+
+gate('accepts the same source once a picked path can be resolved', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [webp]', 'content: []', ''].join('\n'),
+    'public/img/.keep': '',
+    'src/lib/image-key.ts': 'export const toImageKey = (s: string) => s;\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('GENERATED output') ? 'still reported a picker the project can resolve' : null,
+});
+
+/* The mapping found by USE, not only by filename — a project may name the file
+   something else, and the identifier is what proves the capability. */
+gate('finds the mapping by its use, not only by that filename', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [webp]', 'content: []', ''].join('\n'),
+    'public/img/.keep': '',
+    'src/components/Img.astro': '---\nimport { toImageKey } from "../lib/keys";\n---\n<img />\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('GENERATED output') ? 'missed a mapping reached under a different filename' : null,
 });
 
 /*

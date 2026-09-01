@@ -373,6 +373,45 @@ const mediaByName = new Map();
    file dropped into generated output. */
 const GENERATED = ['public/img', 'dist', '.astro'];
 
+/*
+ * ⚠ POINTING A PICKER AT THE GENERATED OUTPUT IS NOT AUTOMATICALLY THE BUG,
+ *   AND THIS CHECK USED TO SAY IT WAS.
+ *
+ *   `src/lib/image-key.ts` exists in this very template BECAUSE a CMS picker
+ *   "browses files and returns the public path of what it found,
+ *   /img/photos/hero-1200.webp". That only happens when the media source's
+ *   input IS the output directory. So the check was telling people to break
+ *   the feature the kit ships to make image fields usable at all — follow it
+ *   and the picker returns /media/source/..., which `toImageKey` does not map,
+ *   and <Img> throws.
+ *
+ *   Measured on a delivered site with the mapping in place: 386 files under
+ *   public/img, 95 manifest keys, and ZERO files with no manifest entry after
+ *   months of use. The design holds.
+ *
+ * What the original trap was actually about is a project that CANNOT resolve a
+ * picked path — no mapping, so anything the editor chooses is unusable, and an
+ * upload into the output is unusable twice over. That is what this now reports.
+ *
+ * The residual risk where a mapping DOES exist — an editor uploading a raw
+ * JPEG that never gets processed — is covered by the `extensions` warning
+ * below, which is the lever that actually refuses it at the door.
+ */
+const resolvesPickerPaths = (() => {
+  if (existsSync(join('src', 'lib', 'image-key.ts'))) return true;
+  try {
+    const walk = (d) =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)],
+      );
+    return walk('src')
+      .filter((f) => /\.(ts|js|mjs|astro)$/.test(f))
+      .some((f) => readFileSync(f, 'utf8').includes('toImageKey'));
+  } catch {
+    return false;
+  }
+})();
+
 const media = config.media ? (Array.isArray(config.media) ? config.media : [config.media]) : [];
 
 for (const source of media) {
@@ -385,14 +424,17 @@ for (const source of media) {
   if (typeof source === 'object' && source.name) mediaByName.set(source.name, source);
   const normalised = input.replace(/^\.?\//, '').replace(/\/$/, '');
   if (GENERATED.some((g) => normalised === g || normalised.startsWith(`${g}/`))) {
-    problems.push({
-      label: `media ${name}`,
-      why: `uploads into ${input}, which is GENERATED output`,
-      direction: true,
-    });
-    continue;
-  }
-  if (!existsSync(input)) {
+    if (!resolvesPickerPaths) {
+      problems.push({
+        label: `media ${name}`,
+        why: `uploads into ${input}, which is GENERATED output, and nothing here maps a picked path back to a manifest key`,
+        direction: true,
+      });
+      continue;
+    }
+    /* Mapping present: browsing the output is the intended design. The upload
+       risk is the `extensions` question, checked below like any other source. */
+  } else if (!existsSync(input)) {
     problems.push({ label: `media ${name}`, why: `input directory does not exist: ${input}` });
     continue;
   }
