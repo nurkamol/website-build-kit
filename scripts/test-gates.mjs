@@ -2456,6 +2456,43 @@ gate('reports a blank slot once, not once per image field in the entry', {
   },
 });
 
+/*
+ * ⚠ AN OMITTED OPTIONAL FIELD IS NOT A BLANK SLOT, AND THIS IS THE CHECK'S
+ *   WHOLE FALSE-POSITIVE CLASS.
+ *
+ *   Caught on a delivered site: a list of five videos where the first carries
+ *   only its `src` and the rest also carry a `poster`. The poster is
+ *   `.optional()` in the content schema, the page does `poster: v.poster ??
+ *   d.image`, and the component guards on it. Nothing was wrong, and the check
+ *   reported two problems on a site that had none.
+ *
+ *   The object the check is FOR carries no real string at all — the boolean
+ *   has a default and every string is absent. An author's omission leaves the
+ *   rest of the record behind; a blank slot leaves nothing.
+ */
+gate('a record missing only an optional picture is not a blank slot', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLANK,
+    '.pages.yml': CMS_BLANK['.pages.yml'].replace(
+      '      - { name: picture, component: image_field }',
+      '      - name: clips\n' +
+        '        type: object\n' +
+        '        list: true\n' +
+        '        fields:\n' +
+        '          - { name: src, type: string }\n' +
+        '          - { name: poster, type: image }',
+    ),
+    'src/data/site.json': JSON.stringify({
+      title: 'x',
+      clips: [{ src: 'https://cdn/one.mp4' }, { src: 'https://cdn/two.mp4', poster: '/img/uploads/b.jpg' }],
+    }),
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('PARTIALLY') ? 'reported an omitted optional picture as a blank slot' : null,
+});
+
 /* Both halves that must NOT be reported, or the check above would be noise:
    a picture properly filled in, and one genuinely absent. */
 gate('accepts a picture that is filled in', {

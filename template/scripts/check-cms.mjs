@@ -586,6 +586,27 @@ for (const entry of entries) {
       for (const parent of valuesAt(doc.data, parts)) {
         if (!parent || typeof parent !== 'object' || Array.isArray(parent)) continue;
         if (key in parent) continue;
+        /*
+         * ⚠ AN OMITTED OPTIONAL FIELD LOOKS EXACTLY LIKE A BLANK SLOT, AND
+         *   REPORTING IT IS THIS CHECK'S WHOLE FALSE-POSITIVE CLASS.
+         *
+         *   Caught on a delivered site: a video list where the first item is
+         *   `{ src: 'a-video.mp4' }` and the others also carry a `poster`. The
+         *   poster is `.optional()` in the content schema, the page does
+         *   `poster: v.poster ?? d.image`, and the component guards on it.
+         *   Nothing is wrong, and this reported two problems on a clean site.
+         *
+         *   What the check is actually for is the object the CMS WROTE with
+         *   nothing in it - `{ isRender: false }`, where the boolean has a
+         *   default and every string is absent. The signal that separates
+         *   them is whether the object carries any real string at all: a
+         *   blank slot carries none, an author's omission carries the rest of
+         *   the record.
+         */
+        const substance = Object.values(parent).some(
+          (v) => typeof v === 'string' && v.trim() !== '',
+        );
+        if (substance) continue;
         blanks.push(doc.where);
       }
     }
