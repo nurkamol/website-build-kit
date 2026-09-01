@@ -123,6 +123,7 @@ which are judgements it refuses to make for you.
 | --- | --- | --- |
 | keys the schema does not declare | opens a screen, saves, and unrelated content is gone from the repo | `--fix` prints the declarations to paste; or move the key out of the CMS-managed file |
 | uploads into `public/img/`, which is generated output | uploads a photo; it appears once, then the build goes red | point `input` at `media/source/…` and `output` at the served path |
+| an image slot the CMS filled in **partially** | saves a screen without choosing a picture; the next build fails | strip src-less objects in the schema, then clear the blank values |
 | `type: image` values not under the media `output` | the picker shows nothing and the stored value looks fine in the JSON | migrate the values to picker paths, in the file, not in the config |
 | `options.path` at a folder that does not exist | the media browser opens on an empty folder | fix the path, or drop `options.path` |
 | a `path` that does not exist | the entry 404s inside the CMS | fix or remove the entry |

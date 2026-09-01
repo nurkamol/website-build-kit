@@ -105,7 +105,7 @@ command.** It separates two kinds of claim, and they are not the same job:
 
 ---
 
-## The four decisions you will hit
+## The five decisions you will hit
 
 **"Keys the schema does not declare."** Declare them, or move them out of a CMS-managed file.
 `--fix` prints the declarations to paste, typed from the values actually stored:
@@ -120,6 +120,12 @@ which is why it prints and never writes.
 
 **"Uploads into generated output."** Always a fix, never a question. Repoint `media.input` at
 the pipeline's source directory and move any files already sitting in the output.
+
+**"An image slot the CMS filled in partially."** Always a fix. PagesCMS writes an object for
+every declared object field whether or not the editor chose a picture, so an empty one arrives
+as a present object missing its required strings — not a missing optional, so `.optional()` on
+the schema does not save you. ⚠ **The next build after that save fails**, and the client sees
+only a red log they cannot read. Fix the schema first, then clear the values.
 
 **"Content no CMS entry points at."** Deliberately developer-controlled, or a gap? *"Whole
 sections are missing"* is how a client reports the gap.

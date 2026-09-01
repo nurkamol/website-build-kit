@@ -62,7 +62,9 @@ nothing. If a client is actively editing, take that scope.
 ### 4. Repair, in this order
 
 1. **Anything that deletes content.** Undeclared keys, before the client next opens the CMS
-2. **Anything an ordinary client action turns red.** Uploads pointed at the pipeline's output
+2. **Anything an ordinary client action turns red.** Uploads pointed at the pipeline's output,
+   and an image slot the CMS filled in partially — a picture left empty is written as a present
+   object missing its required strings, and the next build after that save fails
 3. **Anything they can see and cannot change.** Pickers, image values, hardcoded photographs
 4. **Coverage.** Sections the CMS never exposed — and ⚠ **never wire a data module nothing
    imports into the CMS**; a form editing a file nothing reads invites a wasted afternoon
