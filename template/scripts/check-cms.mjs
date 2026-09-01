@@ -41,6 +41,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { parse } from 'yaml';
+import { literalContent } from './lib/literal-content.mjs';
 import { literalImages } from './lib/literal-images.mjs';
 import { routeExists, routesFromPages } from './lib/routes.mjs';
 
@@ -539,6 +540,35 @@ if (literals.length) {
       (literals.length > 10 ? `\n      …and ${literals.length - 10} more` : '') +
       `\n      Each is a field the client does not have. Either give it one, or write down ` +
       `why it is fixed — "chosen in code" stops being true the moment the next one is added.`,
+  );
+}
+
+/*
+ * ⚠ AND THE SAME FAILURE ONE LEVEL IN: THE COPY ITSELF.
+ *
+ *   A page whose content is a `const` array in its own frontmatter renders
+ *   correctly, types correctly, and has no field anywhere. Measured across
+ *   seven delivered sites that all had a working CMS the client was using:
+ *   nine such blocks on three of them, including a twelve-item FAQ about
+ *   post-operative medication and a page of seven treatments with their
+ *   patient-facing copy.
+ *
+ *   A warning for the same reason as the images above — an inline list is
+ *   sometimes right. It must be a decision, not an oversight.
+ */
+const inline = literalContent();
+if (inline.length) {
+  const strings = inline.reduce((n, b) => n + b.strings, 0);
+  warnings.push(
+    `${inline.length} block(s) of page copy declared inline, holding ${strings} sentence(s) ` +
+      `the CMS cannot reach:\n` +
+      inline
+        .slice(0, 8)
+        .map((b) => `      ${b.file}  ${b.name}[${b.items}]  ${b.strings} sentences  "${b.sample}…"`)
+        .join('\n') +
+      (inline.length > 8 ? `\n      …and ${inline.length - 8} more` : '') +
+      `\n      This is what "required sections cannot be edited" looks like in the source. ` +
+      `Each block is either deliberately fixed or a page the client cannot touch.`,
   );
 }
 

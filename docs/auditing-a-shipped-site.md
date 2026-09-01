@@ -81,7 +81,7 @@ devDependencies.
 kit check-drift            # or: node scripts/check-drift.mjs --json
 ```
 
-Read-only, exit 0 whatever it finds, up to ten rows, `--json` when you are surveying several sites
+Read-only, exit 0 whatever it finds, up to eleven rows, `--json` when you are surveying several sites
 at once. Report **every row to whoever asked, including the clean ones** — a report that says
 what was checked and found fine gets trusted; one listing only problems reads as a pitch.
 
@@ -118,6 +118,7 @@ which are judgements it refuses to make for you.
 | --- | --- |
 | content no CMS entry points at | it is either deliberately developer-controlled or a gap. **"Whole sections are missing" is how a client reports the gap** |
 | images hardcoded in pages | a fixed logo is right; a fixed header photograph is an oversight. Both look identical in the source |
+| page copy declared inline in a page's frontmatter | **this is what "required sections cannot be edited" looks like in the source.** Measured on seven delivered sites: nine blocks on three of them, all three with a CMS the client was already using |
 | fields that look like technical configuration | an analytics ID in a CMS is a secret the client can silently break, and cannot diagnose |
 | CMS sections the client guide never mentions | a section the guide omits is one they will not know they have |
 | a media source with no `extensions` | a bad format is accepted in the UI and fails the build twenty minutes later |

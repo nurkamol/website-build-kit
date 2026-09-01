@@ -38,6 +38,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { binarySourceFiles } from './lib/binary-files.mjs';
+import { literalContent } from './lib/literal-content.mjs';
 import { literalImages } from './lib/literal-images.mjs';
 
 const RESET = '\x1b[0m';
@@ -169,6 +170,21 @@ add(
         .map((l) => `${l.value} (${l.file})`)
         .join(', ')} — each is an image the client can see and cannot change`
     : 'no hardcoded image references in pages',
+);
+
+/* ── D5b · copy the client cannot reach ───────────────────────────────────── */
+
+const inline = literalContent();
+add(
+  'D5b',
+  'Page copy is fields, not literals',
+  inline.length ? 'drift' : 'ok',
+  inline.length
+    ? `${inline.length} block(s) declared inline in page frontmatter, holding ${inline.reduce((n, b) => n + b.strings, 0)} sentence(s) no editor can reach, e.g. ${inline
+        .slice(0, 2)
+        .map((b) => `${b.name}[${b.items}] in ${b.file}`)
+        .join(', ')} — this is what "required sections cannot be edited" looks like in the source`
+    : 'no inline content blocks in pages',
 );
 
 /* ── the CMS rows ─────────────────────────────────────────────────────────── */

@@ -1461,6 +1461,88 @@ gate('accepts the migrated picker path', {
   contains: 'every key declared',
 });
 
+/*
+ * ── Inline page copy ──────────────────────────────────────────────────────
+ *
+ * The gap that survived every other check here: a page whose content is a
+ * `const` array in its own frontmatter. Nine such blocks were found across
+ * three of seven delivered sites, all of which had a working CMS the client
+ * was already using — including a twelve-item FAQ about post-operative
+ * medication.
+ *
+ * ⚠ THE EXCLUSIONS ARE WHAT NEEDS THE CASES, NOT THE DETECTION. This was
+ *   wrong twice before it shipped, both times by over-reporting, and both
+ *   times it looked authoritative: a name-based schema filter let a helper
+ *   through, and a regex that ended at `\n];` ran past a block closing on its
+ *   own line and swallowed the next declaration — reporting one item as
+ *   sixteen, under the wrong variable's name.
+ */
+gate('warns about page copy declared inline', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/pages/about.astro':
+      '---\nconst bands = [\n' +
+      "  { title: 'One', body: 'A sentence long enough to read as real copy.' },\n" +
+      "  { title: 'Two', body: 'Another sentence long enough to read as copy.' },\n" +
+      '];\n---\n<h1>x</h1>\n',
+  },
+  expect: 0,
+  contains: 'block(s) of page copy declared inline',
+});
+
+gate('does not report a JSON-LD literal as page copy', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/pages/about.astro':
+      '---\nconst schema = [\n' +
+      "  { '@type': 'Person', name: 'A name that is long enough to count as prose' },\n" +
+      "  { '@type': 'Person', name: 'Another name long enough to count as prose' },\n" +
+      '];\n---\n<h1>x</h1>\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('page copy declared inline') ? 'reported structured data as page copy' : null,
+});
+
+/* `[breadcrumbSchema([…])]` carries no literal `@type`, so only the shape test
+   excludes it — the array's direct element is a CALL, and a call is not copy. */
+gate('does not report a schema built by a helper as page copy', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/pages/about.astro':
+      '---\nconst schemas = [\n' +
+      '  breadcrumbSchema([\n' +
+      "    { name: 'A crumb label long enough to count as prose here', url: '/' },\n" +
+      "    { name: 'Another crumb label long enough to count as prose', url: '/a/' },\n" +
+      '  ]),\n];\n---\n<h1>x</h1>\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('page copy declared inline') ? 'reported a helper call as page copy' : null,
+});
+
+/* The regression. `const crumbs = [{ … }];` closes on its own line; a scanner
+   that misses that runs on and attributes the NEXT block's contents to it. */
+gate('does not merge a one-line array into the block that follows it', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    'src/pages/search.astro':
+      '---\n' +
+      "const crumbs = [{ name: 'Search', href: '/search/' }];\n\n" +
+      'const groups = [\n' +
+      "  { label: 'One', blurb: 'A sentence long enough to read as real copy.' },\n" +
+      "  { label: 'Two', blurb: 'Another sentence long enough to read as copy.' },\n" +
+      '];\n---\n<h1>x</h1>\n',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('crumbs[') ? 'attributed the following block to `crumbs`' : null,
+});
+
 /* Warnings, not failures — but they must still fire, or the complaint that
    started this ("whole sections are missing") stays invisible. */
 gate('warns about content no CMS entry points at', {
