@@ -39,6 +39,30 @@ the answer, so it is one line: `if (v && !v.startsWith(mediaOutput)) v = manifes
 Same class, found in the same pass: an `options.path` scoped to a media folder the files no longer
 live in opens the picker on an empty folder — silently.
 
+### And the one that leaves no field at all
+
+⚠ **A photograph imported at the top of a page is not a field, however idiomatic it looks.**
+
+```astro
+import heroBg from '@/assets/hero/forum-hero-silk-road.jpg';
+<Image src={heroBg} alt="" />
+```
+
+This is the documented Astro pattern, the build optimises it correctly, and the client cannot
+change the picture. It reads as deliberate because it *is* deliberate — someone chose that file —
+but nothing records whether the choice was "this belongs to the layout" or "we ran out of time".
+
+*Symptom:* the client asks you to swap a photograph on a page that already has a working CMS. Every
+other image on it is editable, so the request sounds like a bug report about one field, and the
+answer is that the field was never built.
+
+*Rule:* an image a page renders is **a field, or an exception somebody wrote down.** A logo or a
+layout illustration is a fair exception. Eight section photographs are not.
+
+`check-cms.mjs` and `check-drift.mjs` both report these — including the import form, since
+2026-09-02. Before that they matched only quoted literals and a delivered site showed **zero**
+while carrying eight.
+
 ---
 
 ### `wrangler r2 object put` writes to LOCAL storage by default
