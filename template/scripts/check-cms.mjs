@@ -93,6 +93,36 @@ const flatten = (entries) =>
     entry?.type === 'group' ? flatten(entry.items ?? entry.content ?? []) : [entry],
   );
 
+/*
+ * ⚠ A FIELD MAY BORROW ITS SHAPE FROM `components:`, AND MISSING THAT REPORTS
+ *   DATA LOSS THAT IS NOT HAPPENING.
+ *
+ *   PagesCMS lets a field say `component: image_field` instead of repeating a
+ *   field list. This walk used to read only `field.fields`, so every key
+ *   inside a borrowed shape looked undeclared — and undeclared, in this
+ *   check, means "the client's first save DELETES it".
+ *
+ *   Measured on a live trilingual site: six phantom problems across three
+ *   home pages, every one of them `image.src` / `image.alt` / `image.isRender`
+ *   reached through `component: image_field`, which declares exactly those
+ *   three. The site was correct and the check was wrong — the worst direction
+ *   for this particular check to fail in, because the fix it invites is
+ *   pasting duplicate declarations into a config that was already right.
+ */
+function fieldsOf(field, seen = new Set()) {
+  if (!field) return null;
+  if (field.component) {
+    /* A component referring to itself would otherwise recurse forever. */
+    if (seen.has(field.component)) return null;
+    seen.add(field.component);
+    const base = (config.components ?? {})[field.component];
+    /* The field's own keys win over the component's — a call site may
+       override the label, or supply its own `fields` outright. */
+    return base ? fieldsOf({ ...base, ...field, component: undefined }, seen) : null;
+  }
+  return Array.isArray(field.fields) ? field.fields : null;
+}
+
 /** Every dotted path the schema declares. Arrays reuse the parent prefix. */
 function schemaPaths(fields, prefix = '') {
   const out = new Set();
@@ -100,7 +130,8 @@ function schemaPaths(fields, prefix = '') {
     if (!field?.name) continue;
     const path = prefix ? `${prefix}.${field.name}` : field.name;
     out.add(path);
-    if (Array.isArray(field.fields)) for (const p of schemaPaths(field.fields, path)) out.add(p);
+    const sub = fieldsOf(field);
+    if (sub) for (const p of schemaPaths(sub, path)) out.add(p);
   }
   return out;
 }
