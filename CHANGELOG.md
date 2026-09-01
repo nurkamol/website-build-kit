@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-09-02 — five failures in `check:cms`, four of them silent
+
+Found by auditing two shipped sites and **checking every finding against the files instead of
+trusting the report**. That is the only reason any of this surfaced: four of the five were silent,
+so the gate looked green on real defects, and the fifth was loud and wrong.
+
+One root cause runs through three of them: the walk read `field.fields` literally and never
+resolved a `component:` reference, so anything a config expressed by sharing a shape was invisible.
+
+| # | Failure | Direction |
+| --- | --- | --- |
+| 1 | `component:` not resolved when collecting declared keys | **loud and wrong** — 6 phantom data-loss problems |
+| 2 | `type: block` variants unioned into one flat set | silent |
+| 3 | JSON collection items never opened | silent |
+| 4 | `exclude` ignored | loud and wrong |
+| 5 | `component:` not resolved when finding `type: image` fields | silent |
+
+### The one that matters most
+
+⚠ **#3. `collectionPaths` filtered to `.md`/`.mdx` and read nothing else.** A collection of JSON
+items therefore passed **without a single file being opened** — no warning, no count, a tick.
+Measured on a live site: **60 items across six collections, never read, reported clean.** Astro
+takes JSON as readily as Markdown, so this is an ordinary shape, and it means every audit of a
+JSON-content site said nothing at all while appearing to say everything.
+
+⚠ **#2 is the one that already cost data.** A flat set of declared paths makes
+`sections[].items[].path` read as declared as long as ANY variant declares it, so a variant missing
+it hides behind a sibling. That is the 2026-08-25 deletion this file already records. Data is now
+walked ALONGSIDE the schema, each block item matched to its own variant through the discriminator.
+
+### On #1 and #4, the loud ones
+
+Both reported confident data loss that was not happening, and #1's printed remedy was `--fix` —
+which would have pasted duplicate declarations into a config that was already correct. A check that
+cries wolf gets switched off, so a false positive here is not the harmless direction.
+
+**#4 was found only because fixing #3 surfaced it.** Shipping the JSON fix alone would have made
+this gate wrong on every site using a home page that lives inside its own collection's directory.
+
+### Six cases, proven in both directions
+
+`npm run test:gates` — 159 → 165 cases, 91 → 94 of them proving a gate still refuses. Each new case
+was run against the pre-fix script: **five of six fail there and pass here.** A regression test
+never run against the bug it describes is an assertion, not a test.
+
+⚠ One passed against the broken script at first, for the wrong reason — it asserted a field path,
+and the old script did print that path, as a different failure with a different remedy. It now
+asserts the type-check message itself.
+
+### Nothing needs copying into a shipped site
+
+Every check still resolves paths from the working directory, so these fixes reach every existing
+site the moment it is audited from a current clone. A site that has copied the scripts in has an
+older behaviour in its own CI, and that is the copy to update — not the audit.
+
+
 ## 2026-09-01k — 0.1.19, the last two spec-and-implementation pairs, closed
 
 `pagescms-field-mapping.md` and `pagescms-media-playbook.md` opened with detection phases the kit
