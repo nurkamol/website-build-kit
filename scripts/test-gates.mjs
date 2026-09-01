@@ -2294,6 +2294,41 @@ gate('finds an image the client cannot change', {
   contains: 'hardcoded in pages',
 });
 
+/*
+ * ⚠ AN EXPRESSION IS NOT AUTOMATICALLY SAFE. The rule that `src={photo}` came
+ *   from somewhere else holds for content, and fails for the idiomatic Astro
+ *   pattern where "somewhere else" is a static import in the same file. A
+ *   delivered site had EIGHT of these while this check reported zero.
+ */
+gate('finds an image imported statically into a page', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'src/pages/index.astro':
+      "---\nimport heroBg from '@/assets/hero/hero.jpg';\n---\n<Image src={heroBg} alt=\"a\" />\n",
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'hardcoded in pages',
+});
+
+/* The other half of the same rule: an import nothing renders is a lint's
+   problem, not a photograph the client cannot change. */
+gate('ignores an image import the page never uses', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'src/pages/index.astro': "---\nimport unused from '@/assets/hero/hero.jpg';\n---\n<p>No image.</p>\n",
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'no hardcoded image references',
+});
+
 gate('--json is machine-readable', {
   script: 'check-drift.mjs',
   from: undefined,

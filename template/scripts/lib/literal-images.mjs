@@ -41,6 +41,29 @@ import { join, relative, sep } from 'node:path';
 const IMAGE_COMPONENT = /<(Img|Image|Picture|BandHeader|Hero)\b[^>]*?\bname=["']([^"']+)["']/gis;
 const IMAGE_ATTR = /\b(?:image|poster|photo|bgImage|backgroundImage)=["']([^"']+)["']/gis;
 
+/*
+ * ⚠ AN EXPRESSION IS NOT AUTOMATICALLY SAFE, AND ASSUMING SO MISSES THE
+ *   IDIOMATIC ASTRO CASE ENTIRELY.
+ *
+ *   The rule above — that `name={photo}` has no quotes and so "came from
+ *   somewhere else" — holds when the value comes from content. It does NOT
+ *   hold when "somewhere else" is a static import at the top of the same
+ *   file:
+ *
+ *     import heroBg from '@/assets/hero/forum-hero-silk-road.jpg';
+ *     <Image src={heroBg} />
+ *
+ *   That is the standard way to use Astro's image pipeline, the build
+ *   optimises it properly, and the client still cannot change the photograph.
+ *   Measured on a delivered site: EIGHT such imports across its pages while
+ *   this check reported zero.
+ *
+ *   Only counted when the identifier is used somewhere other than its own
+ *   import line — an unused import renders nothing and is a lint's problem.
+ */
+const IMAGE_IMPORT =
+  /^[ \t]*import\s+([A-Za-z_$][\w$]*)\s+from\s+["']([^"']+\.(?:jpe?g|png|webp|avif|gif))["']/gim;
+
 /** Values that are never a photograph a client would want to change. */
 const NOT_A_PHOTO = /^(#|https?:|data:|\/|\.\.?\/)|\.(svg|ico)$/i;
 
@@ -74,6 +97,18 @@ export function literalImages(root = 'src/pages') {
     /* Astro comments are `{/* … *\/}` and HTML comments render; neither should
        contribute a finding, so strip both before matching. */
     const body = source.replace(/<!--[\s\S]*?-->/g, ' ');
+
+    IMAGE_IMPORT.lastIndex = 0;
+    for (const match of source.matchAll(IMAGE_IMPORT)) {
+      const [line, identifier, specifier] = match;
+      /* Used anywhere but its own import statement? */
+      const elsewhere = source.replace(line, ' ');
+      if (!new RegExp(`\\b${identifier}\\b`).test(elsewhere)) continue;
+      const key = `${rel}::${specifier}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ file: rel, value: specifier });
+    }
 
     for (const [regex, group] of [
       [IMAGE_COMPONENT, 2],
