@@ -339,6 +339,9 @@ well as the drifted ones. **`/media-audit`** runs it and reports; the repair pro
 first, what to leave, and what to ask the client — lives in
 **[site-runbooks](https://github.com/nurkamol/site-runbooks)**.
 
+**→ [docs/how-to-repair.md](docs/how-to-repair.md)** — how to begin, if you have never run any
+of this: the five-minute setup, one site end to end, and the four decisions you will hit.
+
 The **`site-repair` skill** fires on the situation rather than a command, so *"the client says
 they cannot change the photo on their homepage"* reaches it without anyone remembering a name.
 It audits read-only first and changes nothing until the findings have been read.

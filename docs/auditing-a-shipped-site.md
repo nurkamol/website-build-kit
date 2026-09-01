@@ -1,5 +1,8 @@
 # Auditing a site that is already live
 
+**New to this? Start at [how-to-repair.md](how-to-repair.md)** — the setup, one site end to
+end, and the decisions. This page is the reference behind it.
+
 For a site that shipped, has a client editing it, and was built before the checks in this
 kit existed. It covers the two things that go wrong after handover and never show up in a
 build: **the CMS deleting content the client cannot see it delete**, and **the media
