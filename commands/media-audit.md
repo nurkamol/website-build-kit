@@ -34,6 +34,11 @@ resolves `yaml` from beside the script rather than from the site.
 what was checked and found fine is trusted, and one listing only problems reads as a pitch. A site
 with no `.pages.yml` has **no CMS**, which is not the same as a CMS with nothing wrong.
 
+⚠ **Offer `--fix` when undeclared keys are among the findings.** `npm run check:cms -- --fix`
+prints the field declarations to paste, typed from the stored values. It prints and never
+writes — and for a key that looks like technical configuration it says so, because moving that
+one OUT of the CMS is usually the better answer.
+
 ⚠ **Keep `check:cms` problems and warnings apart.** A problem is unambiguous and exits 1. A warning
 is a judgement the check refuses to make for you — whether a data file is deliberately
 developer-controlled or a gap the client is reporting as "whole sections are missing". Present a

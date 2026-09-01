@@ -53,6 +53,23 @@ const DIM = '\x1b[2m';
 
 const CONFIG = '.pages.yml';
 
+/*
+ * ⚠ `--fix` PRINTS. IT NEVER WRITES.
+ *
+ *   The name is what people reach for, and the behaviour is what keeps this
+ *   safe: for every undeclared key the check already knows the exact dotted
+ *   path and the value sitting at it, so it can emit the field declaration to
+ *   paste. What it cannot know is whether declaring the key is the RIGHT fix —
+ *   for an analytics ID it is not, and this file's own other warning says so.
+ *
+ *   So the fix is offered, never applied, and the one case where the other
+ *   answer is usually correct is marked.
+ *
+ * It is off by default because this runs in `build:production`, where a gate
+ * that floods is a gate somebody switches off.
+ */
+const SHOW_FIX = process.argv.includes('--fix');
+
 if (!existsSync(CONFIG)) {
   console.log(`${DIM}·${RESET} no ${CONFIG} — no CMS to check`);
   process.exit(0);
@@ -103,8 +120,25 @@ function dataPaths(value, prefix = '') {
   return out;
 }
 
+/** The same walk as `dataPaths`, keeping one sample value per path. */
+function pathValues(value, prefix = '', out = new Map()) {
+  if (Array.isArray(value)) {
+    for (const item of value) pathValues(item, prefix, out);
+  } else if (value && typeof value === 'object') {
+    for (const [key, inner] of Object.entries(value)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      /* First writer wins: across a collection the first document with a key is
+         as good a sample as any, and later ones must not overwrite a rich value
+         with a null from a document that happens to omit it. */
+      if (!out.has(path)) out.set(path, inner);
+      pathValues(inner, path, out);
+    }
+  }
+  return out;
+}
+
 /** Frontmatter keys actually used across a collection, as dotted paths. */
-function collectionPaths(dir) {
+function collectionPaths(dir, values = new Map()) {
   const out = new Set();
   const walk = (d) =>
     readdirSync(d).flatMap((e) => {
@@ -116,7 +150,9 @@ function collectionPaths(dir) {
     const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
     if (!match) continue;
     try {
-      for (const p of dataPaths(parse(match[1]) ?? {})) out.add(p);
+      const data = parse(match[1]) ?? {};
+      for (const p of dataPaths(data)) out.add(p);
+      pathValues(data, '', values);
     } catch {
       /* A collection item with unparseable frontmatter is the content
          collection's problem, and astro check reports it properly. */
@@ -150,10 +186,18 @@ for (const entry of entries) {
   const declared = schemaPaths(entry.fields);
 
   if (entry.type === 'collection') {
-    const used = collectionPaths(path);
+    const values = new Map();
+    const used = collectionPaths(path, values);
     const undeclared = [...used].filter((p) => !declared.has(p));
     if (undeclared.length) {
-      problems.push({ label, why: `frontmatter keys the schema does not declare`, keys: undeclared, path });
+      problems.push({
+        label,
+        why: `frontmatter keys the schema does not declare`,
+        keys: undeclared,
+        path,
+        values,
+        declared,
+      });
     }
     continue;
   }
@@ -168,7 +212,14 @@ for (const entry of entries) {
     }
     const undeclared = [...dataPaths(data)].filter((p) => !declared.has(p));
     if (undeclared.length) {
-      problems.push({ label, why: 'keys in the file the schema does not declare', keys: undeclared, path });
+      problems.push({
+        label,
+        why: 'keys in the file the schema does not declare',
+        keys: undeclared,
+        path,
+        values: pathValues(data),
+        declared,
+      });
     }
   }
 }
@@ -602,6 +653,122 @@ if (!problems.length) {
   process.exit(0);
 }
 
+/*
+ * ── The field declarations to paste, built from the data itself ────────────
+ *
+ * ⚠ THE TYPE COMES FROM THE VALUE, NOT FROM THE NAME. `openingHours` is an
+ *   array of objects on one site and a string on another, and guessing from
+ *   the key is how a generator produces confident nonsense. Every type below
+ *   is read off the value actually sitting at that path.
+ *
+ * PagesCMS spells a repeated field `list: true` on the field itself rather
+ * than as a distinct type, so an array becomes its element's type plus that
+ * flag. An empty array cannot say what it holds, and is emitted as a string
+ * list with a comment rather than silently picking one.
+ */
+function fieldType(value) {
+  if (Array.isArray(value)) {
+    const sample = value.find((v) => v != null);
+    if (sample === undefined) return { type: 'string', list: true, unknown: true };
+    return { ...fieldType(sample), list: true };
+  }
+  if (value === null) return { type: 'string', unknown: true };
+  if (typeof value === 'number') return { type: 'number' };
+  if (typeof value === 'boolean') return { type: 'boolean' };
+  if (typeof value === 'object') return { type: 'object' };
+  /* A long string is a textarea; a short one is an input. The threshold is the
+     point past which a single-line box stops being usable, not a rule. */
+  return { type: String(value).length > 80 ? 'text' : 'string' };
+}
+
+/** Nest a flat list of dotted paths back into a tree. */
+function tree(paths) {
+  const root = new Map();
+  for (const path of paths) {
+    let node = root;
+    for (const part of path.split('.')) {
+      if (!node.has(part)) node.set(part, new Map());
+      node = node.get(part);
+    }
+  }
+  return root;
+}
+
+function emitFields(node, values, prefix, indent) {
+  const pad = ' '.repeat(indent);
+  const lines = [];
+  for (const [name, children] of node) {
+    const path = prefix ? `${prefix}.${name}` : name;
+    const { type, list, unknown } = fieldType(values.get(path));
+    const note = unknown ? '   # value was null or empty — check this one' : '';
+    if (children.size) {
+      lines.push(`${pad}- name: ${name}`);
+      lines.push(`${pad}  type: object`);
+      if (list) lines.push(`${pad}  list: true`);
+      lines.push(`${pad}  fields:`);
+      lines.push(...emitFields(children, values, path, indent + 4));
+    } else if (list) {
+      lines.push(`${pad}- name: ${name}`);
+      lines.push(`${pad}  type: ${type}`);
+      lines.push(`${pad}  list: true${note}`);
+    } else {
+      lines.push(`${pad}- { name: ${name}, type: ${type} }${note}`);
+    }
+  }
+  return lines;
+}
+
+/**
+ * The fix for one undeclared-keys problem, as lines to print.
+ *
+ * ⚠ A KEY WHOSE PARENT IS ALREADY DECLARED CANNOT BE PASTED AT THE TOP LEVEL.
+ *   `analytics` declared and `analytics.gtmId` missing means the field exists
+ *   and its `fields:` is short — emitting a second `analytics` field would
+ *   give the editor two screens for one object. Those are reported separately,
+ *   naming the field to open.
+ */
+function fixFor(problem) {
+  const { keys, values, declared, label, path } = problem;
+  const roots = [];
+  const nested = new Map();
+
+  for (const key of keys) {
+    const parent = key.slice(0, key.lastIndexOf('.'));
+    if (key.includes('.') && declared.has(parent)) {
+      if (!nested.has(parent)) nested.set(parent, []);
+      nested.get(parent).push(key);
+    } else if (!keys.some((k) => k !== key && key.startsWith(`${k}.`))) {
+      roots.push(key);
+    }
+  }
+
+  const out = [];
+  if (roots.length) {
+    const own = keys.filter((k) => roots.some((r) => k === r || k.startsWith(`${r}.`)));
+    out.push(`      ${DIM}── paste into \`fields:\` for \`${label}\` ${'─'.repeat(30)}${RESET}`);
+    out.push(...emitFields(tree(own), values, '', 6).map((l) => `${DIM}${l}${RESET}`));
+  }
+  for (const [parent, children] of nested) {
+    out.push('');
+    out.push(`      ${DIM}── add under the existing \`${parent}\` field's \`fields:\` ──${RESET}`);
+    const relative_ = children.map((c) => c.slice(parent.length + 1));
+    const scoped = new Map(children.map((c) => [c.slice(parent.length + 1), values.get(c)]));
+    out.push(...emitFields(tree(relative_), scoped, '', 6).map((l) => `${DIM}${l}${RESET}`));
+  }
+
+  const risky = keys.filter((k) => SECRET_SHAPED.test(k));
+  if (risky.length) {
+    out.push('');
+    out.push(
+      `      ${YELLOW}⚠${RESET} ${DIM}${risky.slice(0, 4).join(', ')}${risky.length > 4 ? ', …' : ''} ` +
+        `look like technical configuration.\n` +
+        `        Moving them OUT of ${rel(path)} is usually the better fix — a client\n` +
+        `        cannot diagnose what breaks when one is changed, and it fails silently.${RESET}`,
+    );
+  }
+  return out;
+}
+
 console.error(`\n${RED}✗ ${problems.length} problem(s) in ${CONFIG}${RESET}\n`);
 
 for (const p of problems) {
@@ -614,6 +781,17 @@ for (const p of problems) {
         `      save from this screen DELETES them. Declare every key — including ones\n` +
         `      the client will never touch — or move them out of a CMS-managed file.${RESET}`,
     );
+    if (!SHOW_FIX) {
+      console.error(
+        `      ${DIM}Run \`npm run check:cms -- --fix\` to print the field declarations\n` +
+          `      to paste, with each type read off the value actually stored there.${RESET}`,
+      );
+    }
+    if (SHOW_FIX) {
+      console.error('');
+      for (const line of fixFor(p)) console.error(line);
+      console.error('');
+    }
   }
   if (p.links) {
     for (const l of p.links.slice(0, 8)) {

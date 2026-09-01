@@ -1462,6 +1462,120 @@ gate('accepts the migrated picker path', {
 });
 
 /*
+ * ── `--fix`, the declarations to paste ────────────────────────────────────
+ *
+ * ⚠ THE ONLY CASE THAT PROVES ANYTHING HERE IS THE ROUND TRIP. Asserting that
+ *   the emitter printed some YAML proves it printed some YAML. Applying what
+ *   it printed and requiring the check to then go green is what proves the
+ *   YAML is right — and it is the assertion that would have caught a wrong
+ *   indent, a wrong type, or a `list:` on the wrong level.
+ */
+const CMS_UNDECLARED = {
+  '.pages.yml': [
+    'content:',
+    '  - name: site',
+    '    type: file',
+    '    path: src/data/site.json',
+    '    fields:',
+    '      - name: socials',
+    '        type: object',
+    '        fields:',
+    '          - { name: facebook, type: string }',
+    '',
+  ].join('\n'),
+  'src/data/site.json': JSON.stringify(
+    {
+      socials: { facebook: 'https://f/x', google: 'https://g/x' },
+      businessType: 'Dentist',
+      openingHours: [{ days: ['Mon', 'Tue'], opens: '09:00' }],
+      seats: 12,
+      closed: false,
+    },
+    null,
+    2,
+  ),
+};
+
+/** The `- …` lines the emitter printed, dedented to the sequence indent. */
+const emitted = (out) =>
+  out
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .split('\n')
+    .filter((l) => /^ {6}(-|\s{2,}-|\s{2,}(type|fields|list):)/.test(l))
+    .map((l) => l.slice(6));
+
+gate('--fix prints nothing unless asked', {
+  script: 'check-cms.mjs',
+  files: CMS_UNDECLARED,
+  expect: 1,
+  then: (_dir, out) =>
+    out.includes('paste into') ? 'emitted the fix without --fix, in a gate that runs in every build' : null,
+});
+
+gate('--fix infers each type from the value, not the key', {
+  script: 'check-cms.mjs',
+  args: ['--fix'],
+  files: CMS_UNDECLARED,
+  expect: 1,
+  then: (_dir, out) => {
+    const text = out.replace(/\x1b\[[0-9;]*m/g, '');
+    const want = [
+      '{ name: businessType, type: string }',
+      '{ name: seats, type: number }',
+      '{ name: closed, type: boolean }',
+      'name: openingHours',
+      'list: true',
+    ];
+    const missing = want.filter((w) => !text.includes(w));
+    return missing.length ? `did not emit: ${missing.join(' · ')}` : null;
+  },
+});
+
+/* `socials` is declared and `socials.google` is not. Emitting a second
+   top-level `socials` field would give the editor two screens for one object. */
+gate('--fix puts a key under the parent field that already exists', {
+  script: 'check-cms.mjs',
+  args: ['--fix'],
+  files: CMS_UNDECLARED,
+  expect: 1,
+  then: (_dir, out) => {
+    const text = out.replace(/\x1b\[[0-9;]*m/g, '');
+    if (!text.includes("add under the existing `socials` field")) return 'did not scope socials.google to its parent';
+    return /- name: socials\n\s+type: object/.test(text) ? 're-declared socials at the top level' : null;
+  },
+});
+
+gate('what --fix prints, applied, makes the check pass', {
+  script: 'check-cms.mjs',
+  args: ['--fix'],
+  files: CMS_UNDECLARED,
+  expect: 1,
+  then: (dir, out) => {
+    const lines = emitted(out);
+    if (!lines.length) return 'emitted no field declarations to apply';
+    /* Everything but the nested block goes on the end of `fields:`; the
+       socials child is spliced under the field it names. */
+    const cut = lines.findIndex((l) => l.startsWith('- { name: google'));
+    const top = cut === -1 ? lines : lines.slice(0, cut);
+    const child = cut === -1 ? [] : lines.slice(cut);
+    const config = readFileSync(join(dir, '.pages.yml'), 'utf8').trimEnd().split('\n');
+    const at = config.findIndex((l) => l.includes('{ name: facebook'));
+    config.splice(at + 1, 0, ...child.map((l) => `          ${l}`));
+    const applied = [...config, ...top.map((l) => `      ${l}`)].join('\n') + '\n';
+    writeFileSync(join(dir, '.pages.yml'), applied);
+
+    const again = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, 'check-cms.mjs')], {
+      cwd: dir,
+      encoding: 'utf8',
+    });
+    if (again.status !== 0) {
+      return `applying the emitted fix left the check failing:\n${(again.stdout + again.stderr).replace(/\x1b\[[0-9;]*m/g, '').split('\n').slice(0, 8).join('\n')}`;
+    }
+    return null;
+  },
+});
+
+/*
  * ── Inline page copy ──────────────────────────────────────────────────────
  *
  * The gap that survived every other check here: a page whose content is a

@@ -34,6 +34,20 @@ Nothing here needs the site to be deployed, and nothing needs a browser.
 Start with `check:drift`. It is the only one that answers *"what is this site missing?"*
 rather than *"is this specific thing wrong?"*.
 
+`check:cms` takes **`--fix`**, which prints the field declarations for every undeclared key —
+types read off the value actually stored there, nested to match, and scoped under a parent
+field when that parent is already declared:
+
+```bash
+node ~/coding/website-build-kit/template/scripts/check-cms.mjs --fix
+npm run check:cms -- --fix          # in a site that carries the script
+```
+
+⚠ **It prints and never writes, and that is the point.** The check offers two fixes for an
+undeclared key — declare it, or move it out of a CMS-managed file — and for an analytics ID
+the second is right. A tool that picked one for you would pick wrong on exactly the field
+where being wrong is silent, so it marks those and leaves the choice.
+
 ---
 
 ## 1. Point the current kit at the old site — copy nothing in
@@ -104,7 +118,7 @@ which are judgements it refuses to make for you.
 
 | Finding | What the client experiences | Fix |
 | --- | --- | --- |
-| keys the schema does not declare | opens a screen, saves, and unrelated content is gone from the repo | declare every key, or move it out of the CMS-managed file |
+| keys the schema does not declare | opens a screen, saves, and unrelated content is gone from the repo | `--fix` prints the declarations to paste; or move the key out of the CMS-managed file |
 | uploads into `public/img/`, which is generated output | uploads a photo; it appears once, then the build goes red | point `input` at `media/source/…` and `output` at the served path |
 | `type: image` values not under the media `output` | the picker shows nothing and the stored value looks fine in the JSON | migrate the values to picker paths, in the file, not in the config |
 | `options.path` at a folder that does not exist | the media browser opens on an empty folder | fix the path, or drop `options.path` |

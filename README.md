@@ -191,7 +191,10 @@ does ship is the skeleton of the parts that take longest to get right:
   Audited across five shipped sites, **all five failed**: one was dropping every analytics ID and
   the opening hours the moment the client saved Site Settings, another lost its homepage images in
   three languages, and two pointed uploads at `public/img` — the media pipeline's *output*. A
-  no-op when there is no `.pages.yml`. It also **warns** — never fails — about content in the repo
+  no-op when there is no `.pages.yml`. **`npm run check:cms -- --fix` prints the field
+  declarations to paste**, with every type read off the value actually stored at that path rather
+  than guessed from the key — and it flags the keys where *moving them out of the CMS* is the
+  better answer, because for an analytics ID it is. It prints; it never writes. It also **warns** — never fails — about content in the repo
   that no CMS entry points at (*"whole sections are missing"* is how a client reports that; one
   audited site had an entire services collection it could not edit) and about fields that look
   like technical configuration rather than content
