@@ -136,6 +136,74 @@ function schemaPaths(fields, prefix = '') {
   return out;
 }
 
+/*
+ * ⚠ A FLAT SET OF DECLARED PATHS IS WRONG FOR `type: block`, AND WRONG IN THE
+ *   DIRECTION THAT LOSES DATA.
+ *
+ *   Comparing `dataPaths(data)` against `schemaPaths(fields)` unions every
+ *   variant of a block: `sections[].items[].path` reads as declared as long
+ *   as ANY section type declares `path`, so a variant missing it is invisible
+ *   behind a sibling that has it.
+ *
+ *   That is the 2026-08-25 incident — PagesCMS deleted card links from a live
+ *   `uz/services.json` while this check reported clean, because a different
+ *   section type happened to declare the same field name.
+ *
+ *   So the data is walked ALONGSIDE the schema instead, and each block item
+ *   is matched to its OWN variant through the discriminator. A field name
+ *   declared by a sibling variant no longer covers for it.
+ */
+function undeclaredPaths(data, fields, prefix = '', out = new Set()) {
+  if (data === null || data === undefined) return out;
+  /* A list's items share their parent's prefix — `items[0].x` and
+     `items[1].x` are the same declared path. */
+  if (Array.isArray(data)) {
+    for (const item of data) undeclaredPaths(item, fields, prefix, out);
+    return out;
+  }
+  if (typeof data !== 'object') return out;
+  if (!fields) return out;
+
+  const byName = new Map(fields.filter((f) => f?.name).map((f) => [f.name, f]));
+
+  for (const [key, value] of Object.entries(data)) {
+    const here = prefix ? `${prefix}.${key}` : key;
+    const field = byName.get(key);
+    if (!field) {
+      out.add(here);
+      continue;
+    }
+
+    if (field.type === 'block') {
+      const discriminator = field.blockKey ?? '_block';
+      for (const item of Array.isArray(value) ? value : [value]) {
+        if (!item || typeof item !== 'object') continue;
+        const variant = (field.blocks ?? []).find((b) => b?.name === item[discriminator]);
+        if (!variant) {
+          /* An item whose type matches no declared variant has NO schema at
+             all, so every key in it would be dropped. */
+          out.add(`${here}[] (no block type "${item[discriminator]}")`);
+          continue;
+        }
+        const variantFields = fieldsOf(variant) ?? [];
+        for (const [k, v] of Object.entries(item)) {
+          if (k === discriminator) continue;
+          const vf = variantFields.find((x) => x?.name === k);
+          if (!vf) {
+            out.add(`${here}[type=${item[discriminator]}].${k}`);
+            continue;
+          }
+          undeclaredPaths(v, fieldsOf(vf), `${here}[type=${item[discriminator]}].${k}`, out);
+        }
+      }
+      continue;
+    }
+
+    undeclaredPaths(value, fieldsOf(field), here, out);
+  }
+  return out;
+}
+
 /** Every dotted path the DATA contains. An array's items sit at its own prefix. */
 function dataPaths(value, prefix = '') {
   const out = new Set();
@@ -169,20 +237,59 @@ function pathValues(value, prefix = '', out = new Map()) {
 }
 
 /** Frontmatter keys actually used across a collection, as dotted paths. */
-function collectionPaths(dir, values = new Map()) {
+function collectionPaths(dir, values = new Map(), fields = null, exclude = []) {
   const out = new Set();
+  /*
+   * ⚠ `exclude` MUST BE HONOURED, or a file that legitimately sits inside a
+   *   collection's directory is checked against the wrong schema.
+   *
+   *   The real case: a home page living at `pages/ru/home.json` with its own
+   *   `type: file` entry and its own fields, while `pages/ru` is a collection
+   *   of interior pages. Reading it as a collection item reports every home
+   *   page key as undeclared — six confident, wrong data-loss problems on a
+   *   config that already handled this correctly by declaring
+   *   `exclude: [home.json]`.
+   *
+   *   A check that cries wolf gets switched off, so this is not cosmetic.
+   */
+  const excluded = new Set((exclude ?? []).map((e) => String(e)));
   const walk = (d) =>
     readdirSync(d).flatMap((e) => {
       const full = join(d, e);
       return statSync(full).isDirectory() ? walk(full) : [full];
     });
-  for (const file of walk(dir).filter((f) => /\.mdx?$/.test(f))) {
+  /*
+   * ⚠ `.json` IS NOT OPTIONAL HERE, AND OMITTING IT SKIPS WHOLE COLLECTIONS
+   *   IN SILENCE.
+   *
+   *   This read only `.md`/`.mdx` and took the absence of frontmatter as
+   *   "nothing to check". A collection whose items are JSON therefore passed
+   *   without a single file being opened — no warning, no count, just a tick.
+   *
+   *   Measured on a live site: 60 JSON items across six collections, none of
+   *   them ever read, while the check reported clean. Astro content
+   *   collections take JSON as readily as Markdown, so this is a normal shape
+   *   and not an exotic one.
+   */
+  const withinCollection = (f) => relative(dir, f).split(sep).join('/');
+  for (const file of walk(dir).filter(
+    (f) => /\.(mdx?|json)$/.test(f) && !excluded.has(withinCollection(f)),
+  )) {
     const raw = readFileSync(file, 'utf8');
-    const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+    let match = null;
+    if (/\.json$/.test(file)) {
+      match = ['', raw];
+    } else {
+      match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(raw);
+    }
     if (!match) continue;
     try {
-      const data = parse(match[1]) ?? {};
-      for (const p of dataPaths(data)) out.add(p);
+      const data = (/\.json$/.test(file) ? JSON.parse(match[1]) : parse(match[1])) ?? {};
+      /* With `fields`, report only what the schema cannot round-trip — walked
+         per file so a block variant is matched to itself. Without it, fall
+         back to every path, which is what the callers that only want values
+         expect. */
+      for (const p of fields ? undeclaredPaths(data, fields) : dataPaths(data)) out.add(p);
       pathValues(data, '', values);
     } catch {
       /* A collection item with unparseable frontmatter is the content
@@ -218,8 +325,7 @@ for (const entry of entries) {
 
   if (entry.type === 'collection') {
     const values = new Map();
-    const used = collectionPaths(path, values);
-    const undeclared = [...used].filter((p) => !declared.has(p));
+    const undeclared = [...collectionPaths(path, values, entry.fields, entry.exclude)];
     if (undeclared.length) {
       problems.push({
         label,
@@ -241,7 +347,7 @@ for (const entry of entries) {
       problems.push({ label, why: `${path} is not valid JSON — ${err.message}` });
       continue;
     }
-    const undeclared = [...dataPaths(data)].filter((p) => !declared.has(p));
+    const undeclared = [...undeclaredPaths(data, entry.fields)];
     if (undeclared.length) {
       problems.push({
         label,
@@ -328,11 +434,20 @@ function imageFields(fields, prefix = '') {
   for (const field of fields ?? []) {
     if (!field?.name) continue;
     const path = prefix ? `${prefix}.${field.name}` : field.name;
-    if (field.type === 'image') {
+    /* ⚠ RESOLVE THE COMPONENT FIRST. A picture field is very often a shared
+       `component: image_field`, and reading only `field.type` misses every
+       one of them — so the check that catches an unpickable path went quiet
+       on exactly the fields most likely to have one. Observed live: a home
+       page whose picture showed an empty square in the CMS and whose "View on
+       GitHub" link 404'd, while this check reported the page clean. */
+    const effectiveType =
+      field.type ?? (config.components ?? {})[field.component]?.type;
+    if (effectiveType === 'image') {
       out.push({ path, media: field.options?.media });
       if (field.options?.path) scopedPaths.set(path, String(field.options.path).replace(/^\.?\//, ''));
     }
-    if (Array.isArray(field.fields)) out.push(...imageFields(field.fields, path));
+    const sub = fieldsOf(field);
+    if (sub) out.push(...imageFields(sub, path));
   }
   return out;
 }
