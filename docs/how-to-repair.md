@@ -152,6 +152,19 @@ diff -rq ../before dist
 that build never finishes and you get no baseline. Most of this work is byte-identical output;
 if a page changed and you did not intend it to, stop and find out why.
 
+⚠ **Three files will differ on every build, whatever you changed.** Establish that before you
+read the diff, or the step trains you to ignore it:
+
+| | Why |
+| --- | --- |
+| `sitemap-0.xml`, `sitemap-index.xml` | `lastmod` is the build time on every URL |
+| `server/entry.mjs` | maps pages to virtual chunk hashes that are not stable between builds |
+
+Measured by building the **same source twice**: exactly those three differ, and nothing else.
+So the useful assertion is *"only these three"* — 103 of 106 files identical is a pass, and a
+fourth file is the thing to stop and explain.
+
+
 Deploy, then **open the CMS and click through every group.** On the site these findings came
 from, every image picker was broken while the build was green, the types checked, and the HTML
 was byte-for-byte identical to the previous deploy. Then `npm run handover` — the client's

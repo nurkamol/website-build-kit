@@ -204,6 +204,18 @@ gates, and the whole point of the "before" tree is that it still *fails* them �
 never finishes and you get no baseline. Plain `astro build` produces the pages without the
 gates. Use the same command on both sides and the diff is valid.
 
+⚠ **Three files will differ on every build, whatever you changed.** Establish that before you
+read the diff, or the step trains you to ignore it:
+
+| | Why |
+| --- | --- |
+| `sitemap-0.xml`, `sitemap-index.xml` | `lastmod` is the build time on every URL |
+| `server/entry.mjs` | maps pages to virtual chunk hashes that are not stable between builds |
+
+Measured by building the **same source twice**: exactly those three differ, and nothing else.
+So the useful assertion is *"only these three"* — 103 of 106 files identical is a pass, and a
+fourth file is the thing to stop and explain.
+
 ⚠ **If a page changed and you did not intend it to, stop and find out why.** This is the
 only step that catches a migration that rewrote a value slightly wrong — the CMS will accept
 it, the build will pass, and the page will be different.
