@@ -2345,6 +2345,39 @@ gate('refuses a blank image slot the CMS wrote', {
   contains: 'PARTIALLY',
 });
 
+/*
+ * ⚠ ONCE PER FIELD, NOT ONCE PER IMAGE FIELD IN THE ENTRY.
+ *
+ *   The fixture above declares ONE image field, so a blank-slot check nested
+ *   inside the per-image-field loop reports it once and looks correct. It
+ *   shipped that way. On a delivered site with four image fields in an entry,
+ *   the same finding printed FOUR identical lines — and this file already
+ *   carries the rule that a gate which floods is a gate somebody switches off.
+ *
+ *   Two image fields is all it takes to see it. That is the whole case.
+ */
+gate('reports a blank slot once, not once per image field in the entry', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_BLANK,
+    '.pages.yml': CMS_BLANK['.pages.yml'].replace(
+      '      - { name: picture, component: image_field }',
+      '      - { name: picture, component: image_field }\n' +
+        '      - { name: banner, component: image_field }',
+    ),
+    'src/data/site.json': JSON.stringify({
+      title: 'x',
+      picture: { isRender: false },
+      banner: { src: '/img/uploads/b.jpg', isRender: false },
+    }),
+  },
+  expect: 1,
+  then: (_dir, out) => {
+    const hits = (out.replace(/\x1b\[[0-9;]*m/g, '').match(/PARTIALLY/g) ?? []).length;
+    return hits === 1 ? null : `reported the one blank slot ${hits} times`;
+  },
+});
+
 /* Both halves that must NOT be reported, or the check above would be noise:
    a picture properly filled in, and one genuinely absent. */
 gate('accepts a picture that is filled in', {

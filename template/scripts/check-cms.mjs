@@ -519,7 +519,40 @@ for (const entry of entries) {
         });
       }
     }
-    /*
+
+  const output = typeof source === 'object' ? source?.output : null;
+    if (!output) continue; // nothing declared to measure against
+    /* `output: /` makes "starts with the output" true of every absolute path, so
+       it only distinguishes a path from a non-path. Still worth reporting — a
+       `type: image` field holding a bare word is a picker showing nothing — but
+       do not pretend the test was stronger than it was. */
+
+    /* ⚠ ONE PROBLEM PER FIELD, NOT PER VALUE. A collection of thirty items with
+       one bad field produced thirty identical lines on a real project — 78 in
+       total for three fields. A gate that floods is a gate that gets switched
+       off, and the fix is always the same edit for the whole field. */
+    const wrong = [];
+    for (const doc of documents) {
+      for (const value of valuesAt(doc.data, fieldPath.split('.'))) {
+        if (typeof value !== 'string' || !value) continue;
+        if (value.startsWith(output)) continue;
+        wrong.push({ value, where: doc.where });
+      }
+    }
+    if (wrong.length) {
+      const samples = [...new Set(wrong.map((w) => w.value))].slice(0, 3);
+      problems.push({
+        label: `${entry.name ?? entry.label} → ${fieldPath}`,
+        why:
+          `is \`type: image\` but ${wrong.length} value(s) are not a path under ${JSON.stringify(output)}` +
+          ` — e.g. ${samples.map((v) => JSON.stringify(v)).join(', ')}`,
+        picker: true,
+        path: wrong[0].where,
+      });
+    }
+  }
+
+  /*
    * ⚠ A BLANK IMAGE SLOT THE CMS WROTE, WHICH BREAKS THE BUILD ON SAVE.
    *
    *   PagesCMS writes an object for every declared object field whether or not
@@ -563,38 +596,6 @@ for (const entry of entries) {
           `is an image slot the CMS filled in PARTIALLY — the object exists but has no \`${key}\`, ` +
           `so it is a present object that fails validation rather than a missing optional. ` +
           `${blanks.length} file(s), e.g. ${blanks[0]}`,
-      });
-    }
-  }
-
-  const output = typeof source === 'object' ? source?.output : null;
-    if (!output) continue; // nothing declared to measure against
-    /* `output: /` makes "starts with the output" true of every absolute path, so
-       it only distinguishes a path from a non-path. Still worth reporting — a
-       `type: image` field holding a bare word is a picker showing nothing — but
-       do not pretend the test was stronger than it was. */
-
-    /* ⚠ ONE PROBLEM PER FIELD, NOT PER VALUE. A collection of thirty items with
-       one bad field produced thirty identical lines on a real project — 78 in
-       total for three fields. A gate that floods is a gate that gets switched
-       off, and the fix is always the same edit for the whole field. */
-    const wrong = [];
-    for (const doc of documents) {
-      for (const value of valuesAt(doc.data, fieldPath.split('.'))) {
-        if (typeof value !== 'string' || !value) continue;
-        if (value.startsWith(output)) continue;
-        wrong.push({ value, where: doc.where });
-      }
-    }
-    if (wrong.length) {
-      const samples = [...new Set(wrong.map((w) => w.value))].slice(0, 3);
-      problems.push({
-        label: `${entry.name ?? entry.label} → ${fieldPath}`,
-        why:
-          `is \`type: image\` but ${wrong.length} value(s) are not a path under ${JSON.stringify(output)}` +
-          ` — e.g. ${samples.map((v) => JSON.stringify(v)).join(', ')}`,
-        picker: true,
-        path: wrong[0].where,
       });
     }
   }
