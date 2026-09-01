@@ -220,14 +220,44 @@ if (!existsSync(CONFIG)) {
     const flatten = (list) =>
       (list ?? []).flatMap((e) => (e?.type === 'group' ? flatten(e.items ?? e.content ?? []) : [e]));
     const textBoxes = [];
+    /*
+     * ⚠ RESOLVE `component:` FIRST, AND DO NOT MISTAKE A WRAPPER FOR A TEXT
+     *   BOX. This got both halves wrong on a live trilingual site and
+     *   reported 18 pickers as text boxes.
+     *
+     *   A picture is very often an OBJECT — `{ src, alt, isRender }` — reached
+     *   through a shared `component: image_field`. Reading `f.type` on the
+     *   wrapper finds `undefined`, so a field correctly named `image` was
+     *   reported as an unset text box; and never descending into the
+     *   component meant the `type: image` picker actually inside it was never
+     *   seen at all.
+     *
+     *   So: a field is a text box only if it is neither a picker itself nor a
+     *   wrapper holding one.
+     */
+    const componentOf = (f, seen = new Set()) => {
+      if (!f) return null;
+      if (!f.component) return f;
+      if (seen.has(f.component)) return null;
+      seen.add(f.component);
+      const base = (config.components ?? {})[f.component];
+      return base ? componentOf({ ...base, ...f, component: undefined }, seen) : null;
+    };
     const walkFields = (fields, entry, prefix = '') => {
       for (const f of fields ?? []) {
         if (!f?.name) continue;
         const path = prefix ? `${prefix}.${f.name}` : f.name;
-        if (/^(image|photo|poster|picture|cover|thumbnail)$/i.test(f.name) && f.type !== 'image') {
-          textBoxes.push(`${entry}.${path} (type: ${f.type ?? 'unset'})`);
+        const resolved = componentOf(f) ?? f;
+        const sub = Array.isArray(resolved.fields) ? resolved.fields : null;
+        const wrapsAPicker = (sub ?? []).some((c) => (componentOf(c) ?? c)?.type === 'image');
+        if (
+          /^(image|photo|poster|picture|cover|thumbnail)$/i.test(f.name) &&
+          resolved.type !== 'image' &&
+          !wrapsAPicker
+        ) {
+          textBoxes.push(`${entry}.${path} (type: ${resolved.type ?? 'unset'})`);
         }
-        if (Array.isArray(f.fields)) walkFields(f.fields, entry, path);
+        if (sub) walkFields(sub, entry, path);
       }
     };
     for (const entry of flatten(config.content)) walkFields(entry?.fields, entry?.name ?? '?');

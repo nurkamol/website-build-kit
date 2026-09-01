@@ -2300,6 +2300,66 @@ gate('finds an image the client cannot change', {
  *   pattern where "somewhere else" is a static import in the same file. A
  *   delivered site had EIGHT of these while this check reported zero.
  */
+/*
+ * ⚠ A PICTURE IS OFTEN AN OBJECT REACHED THROUGH A COMPONENT, and reading
+ *   `f.type` on the wrapper finds `undefined`. That reported 18 working
+ *   pickers as unset text boxes on a live site, while never descending far
+ *   enough to see the `type: image` field actually inside them.
+ */
+gate('a picker reached through a component is not a text box', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'scripts/check-cms.mjs': '',
+    'docs/handover.md': '# Guide\n\nsite\n',
+    '.pages.yml': [
+      'components:',
+      '  image_field:',
+      '    type: object',
+      '    fields:',
+      '      - { name: src, type: image }',
+      '      - { name: alt, type: string }',
+      'content:',
+      '  - name: site',
+      '    type: file',
+      '    path: src/data/site.json',
+      '    fields:',
+      '      - { name: image, component: image_field }',
+      '',
+    ].join('\n'),
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'image fields use the picker',
+});
+
+/* The other side: a picture that really IS a bare string must still be
+   reported, or the fix above would have bought silence. */
+gate('still reports a picture stored as a plain string', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': '',
+    'scripts/check-cms.mjs': '',
+    'docs/handover.md': '# Guide\n\nsite\n',
+    '.pages.yml': [
+      'content:',
+      '  - name: site',
+      '    type: file',
+      '    path: src/data/site.json',
+      '    fields:',
+      '      - { name: image, type: string }',
+      '',
+    ].join('\n'),
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'are text boxes',
+});
+
 gate('finds an image imported statically into a page', {
   script: 'check-drift.mjs',
   files: {
