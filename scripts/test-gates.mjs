@@ -1333,6 +1333,58 @@ gate('a config declaring every key passes', {
   contains: 'every key declared',
 });
 
+/*
+ * The locale-migration shape. Measured on ngbif 2026-09-02: six collections
+ * moved into `en/` and `uz/` and `.pages.yml` was never updated. The path
+ * still EXISTS and the item walk recurses, so every key checked out and the
+ * gate reported clean — it caught only the two singletons whose paths had
+ * genuinely vanished, two of six real findings.
+ *
+ * A warning rather than a failure on purpose: whether Pages CMS lists a
+ * collection's subfolders is not something the script has verified, and the
+ * config having a different shape from the content is the part that is
+ * certainly true.
+ */
+gate('warns when a collection’s items all sit one level down', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    '.pages.yml': CMS_CLEAN['.pages.yml'].replace(
+      'content:\n',
+      'content:\n  - name: posts\n    type: collection\n    path: src/content/posts\n' +
+        '    fields:\n      - { name: title, type: string }\n',
+    ),
+    'src/content/posts/en/hello.json': JSON.stringify({ title: 'Hello' }),
+    'src/content/posts/uz/salom.json': JSON.stringify({ title: 'Salom' }),
+  },
+  expect: 0,
+  contains: 'underneath hold some',
+});
+
+/* …and does NOT fire when the entry points at the subdirectory itself, which
+   is the fix. Without this the gate above could pass by warning on
+   everything. */
+gate('no subdirectory warning once the config points at the right level', {
+  script: 'check-cms.mjs',
+  files: {
+    ...CMS_CLEAN,
+    '.pages.yml': CMS_CLEAN['.pages.yml'].replace(
+      'content:\n',
+      'content:\n  - name: posts-en\n    type: collection\n    path: src/content/posts/en\n' +
+        '    fields:\n      - { name: title, type: string }\n',
+    ),
+    'src/content/posts/en/hello.json': JSON.stringify({ title: 'Hello' }),
+  },
+  expect: 0,
+  /* ⚠️ `then`, not a `lacks:` key — the runner has no such option and would
+     have ignored it silently, leaving this gate passing on nothing. A gate
+     that cannot fail is worse than no gate. */
+  then: (_dir, out) =>
+    out.includes('underneath hold some')
+      ? 'warned about subdirectories even though the entry points straight at one'
+      : null,
+});
+
 /* The 27-keys-at-risk case, reduced. `analytics.ga4` is declared and
    `analytics.gtm` is not — so the nested check has to fire even though the
    PARENT is declared. Comparing only top-level names misses this, and that is

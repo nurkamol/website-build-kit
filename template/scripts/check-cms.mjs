@@ -299,6 +299,10 @@ function collectionPaths(dir, values = new Map(), fields = null, exclude = []) {
   return out;
 }
 
+/** The extensions a content collection item can have — the same set the
+    collection walker filters on, kept here so the two cannot disagree. */
+const CONTENT_EXT = /\.(mdx?|json)$/;
+
 const rel = (p) => relative(process.cwd(), p).split(sep).join('/');
 
 /* ── content entries ─────────────────────────────────────────────────────── */
@@ -319,6 +323,53 @@ for (const entry of entries) {
   if (!existsSync(path)) {
     problems.push({ label, why: `path does not exist: ${path}` });
     continue;
+  }
+
+  /*
+   * ⚠ A COLLECTION WHOSE ITEMS ALL SIT ONE LEVEL DOWN.
+   *
+   *   `existsSync` is satisfied by the directory and the walk below recurses,
+   *   so a config left pointing at the PARENT of its content reports clean —
+   *   every file gets read and every key checked, but against an entry the
+   *   editor may not be seeing at all.
+   *
+   *   Measured on ngbif 2026-09-02: a locale migration moved six collections
+   *   into `en/` and `uz/` and nobody updated `.pages.yml`. This check caught
+   *   the two singletons, whose paths had genuinely vanished, and MISSED all
+   *   four collections — two of six real findings.
+   *
+   *   ⚠ A WARNING, NOT A PROBLEM, AND DELIBERATELY SO. Whether Pages CMS
+   *   lists a collection's subfolders is not something this script has
+   *   verified, and a guard that asserts unmeasured behaviour is how a check
+   *   earns a reputation for crying wolf. What IS certain is that the config
+   *   no longer has the shape the content does, and that a person should look
+   *   at it. Sites that legitimately nest will see this once and can add
+   *   `exclude` or split the entry.
+   */
+  if (entry.type === 'collection') {
+    const direct = readdirSync(path, { withFileTypes: true }).some(
+      (e) => e.isFile() && CONTENT_EXT.test(e.name),
+    );
+    if (!direct) {
+      const holders = readdirSync(path, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .filter((e) => {
+          try {
+            return readdirSync(join(path, e.name)).some((f) => CONTENT_EXT.test(f));
+          } catch {
+            return false;
+          }
+        })
+        .map((e) => `${e.name}/`);
+      if (holders.length) {
+        warnings.push(
+          `${label}: no content directly in ${path}, but ${holders.join(', ')} ` +
+            `underneath ${holders.length === 1 ? 'holds' : 'hold'} some — ` +
+            'usually a locale or structure move the config was not updated for. ' +
+            'Verify what the CMS actually lists; the fix is one entry per subdirectory.',
+        );
+      }
+    }
   }
 
   const declared = schemaPaths(entry.fields);
