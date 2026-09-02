@@ -1375,6 +1375,23 @@ gate('refuses a collection frontmatter key the schema forgot', {
   contains: 'lang',
 });
 
+/** A source pointed at `input`, and a field that can store what it returns. */
+const IMAGE_FIELD_CONFIG = (input) =>
+  [
+    'media:',
+    '  - name: photos',
+    `    input: ${input}`,
+    '    output: /img',
+    '    extensions: [webp]',
+    'content:',
+    '  - name: site',
+    '    type: file',
+    '    path: src/data/site.json',
+    '    fields:',
+    '      - { name: picture, type: image }',
+    '',
+  ].join('\n');
+
 /*
  * ⚠ The media DIRECTION bug, which hit two of five shipped sites — but ONLY
  *   where nothing maps a picked path back to a manifest key.
@@ -1390,8 +1407,14 @@ gate('refuses a collection frontmatter key the schema forgot', {
 gate('refuses uploads pointed at generated output', {
   script: 'check-cms.mjs',
   files: {
-    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [jpg]', 'content: []', ''].join('\n'),
+    /* ⚠ THE FIXTURE NEEDS A `type: image` FIELD. With `content: []` the trap
+       cannot bite — nothing stores what the picker returns — so a fixture
+       without one passes whatever the check does, and this case would have
+       gone vacuous the moment the rule gained its third condition. It did:
+       the gate failed and that is how this was caught. */
+    '.pages.yml': IMAGE_FIELD_CONFIG('public/img'),
     'public/img/.keep': '',
+    'src/data/site.json': '{"picture":"/img/a-1200.webp"}',
   },
   expect: 1,
   contains: 'GENERATED output',
@@ -1400,8 +1423,9 @@ gate('refuses uploads pointed at generated output', {
 gate('accepts the same source once a picked path can be resolved', {
   script: 'check-cms.mjs',
   files: {
-    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [webp]', 'content: []', ''].join('\n'),
+    '.pages.yml': IMAGE_FIELD_CONFIG('public/img'),
     'public/img/.keep': '',
+    'src/data/site.json': '{"picture":"/img/a-1200.webp"}',
     'src/lib/image-key.ts': 'export const toImageKey = (s: string) => s;\n',
   },
   expect: 0,
@@ -1411,11 +1435,47 @@ gate('accepts the same source once a picked path can be resolved', {
 
 /* The mapping found by USE, not only by filename — a project may name the file
    something else, and the identifier is what proves the capability. */
+/*
+ * The third condition, from a site that declares two sources deliberately —
+ * "Image library (published)" at public/img so an editor can see what is live,
+ * and "Originals" at media/source where uploads belong — and has NO
+ * `type: image` field at all: seven fields are a `select` of manifest keys, so
+ * a picked path can never become a value. Nothing to resolve, nothing to break.
+ */
+gate('a source at the output is fine when no field stores a picked path', {
+  script: 'check-cms.mjs',
+  files: {
+    '.pages.yml': [
+      'media:',
+      '  - name: library',
+      '    input: public/img',
+      '    output: /img',
+      'components:',
+      '  photoKey:',
+      '    type: select',
+      '    options: { values: [photos/a, photos/b] }',
+      'content:',
+      '  - name: site',
+      '    type: file',
+      '    path: src/data/site.json',
+      '    fields:',
+      '      - { name: picture, component: photoKey }',
+      '',
+    ].join('\n'),
+    'public/img/.keep': '',
+    'src/data/site.json': '{"picture":"photos/a"}',
+  },
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('GENERATED output') ? 'reported a browser no field can store a path from' : null,
+});
+
 gate('finds the mapping by its use, not only by that filename', {
   script: 'check-cms.mjs',
   files: {
-    '.pages.yml': ['media:', '  - name: photos', '    input: public/img', '    extensions: [webp]', 'content: []', ''].join('\n'),
+    '.pages.yml': IMAGE_FIELD_CONFIG('public/img'),
     'public/img/.keep': '',
+    'src/data/site.json': '{"picture":"/img/a-1200.webp"}',
     'src/components/Img.astro': '---\nimport { toImageKey } from "../lib/keys";\n---\n<img />\n',
   },
   expect: 0,

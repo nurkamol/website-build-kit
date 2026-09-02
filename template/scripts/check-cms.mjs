@@ -397,6 +397,32 @@ const GENERATED = ['public/img', 'dist', '.astro'];
  * JPEG that never gets processed — is covered by the `extensions` warning
  * below, which is the lever that actually refuses it at the door.
  */
+/*
+ * ⚠ AND THE DIRECTION CANNOT BITE AT ALL IF NOTHING STORES A PICKED PATH.
+ *
+ *   A third delivered site declares TWO media sources on purpose — "Image
+ *   library (published)" pointed at public/img so an editor can see what is
+ *   live, and "Originals (need `npm run media`)" pointed at media/source where
+ *   uploads belong. It has no `type: image` field at all: seven fields use a
+ *   `select` of manifest keys instead, so a picked path can never become a
+ *   field value.
+ *
+ *   The trap needs all three - a source pointed at generated output, a field
+ *   that can store what the picker returns, and nothing able to resolve it.
+ *   Miss any one and this reports a design somebody thought harder about than
+ *   the check did.
+ */
+const declaresImageFields = (() => {
+  const walk = (fields) =>
+    (fields ?? []).some((f) => {
+      if (!f?.name) return false;
+      const effective = f.type ?? (config.components ?? {})[f.component]?.type;
+      if (effective === 'image') return true;
+      return walk(f.fields ?? (config.components ?? {})[f.component]?.fields);
+    });
+  return entries.some((e) => walk(e?.fields));
+})();
+
 const resolvesPickerPaths = (() => {
   if (existsSync(join('src', 'lib', 'image-key.ts'))) return true;
   try {
@@ -424,10 +450,12 @@ for (const source of media) {
   if (typeof source === 'object' && source.name) mediaByName.set(source.name, source);
   const normalised = input.replace(/^\.?\//, '').replace(/\/$/, '');
   if (GENERATED.some((g) => normalised === g || normalised.startsWith(`${g}/`))) {
-    if (!resolvesPickerPaths) {
+    if (declaresImageFields && !resolvesPickerPaths) {
       problems.push({
         label: `media ${name}`,
-        why: `uploads into ${input}, which is GENERATED output, and nothing here maps a picked path back to a manifest key`,
+        why:
+          `uploads into ${input}, which is GENERATED output. A \`type: image\` field stores ` +
+          `what the picker returns and nothing here maps that path back to a manifest key`,
         direction: true,
       });
       continue;
