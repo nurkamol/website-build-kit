@@ -692,6 +692,96 @@ for (const entry of entries) {
   }
 }
 
+/* ── a select of manifest keys, against the manifest ─────────────────────── */
+
+/*
+ * ⚠ A HAND-MAINTAINED LIST OF IMAGE KEYS DRIFTS, AND BOTH DIRECTIONS HURT.
+ *
+ *   Where a project has no way to map a picked path back to a manifest key,
+ *   the workable alternative is a `select` of the keys themselves. A delivered
+ *   site does exactly that: 110 photograph keys and 9 blog keys written out in
+ *   `.pages.yml`. Its own comment states the hazard:
+ *
+ *     "a key missing here simply cannot be chosen, and a key here that the
+ *      manifest lost will fail the build the moment it is selected"
+ *
+ *   That is a promise a person has to keep every time `npm run media` runs. It
+ *   was being kept - 110 and 9, nothing dead, nothing unlisted - and nothing
+ *   was enforcing it.
+ *
+ * A key OFFERED that the manifest lacks is a problem: choosing it is an
+ * ordinary editorial action that turns the build red. A key the manifest HAS
+ * that the list omits is a warning, because which images belong in a given
+ * field is a judgement - a blog header list is right to exclude the team
+ * photographs.
+ *
+ * ⚠ ONLY LISTS THAT ARE ALREADY KEY LISTS. A select of "texas, nevada,
+ *   arizona" is not a broken image list, and saying so would be noise on every
+ *   project. A list qualifies only when one of its values is a real manifest
+ *   key, and the unlisted half is scoped to prefixes the list already uses, so
+ *   a blog list is measured against `blog/` and never against every photograph
+ *   on the site.
+ */
+{
+  const manifestFile = ['src/data/image-manifest.json', 'src/data/media-manifest.json'].find(existsSync);
+  let keys = null;
+  if (manifestFile) {
+    try {
+      keys = new Set(Object.keys(JSON.parse(readFileSync(manifestFile, 'utf8'))));
+    } catch {
+      /* A malformed manifest is the media pipeline's problem, not this one. */
+    }
+  }
+
+  if (keys?.size) {
+    /* PagesCMS accepts a bare string or `{ name, label }`. */
+    const valueOf = (v) => (typeof v === 'string' ? v : (v?.name ?? v?.value));
+
+    const selects = [];
+    for (const [name, def] of Object.entries(config.components ?? {})) {
+      if (def?.type === 'select') selects.push([`component ${name}`, def]);
+    }
+    const collect = (fields, where) => {
+      for (const f of fields ?? []) {
+        if (!f?.name) continue;
+        if (f.type === 'select') selects.push([`${where} → ${f.name}`, f]);
+        collect(f.fields, where);
+      }
+    };
+    for (const entry of entries) collect(entry?.fields, entry?.name ?? entry?.label ?? '?');
+
+    for (const [label, def] of selects) {
+      const values = (def.options?.values ?? []).map(valueOf).filter((v) => typeof v === 'string');
+      if (!values.some((v) => keys.has(v))) continue; // not a key list
+
+      const dead = values.filter((v) => !keys.has(v));
+      if (dead.length) {
+        problems.push({
+          label,
+          why:
+            `offers ${dead.length} image key(s) the manifest does not have - choosing one fails ` +
+            `the build: ${dead.slice(0, 4).map((d) => JSON.stringify(d)).join(', ')}` +
+            (dead.length > 4 ? `, and ${dead.length - 4} more` : ''),
+        });
+      }
+
+      const prefixes = new Set(values.map((v) => v.slice(0, v.lastIndexOf('/') + 1)).filter(Boolean));
+      const unlisted = [...keys].filter(
+        (k) => !values.includes(k) && [...prefixes].some((pre) => k.startsWith(pre)),
+      );
+      if (unlisted.length) {
+        warnings.push(
+          `"${label}" omits ${unlisted.length} image(s) the manifest has, so the editor cannot ` +
+            `choose them: ${unlisted.slice(0, 5).join(', ')}${unlisted.length > 5 ? ', …' : ''}\n` +
+            `      A hand-written list goes stale the next time \`npm run media\` adds an image. ` +
+            `Either add them, or write down why the list is curated.`,
+        );
+      }
+    }
+  }
+}
+
+
 /* ── internal links a client can type ────────────────────────────────────── */
 
 /*

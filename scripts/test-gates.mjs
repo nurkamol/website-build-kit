@@ -1936,6 +1936,72 @@ gate('does not merge a one-line array into the block that follows it', {
     out.includes('crumbs[') ? 'attributed the following block to `crumbs`' : null,
 });
 
+/*
+ * ── A select of manifest keys, against the manifest ───────────────────────
+ *
+ * A delivered site with no picked-path mapping uses a `select` of manifest
+ * keys instead: 110 photographs and 9 blog headers, written out by hand. Its
+ * own config states the hazard — "a key missing here simply cannot be chosen,
+ * and a key here that the manifest lost will fail the build the moment it is
+ * selected" — and nothing was enforcing it. It happened to be in sync.
+ */
+const CMS_KEYLIST = (values, extraKeys = {}) => ({
+  'src/data/image-manifest.json': JSON.stringify({
+    'photos/one': { widths: [480] },
+    'photos/two': { widths: [480] },
+    ...extraKeys,
+  }),
+  'src/data/site.json': '{"picture":"photos/one"}',
+  '.pages.yml': [
+    'components:',
+    '  photoKey:',
+    '    type: select',
+    `    options: { values: [${values.join(', ')}] }`,
+    'content:',
+    '  - name: site',
+    '    type: file',
+    '    path: src/data/site.json',
+    '    fields:',
+    '      - { name: picture, component: photoKey }',
+    '',
+  ].join('\n'),
+});
+
+gate('refuses a key list offering something the manifest lost', {
+  script: 'check-cms.mjs',
+  files: CMS_KEYLIST(['photos/one', 'photos/two', 'photos/deleted-last-week']),
+  expect: 1,
+  contains: 'the manifest does not have',
+});
+
+gate('warns about an image the list cannot reach', {
+  script: 'check-cms.mjs',
+  files: CMS_KEYLIST(['photos/one'], { 'photos/added-yesterday': { widths: [480] } }),
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('photos/added-yesterday') ? null : 'did not name the image the editor cannot choose',
+});
+
+/* ⚠ The false-positive class: a select that is not a key list at all. Every
+   project has one, and reporting them would be noise on all of them. */
+gate('leaves a select that is not a key list alone', {
+  script: 'check-cms.mjs',
+  files: CMS_KEYLIST(['texas', 'nevada', 'arizona']),
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('manifest') && out.includes('texas') ? 'measured a state list against the manifest' : null,
+});
+
+/* A blog header list is right to exclude the team photographs, so the unlisted
+   half is scoped to prefixes the list already uses. */
+gate('scopes the unlisted half to the prefixes the list already uses', {
+  script: 'check-cms.mjs',
+  files: CMS_KEYLIST(['blog/a'], { 'blog/a': { widths: [480] } }),
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('photos/one') ? 'measured a blog list against every photograph on the site' : null,
+});
+
 /* Warnings, not failures — but they must still fire, or the complaint that
    started this ("whole sections are missing") stays invisible. */
 gate('warns about content no CMS entry points at', {
