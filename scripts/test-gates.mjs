@@ -2466,6 +2466,14 @@ gate('refuses a media-picker path where a manifest key belongs', {
  * ──────────────────────────────────────────────────────────────────────── */
 describe('check:drift');
 
+/*
+ * ⚠ AN EMPTY FILE USED TO SATISFY THIS. Both fixtures below declared
+ *   `'scripts/check-contrast.mjs': ''` and passed, because the row asked
+ *   whether the NAME existed. It does not any more, and these two cases failed
+ *   the moment it stopped — which is how the change was checked.
+ */
+const KIT_CONTRAST = "console.log('text-over-photograph region(s) legible');\n";
+
 const CURRENT_PIPELINE =
   "const FORMATS = ['avif', 'webp'];\nconst RASTER = /heic|heif/;\n" +
   "// produced no image\n// failed to process\n";
@@ -2475,13 +2483,55 @@ gate('a site with everything reports no drift', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'src/data/contrast.json': '{"regions":[]}',
     'src/pages/index.astro': '<p>no images</p>\n',
   },
   setup: initRepo,
   expect: 0,
   contains: 'nothing behind',
+});
+
+/*
+ * ── Feature-detect by what the file IS, not by what it is called ──────────
+ *
+ * A delivered site has a `scripts/check-contrast.mjs` that measures CSS tokens
+ * against each other. This row saw the name and reported the site as covered;
+ * its hero headline had never been measured by anything. When it finally was,
+ * it came back at 5.76:1 with about seven points of margin before AA.
+ *
+ * ⚠ A row that says "present" because of a filename is worse than one that
+ *   says "missing", because nobody re-checks a tick.
+ */
+gate('a same-named script that is not this check is not coverage', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': "console.log('9 filled-control rules checked against the stylesheet.');\n",
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'is NOT this check',
+});
+
+/* And the other half: the same check installed under a different name, which
+   is what a project with that collision actually has to do. */
+gate('finds the check under a name chosen to avoid a collision', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': "console.log('9 filled-control rules checked against the stylesheet.');\n",
+    'scripts/check-photo-contrast.mjs': KIT_CONTRAST,
+    'src/data/contrast.json': '{"regions":[]}',
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  then: (_dir, out) =>
+    out.includes('is NOT this check') ? 'missed the check because the filename differed' : null,
 });
 
 /* ⚠ THE DECLARATION, NOT THE WORD. A pipeline with AVIF off still documents how
@@ -2514,7 +2564,7 @@ gate('the template itself is not a drifted site', {
   files: {
     'package.json': JSON.stringify({ name: 'site-name' }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'src/pages/index.astro': '<p>x</p>\n',
   },
   setup: initRepo,
@@ -2527,7 +2577,7 @@ gate('finds an image the client cannot change', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'src/pages/index.astro': '<Img name="photos/hero" alt="a" />\n',
   },
   setup: initRepo,
@@ -2689,7 +2739,7 @@ gate('a picker reached through a component is not a text box', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'scripts/check-cms.mjs': '',
     'docs/handover.md': '# Guide\n\nsite\n',
     '.pages.yml': [
@@ -2720,7 +2770,7 @@ gate('still reports a picture stored as a plain string', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'scripts/check-cms.mjs': '',
     'docs/handover.md': '# Guide\n\nsite\n',
     '.pages.yml': [
@@ -2743,7 +2793,7 @@ gate('finds an image imported statically into a page', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'src/pages/index.astro':
       "---\nimport heroBg from '@/assets/hero/hero.jpg';\n---\n<Image src={heroBg} alt=\"a\" />\n",
   },
@@ -2759,7 +2809,7 @@ gate('ignores an image import the page never uses', {
   files: {
     'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
     'scripts/optimize-media.mjs': CURRENT_PIPELINE,
-    'scripts/check-contrast.mjs': '',
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
     'src/pages/index.astro': "---\nimport unused from '@/assets/hero/hero.jpg';\n---\n<p>No image.</p>\n",
   },
   setup: initRepo,

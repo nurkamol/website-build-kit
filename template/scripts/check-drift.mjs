@@ -35,7 +35,7 @@
  * CMS rows — and it says so rather than skipping them in silence.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { binarySourceFiles } from './lib/binary-files.mjs';
 import { literalContent } from './lib/literal-content.mjs';
@@ -66,6 +66,57 @@ const read = (file) => {
   } catch {
     return null;
   }
+};
+
+/*
+ * ⚠ FEATURE-DETECT BY WHAT THE FILE IS, NOT BY WHAT IT IS CALLED.
+ *
+ *   A delivered site has `scripts/check-contrast.mjs` that measures CSS tokens
+ *   against each other — a completely different job from measuring text over a
+ *   photograph. This file saw the name, reported the site as covered, and the
+ *   hero headline had in fact never been measured by anything. When it finally
+ *   was, it came back at 5.76:1 with about seven points of margin.
+ *
+ *   A row that says "present" because of a filename is worse than a row that
+ *   says "missing", because nobody re-checks a tick.
+ *
+ * The marker is a phrase from the script's own OUTPUT, which is what defines
+ * what it does. A same-named file that does something else says so, and that
+ * is a more useful finding than either "present" or "missing".
+ *
+ * ⚠ A MARKER IS VERSION-SENSITIVE, AND THE ROW SAYS SO RATHER THAN PRETENDING
+ *   OTHERWISE. A second delivered site has a bespoke `check-cms.mjs` written
+ *   for the same failure in its own words. It carries no marker, so it reads
+ *   as 'other' — which is honest: it is not this check, it may cover part of
+ *   the same ground, and the only way to know is to read it. A row that
+ *   guessed either way would be worse than one that says go and look.
+ */
+const KIT_SCRIPT = {
+  'check-cms.mjs': 'keys in the file the schema does not declare',
+  'check-contrast.mjs': 'text-over-photograph',
+};
+
+/**
+ * 'ok' — the check is here under some name
+ * 'other' — the canonical NAME is taken by a script that is not this check
+ * false — absent
+ *
+ * ⚠ SEARCH THE DIRECTORY, NOT THE FILENAME. A project that already had a
+ *   `check-contrast.mjs` doing something else installed this one as
+ *   `check-photo-contrast.mjs`, which is the right call and which a
+ *   name-based lookup would then report as missing. What the row is asking is
+ *   whether the CHECK is here, and only its output can answer that.
+ */
+const kitScript = (name) => {
+  const marker = KIT_SCRIPT[name];
+  let files = [];
+  try {
+    files = readdirSync('scripts').filter((f) => f.endsWith('.mjs'));
+  } catch {
+    return false;
+  }
+  if (files.some((f) => (read(join('scripts', f)) ?? '').includes(marker))) return 'ok';
+  return existsSync(join('scripts', name)) ? 'other' : false;
 };
 
 const findings = [];
@@ -272,14 +323,17 @@ if (!existsSync(CONFIG)) {
   }
 
   /* D4 and D8 have a shipped check. Drift means not having it. */
-  const hasCms = existsSync(join('scripts', 'check-cms.mjs'));
+  const cms = kitScript('check-cms.mjs');
+  const hasCms = cms === 'ok';
   add(
     'D4',
     'CMS cannot delete undeclared keys',
     hasCms ? 'ok' : 'drift',
     hasCms
       ? 'scripts/check-cms.mjs is present — run it'
-      : '⚠ no check-cms.mjs. A CMS rewrites the whole file from its schema, so any key it does not declare is DELETED on the client\'s first save. Five audited sites, five failures, two losing data',
+      : cms === 'other'
+        ? '⚠ scripts/check-cms.mjs exists and is NOT this check — a bespoke one, or an older vintage. It may well cover part of the same ground; read it rather than trusting this row either way'
+        : '⚠ no check-cms.mjs. A CMS rewrites the whole file from its schema, so any key it does not declare is DELETED on the client\'s first save. Five audited sites, five failures, two losing data',
   );
   add(
     'D8',
@@ -295,7 +349,8 @@ if (!existsSync(CONFIG)) {
 
 /* ── D7 · text over photographs ───────────────────────────────────────────── */
 
-const hasContrast = existsSync(join('scripts', 'check-contrast.mjs'));
+const contrast = kitScript('check-contrast.mjs');
+const hasContrast = contrast === 'ok';
 const declares = existsSync(join('src', 'data', 'contrast.json'));
 add(
   'D7',
@@ -305,7 +360,9 @@ add(
     ? declares
       ? 'regions declared and measured in build:production'
       : 'the check is present and this site declares no regions — correct if no text sits on a photograph'
-    : 'no check-contrast.mjs. axe and pa11y report a flat ~1.01:1 for text on an image, so a photograph that makes the navigation unreadable passes every gate',
+    : contrast === 'other'
+      ? '⚠ scripts/check-contrast.mjs exists and is NOT this check — on the site this was found, it measures CSS tokens against each other, while the hero text over a photograph had never been measured by anything'
+      : 'no check-contrast.mjs. axe and pa11y report a flat ~1.01:1 for text on an image, so a photograph that makes the navigation unreadable passes every gate',
 );
 
 /* ── report ───────────────────────────────────────────────────────────────── */
