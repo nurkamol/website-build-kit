@@ -52,10 +52,10 @@
     "@astrojs/check": "^0.9.10",
     "@cloudflare/workers-types": "^5.20260815.1",
     "pa11y-ci": "^4.1.1",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "turndown": "^7.2.4",
     "typescript": "^6.0.3",
-    "wrangler": "^4.118.0",
+    "wrangler": "^4.131.0",
     "yaml": "^2.9.0"
   }
 }
