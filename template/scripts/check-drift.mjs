@@ -365,6 +365,49 @@ add(
       : 'no check-contrast.mjs. axe and pa11y report a flat ~1.01:1 for text on an image, so a photograph that makes the navigation unreadable passes every gate',
 );
 
+/* ── D9 · the accessibility run measures both palettes ────────────────────── */
+
+/*
+ * ⚠ THE DANGEROUS STATE HERE IS NOT "MISSING", IT IS "PRESENT AND INERT".
+ *
+ *   Every site the kit has delivered runs pa11y through a script that forces
+ *   `prefers-color-scheme` with `--force-prefers-color-scheme`. That is not a
+ *   Chrome switch. Chrome ignores flags it does not know WITHOUT A WORD, so
+ *   both passes measure whatever scheme the machine is in — light twice on a CI
+ *   runner — while printing "clean in light and dark", and `a11y:evidence`
+ *   writes that sentence into a dated compliance pack.
+ *
+ *   So a site can carry the two-scheme runner, a green gate and an evidence
+ *   pack, and have never measured its dark palette. Found in the kit's own
+ *   template on 2026-09-20, by covering the a11y gate in `test:gates`.
+ */
+const schemeSources = (() => {
+  try {
+    return readdirSync('scripts')
+      .filter((f) => f.endsWith('.mjs'))
+      .map((f) => read(join('scripts', f)) ?? '')
+      .concat(read(join('scripts', 'lib', 'schemes.mjs')) ?? '');
+  } catch {
+    return [];
+  }
+})();
+const forcesScheme = schemeSources.some((src) => src.includes('--blink-settings=preferredColorScheme'));
+const deadSchemeFlag = schemeSources.some((src) => src.includes('--force-prefers-color-scheme'));
+const runsPa11y = schemeSources.some((src) => src.includes('pa11y'));
+
+add(
+  'D9',
+  'Accessibility run measures both colour schemes',
+  forcesScheme ? 'ok' : deadSchemeFlag || runsPa11y ? 'drift' : 'n/a',
+  forcesScheme
+    ? 'the scheme is forced, and the script verifies the forcing took effect before measuring'
+    : deadSchemeFlag
+      ? '⚠ --force-prefers-color-scheme is NOT a Chrome switch and is ignored in silence — this run measures one palette twice and reports it as two, including in any evidence pack. Copy scripts/lib/schemes.mjs and scripts/check-a11y.mjs from the current kit'
+      : runsPa11y
+        ? 'pa11y runs in whichever scheme the machine happens to be in — one palette measured, the other untested, and nothing says which'
+        : 'no pa11y runner here, so there is no two-scheme claim to be wrong',
+);
+
 /* ── report ───────────────────────────────────────────────────────────────── */
 
 if (json) {

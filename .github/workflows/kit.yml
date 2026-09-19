@@ -100,6 +100,13 @@ jobs:
       # Every case here asserts both directions, and the direction that matters
       # is a fixture carrying the failure: the gate must exit 1. A gate that
       # always passes reads as a check that ran.
+      #
+      # ⚠ IT DRIVES A REAL BROWSER, from the Chrome that arrives with the
+      # template's pa11y-ci — which is the other reason this runs after the
+      # install. The six gates once excused as "needs a browser" are covered
+      # against a localhost fixture, and writing those cases is what found
+      # check-a11y forcing the colour scheme with a flag Chrome does not have.
+      # Cases that cannot resolve pa11y-ci SKIP WITH A REASON rather than pass.
       - name: Gates still refuse
         run: npm run test:gates
 

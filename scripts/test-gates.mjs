@@ -44,7 +44,7 @@
  * failing on a script documented nowhere.
  */
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync, readdirSync, symlinkSync, cpSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
@@ -950,25 +950,23 @@ gate('no src — refuses', {
 /*
  * ⚠ THE REASON USED TO BE WRONG FOR EVERY ENTRY, AND THAT IS WHY NOBODY
  *   REVISITED IT. All nine said "needs a deployed site" — inherited from the
- *   first one written. Sorted honestly, six need a BROWSER (which can point at
- *   localhost perfectly well), one needs a live zone, one submits to real
- *   search engines, and `verify.mjs` needed neither: it takes a URL, which is
- *   not the same thing as needing a deployment.
+ *   first one written. Sorted honestly, six needed a BROWSER, one needs a live
+ *   zone, one submits to real search engines, and `verify.mjs` needed neither:
+ *   it takes a URL, which is not the same thing as needing a deployment.
  *
- *   `verify.mjs` is now covered against `scripts/fixture-site.mjs`. A wrong
- *   reason in a ledger is worse than a missing entry, because it reads as a
- *   decision someone made.
+ * ⚠ THEN "NEEDS A BROWSER" TURNED OUT TO BE A REASON TOO, in its second year.
+ *   A browser points at localhost, and the fixture site is localhost, so all
+ *   six are now covered above — two of them, `md-to-pdf` and the usage paths
+ *   of `shots`, needed no server at all. The first run of those cases found
+ *   `check-a11y` forcing the colour scheme with a flag Chrome does not have.
+ *
+ *   The lesson is the one this ledger keeps teaching: a reason nobody re-reads
+ *   outlives the thing it was true about. What is left below is the two that
+ *   reach a third party, and a third party cannot be pointed at localhost.
  */
-const BROWSER = 'drives a real browser — testable in principle, but a stub convincing enough would need more maintenance than the script';
 const NETWORK = 'needs a live zone or a real third party';
 
 const UNCOVERED = {
-  'shots.mjs': BROWSER,
-  'check-console.mjs': BROWSER,
-  'check-reflow.mjs': BROWSER,
-  'check-a11y.mjs': BROWSER,
-  'a11y-evidence.mjs': BROWSER,
-  'md-to-pdf.mjs': BROWSER + ' (headless Chrome fetching the rendered page)',
   'dns-snapshot.mjs': NETWORK + ' (node:dns against a real zone)',
   'indexnow.mjs': NETWORK + ' — and it submits to real search engines',
 };
@@ -1281,6 +1279,297 @@ gate('an unreachable origin stops the run', {
 });
 
 
+
+
+/* ────────────────────────────────────────────────────────────────────────
+ * The browser gates — six scripts the ledger excused, and one dead flag
+ *
+ * `UNCOVERED` carried six entries reading `BROWSER`, and that reason was the
+ * same inherited excuse this file's header already describes: a browser points
+ * at localhost perfectly well, and the fixture above is a localhost site. Two
+ * of the six did not need a server at all — `md-to-pdf` renders a local file.
+ *
+ * ⚠ WHAT THE FIRST RUN OF THESE CASES FOUND. `check-a11y` forces the colour
+ *   scheme with `--force-prefers-color-scheme`, which is NOT A CHROME SWITCH.
+ *   Chrome ignores unknown flags in silence, so both passes measured whatever
+ *   the machine was set to — light twice on a CI runner — while printing
+ *   "clean in light and dark", and `a11y-evidence` wrote that sentence into a
+ *   dated compliance document. The dark palette of every site built from this
+ *   kit was unmeasured by the gate that reported measuring it.
+ *
+ *   It was introduced to fix a REAL escape (3.91:1 light, 4.83:1 dark, green
+ *   locally and red in CI), reviewed, documented, and never once asked whether
+ *   the flag did anything. Nothing it could print would have looked different.
+ *
+ *   The `dark-only-contrast` pair below is what makes that visible: a page that
+ *   passes AA in light and fails in dark. `--only=light` must exit 0 and the
+ *   two-scheme run must exit 1. Under the dead flag exactly one of those two is
+ *   wrong on any given machine, whichever way it is set.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('browser gates — against a fixture site');
+
+const TEMPLATE_MODULES = join(KIT, 'template', 'node_modules');
+
+/**
+ * Run a template script against a freshly started fixture site.
+ *
+ * `files` may be a function of the origin, because the port is not known until
+ * the fixture is up and `.pa11yci.json` has to carry it.
+ */
+function againstFixture(label, { script, faults = '', args = [], passOrigin = true, files = {}, ...rest }) {
+  let fixture;
+  try {
+    fixture = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    return;
+  }
+  try {
+    gate(label, {
+      script,
+      files: typeof files === 'function' ? files(fixture.origin) : files,
+      args: passOrigin ? [...args, fixture.origin] : args,
+      ...rest,
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
+/* ── check-console — errors and failed requests a fetch cannot see ────────── */
+
+againstFixture('a clean site has no console errors and no failed requests', {
+  script: 'check-console.mjs',
+  expect: 0,
+  contains: 'no console errors and no failed requests',
+});
+
+againstFixture('refuses a script that throws', {
+  script: 'check-console.mjs',
+  faults: 'console-error',
+  expect: 1,
+  contains: 'uncaught: ReferenceError',
+});
+
+againstFixture('refuses an asset that 404s after the page is served', {
+  script: 'check-console.mjs',
+  faults: 'asset-404',
+  expect: 1,
+  contains: '/gone.png',
+});
+
+/* ── check-reflow — WCAG 1.4.10, which no status code can answer ──────────── */
+
+againstFixture('a clean site reflows at 320px and at 200% text', {
+  script: 'check-reflow.mjs',
+  expect: 0,
+  contains: 'no horizontal scroll',
+});
+
+/* Pinned to the OFFENDER, not just the exit code. Reporting that a page
+   overflows without naming what overflowed is the difference between a fix and
+   an afternoon. */
+againstFixture('refuses a fixed-width element wider than a 320px viewport', {
+  script: 'check-reflow.mjs',
+  faults: 'overflow-320',
+  expect: 1,
+  contains: 'div (480px)',
+});
+
+/*
+ * ── check-a11y and a11y-evidence — both need the template's dependencies ───
+ *
+ * They shell out to `npx pa11y-ci`, so the fixture directory gets a link to
+ * template/node_modules and npx resolves it the way it would in a real site.
+ * Without it npx would try to FETCH pa11y-ci from the registry, which turns a
+ * gate test into a network test and passes for the wrong reason.
+ *
+ * `rmSync` unlinks a symlink rather than walking into it — verified before this
+ * was written, because the harness deletes every fixture directory and the link
+ * points at a real node_modules.
+ */
+const withTemplateModules = (extra) => (dir) => {
+  symlinkSync(TEMPLATE_MODULES, join(dir, 'node_modules'), 'junction');
+  if (extra) extra(dir);
+};
+
+const pa11yConfig = (origin) => ({
+  '.pa11yci.json': JSON.stringify(
+    {
+      defaults: {
+        standard: 'WCAG2AA',
+        runners: ['axe', 'htmlcs'],
+        timeout: 30000,
+        concurrency: 1,
+        chromeLaunchConfig: { args: ['--no-sandbox'] },
+      },
+      urls: [`${origin}/`],
+    },
+    null,
+    2,
+  ),
+});
+
+/*
+ * Both preconditions, checked rather than assumed — and the skip says which one
+ * failed. "Skipped" with no reason is how a suite quietly stops covering
+ * something on one platform and nobody notices for a year.
+ */
+const cannotLinkModules = (() => {
+  if (!existsSync(TEMPLATE_MODULES)) {
+    return 'template/node_modules is absent, so npx would have to DOWNLOAD pa11y-ci — run `cd template && npm ci`';
+  }
+  const probe = mkdtempSync(join(tmpdir(), 'kit-link-'));
+  try {
+    symlinkSync(TEMPLATE_MODULES, join(probe, 'node_modules'), 'junction');
+    return null;
+  } catch (err) {
+    return `this platform refused a directory link (${err.code}), which pa11y-ci needs to resolve`;
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+})();
+
+if (cannotLinkModules) {
+  results.push({
+    gate: currentGate,
+    label: 'check-a11y and a11y-evidence cases',
+    ok: true,
+    skipped: true,
+    detail: `skipped — ${cannotLinkModules}`,
+  });
+} else {
+  againstFixture('a clean site passes AA in both schemes', {
+    script: 'check-a11y.mjs',
+    passOrigin: false,
+    files: pa11yConfig,
+    setup: withTemplateModules(),
+    expect: 0,
+    contains: 'clean in light and dark',
+  });
+
+  /* ⚠ THE PAIR. Same site, same page, one scheme each way. */
+  againstFixture('a dark-only contrast failure is invisible in light', {
+    script: 'check-a11y.mjs',
+    faults: 'dark-only-contrast',
+    passOrigin: false,
+    args: ['--only=light'],
+    files: pa11yConfig,
+    setup: withTemplateModules(),
+    expect: 0,
+    contains: 'only one scheme measured',
+  });
+
+  againstFixture('and the two-scheme run refuses it', {
+    script: 'check-a11y.mjs',
+    faults: 'dark-only-contrast',
+    passOrigin: false,
+    files: pa11yConfig,
+    setup: withTemplateModules(),
+    expect: 1,
+    contains: 'dark has errors',
+  });
+
+  /*
+   * The evidence pack is a DOCUMENT, so the exit code proves almost nothing —
+   * it writes the file either way. The assertion is on what it wrote, and one
+   * run carries both directions: light clean and dark failing, in the same
+   * table, from the same page.
+   *
+   * `scripts/` is copied in because the pack runs `node scripts/check-reflow.mjs`
+   * relative to the site root. Without it the reflow section records "did not
+   * run" and nobody would notice the pack had a hole in it.
+   */
+  againstFixture('the evidence pack records the scheme that failed', {
+    script: 'a11y-evidence.mjs',
+    faults: 'dark-only-contrast',
+    files: pa11yConfig,
+    setup: withTemplateModules((dir) => {
+      cpSync(TEMPLATE_SCRIPTS, join(dir, 'scripts'), { recursive: true });
+    }),
+    expect: 0,
+    then: (dir) => {
+      const packDir = join(dir, 'docs', 'a11y-evidence');
+      if (!existsSync(packDir)) return 'wrote no evidence pack';
+      const [file] = readdirSync(packDir);
+      const pack = readFileSync(join(packDir, file), 'utf8');
+      if (!/\|\s*light\s*\|\s*0\s*\|/.test(pack)) return 'did not record a clean light pass';
+      if (!/\|\s*dark\s*\|\s*[1-9]/.test(pack)) return 'recorded no dark failure — the pack claims a pass that did not happen';
+      if (!/no horizontal scroll/.test(pack)) return 'the reflow section did not run inside the pack';
+      return null;
+    },
+  });
+}
+
+/* ── shots — the visual record, and the capture it must refuse to file ────── */
+
+againstFixture('captures a page and writes the file', {
+  script: 'shots.mjs',
+  args: ['--after'],
+  expect: 0,
+  then: (dir) => {
+    const out = join(dir, 'shots', 'after');
+    if (!existsSync(out)) return 'wrote no screenshots directory';
+    const pngs = readdirSync(out).filter((f) => f.endsWith('.png'));
+    return pngs.length ? null : 'the run reported success and wrote no PNG';
+  },
+});
+
+/*
+ * ⚠ AN UNSTYLED CAPTURE IS THE ONE IT MUST NOT FILE. A page whose stylesheet
+ *   never arrived screenshots perfectly — it just looks like a design disaster,
+ *   and filed in a handover it turns a harness problem into a design argument.
+ */
+againstFixture('refuses a capture whose stylesheet never arrived', {
+  script: 'shots.mjs',
+  faults: 'no-stylesheet',
+  args: ['--after'],
+  expect: 1,
+  contains: 'stylesheet did not arrive',
+});
+
+/* Both reachable with no server and no browser. */
+gate('shots without --before or --after is a usage error', {
+  script: 'shots.mjs',
+  files: {},
+  args: ['http://127.0.0.1:9'],
+  expect: 1,
+  contains: 'Say which side this is',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * md-to-pdf — which never needed a deployment at all
+ *
+ * Its ledger entry read "needs a deployed site (headless Chrome fetching the
+ * rendered page)". It renders a LOCAL markdown file to a local PDF. The reason
+ * was copied, like the rest of them, and it is the third time that has happened
+ * in this file.
+ *
+ * `npm run handover` is this script. The one document written for the client.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('md-to-pdf');
+
+gate('no input file is a usage error', {
+  script: 'md-to-pdf.mjs',
+  files: {},
+  args: [],
+  expect: 1,
+  contains: 'usage:',
+});
+
+gate('renders a markdown file to a real PDF', {
+  script: 'md-to-pdf.mjs',
+  files: { 'docs/handover.md': '# Handover\n\nA paragraph.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n' },
+  args: ['docs/handover.md', 'docs/handover.pdf'],
+  expect: 0,
+  then: (dir) => {
+    const pdf = join(dir, 'docs', 'handover.pdf');
+    if (!existsSync(pdf)) return 'reported success and wrote no file';
+    /* A zero-byte or HTML file would still "exist". Read the magic number. */
+    const head = readFileSync(pdf).subarray(0, 5).toString('latin1');
+    return head === '%PDF-' ? null : `wrote something that is not a PDF (${JSON.stringify(head)})`;
+  },
+});
 
 /* ────────────────────────────────────────────────────────────────────────
  * check:cms — the config that silently destroys content
@@ -2600,6 +2889,58 @@ gate('reads the FORMATS declaration, not a comment mentioning avif', {
   setup: initRepo,
   expect: 0,
   contains: 'WebP only',
+});
+
+/*
+ * ── D9 · a two-scheme accessibility run that measures one scheme twice ─────
+ *
+ * ⚠ THE INERT STATE IS THE ONE WORTH CATCHING. A site carrying
+ *   `--force-prefers-color-scheme` has the runner, the green gate and the
+ *   evidence pack, and has never measured its dark palette — Chrome ignores
+ *   that flag in silence because it is not a Chrome switch. Every site this kit
+ *   has delivered is in that state until the two scripts are copied across.
+ */
+gate('a scheme flag Chrome ignores reads as drift, not as coverage', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
+    'scripts/check-a11y.mjs': "npx('pa11y-ci', ['--force-prefers-color-scheme=' + scheme]);\n",
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'NOT a Chrome switch',
+});
+
+gate('a run that does force the scheme is not reported', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
+    'scripts/check-a11y.mjs': "npx('pa11y-ci', ['--blink-settings=preferredColorScheme=' + ordinal]);\n",
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'nothing behind',
+});
+
+/* A site with no pa11y at all makes no two-scheme claim, so it is not drift.
+   Reporting it would put a row nobody can act on in front of every reader. */
+gate('a site with no pa11y runner is not reported as one scheme short', {
+  script: 'check-drift.mjs',
+  files: {
+    'package.json': JSON.stringify({ name: 'x', websiteBuildKit: { version: '0.1.15' } }),
+    'scripts/optimize-media.mjs': CURRENT_PIPELINE,
+    'scripts/check-contrast.mjs': KIT_CONTRAST,
+    'src/pages/index.astro': '<p>x</p>\n',
+  },
+  setup: initRepo,
+  expect: 0,
+  contains: 'no two-scheme claim to be wrong',
 });
 
 gate('an unstamped site is named as such', {

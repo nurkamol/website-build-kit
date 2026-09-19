@@ -175,6 +175,27 @@ deciding go-live and it had no case proving any of its three `exit(1)` paths sti
 reason in a ledger is worse than a missing entry, because it reads as a decision someone made.**
 When adding an entry, name the *actual* blocker.
 
+⚠ **Then "needs a browser" turned out to be a reason too, and it cost the most so far.** A
+browser points at localhost, so all six are now covered against the same fixture — and two of
+them, `md-to-pdf` and the usage paths of `shots`, never needed a server at all. Writing those
+cases found `check-a11y` forcing the colour scheme with **`--force-prefers-color-scheme`, which
+is not a Chrome switch**. Chrome ignores flags it does not know in silence, so both passes
+measured whatever scheme the machine was in — light twice on a CI runner — while printing
+*"clean in light and dark"*, and `a11y:evidence` wrote that sentence into a dated compliance
+pack. **The dark palette of every site built from this kit was unmeasured by the gate that
+reported measuring it**, and by the pack a client would be handed.
+
+Two things follow from that, and both are now rules here:
+
+- **A flag is not a mechanism.** `--blink-settings=preferredColorScheme=<ordinal>` replaces it,
+  and `assertForced()` reads the media query back out of a real page before either script
+  measures anything. An ordinal can go quiet exactly the way a flag name did; the assertion is
+  what makes it safe, not the switch.
+- **A fix that cannot reach a delivered site is half a fix.** The template is copied, not
+  linked, so `check:drift` gained **D9** — a site carrying the dead flag reports drift, and the
+  state it names is *present and inert*, which is worse than missing because nobody re-checks a
+  tick.
+
 A script can use a name nothing imported and still pass `node --check` — an
 undefined identifier is valid syntax. `npm run recon` shipped that way and threw
 `ReferenceError: PRESERVED is not defined` on line 302, after the whole crawl,
@@ -307,7 +328,14 @@ got through review and were caught only by running those:
 - a muted grey passed contrast locally and failed in CI, because local Chrome was in **dark**
   mode and the runner was in light: 4.83:1 dark, **3.91:1 light**. A palette with two schemes
   has two sets of contrast pairs, and testing one proves nothing about the other. The workflow
-  now runs pa11y twice with `--force-prefers-color-scheme`
+  runs pa11y twice, once per scheme — ⚠ **and for a year it forced that scheme with
+  `--force-prefers-color-scheme`, which is not a Chrome switch.** Chrome ignores unknown flags
+  in silence, so both runs measured the runner's own scheme and this page's dark palette was
+  never tested by the step that said it was. The reflow step four lines below it was using
+  `emulateMediaFeatures` and doing it properly the whole time. It is now
+  `--blink-settings=preferredColorScheme=<ordinal>`, with a probe that reads the media query
+  back and fails the step if the forcing did not take — an ordinal can go quiet the same way a
+  flag name can
 
 The copy buttons follow the same two rules the template does. They are **created by the
 script**, never present in the markup and revealed by CSS — a control that looks live with

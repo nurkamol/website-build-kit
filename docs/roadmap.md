@@ -52,6 +52,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| Browser gates covered by `test:gates` | An accessibility gate that stopped gating while still writing a dated conformance pack. Six scripts were excused as "needs a browser"; a browser points at localhost. The first run of the new cases found `check-a11y` forcing the colour scheme with **a flag Chrome does not have** — so every run measured one palette twice and reported two, and `a11y:evidence` put that in writing. `check:drift` D9 reports it on sites already delivered |
 | `npm run check:form` | A real field colliding with the honeypot — the trap is named `company`, so a B2B site adding one loses every enquiry from a company that fills it in, with a 200 and a thank-you page |
 | `PageHero` rhythm + shorthand | A 160px hole between the lede and the body on every page using it, and a hero sitting behind the fixed nav — a shorthand out-specifying the utility beside it |
 | `npm run check:copy` | A note to yourself shipped as body copy — a real build put "⚠ CONFIRM: does the 9am class continue?" on a service page, past clean types, clean axe and clean tells |
@@ -59,10 +60,10 @@ Kept short — `CHANGELOG.md` carries the detail.
 | Regulated data in the message box | A site that holds PHI or GDPR special categories because a visitor typed them into free text — the form asked for none of it, every gate passed, and the exposure surfaces in an audit |
 | Retention needs an enforcer | A privacy notice stating a period nothing enforces — KV expires itself, R2 keeps uploaded files forever unless a dashboard lifecycle rule exists, and no gate can see account config |
 | Generated-site tells | A site that clears every templated-look row and is still recognisable in three seconds as LLM output — glass, giant radii, glow, badge decoration. Three are machine-checked |
-| `npm run check:drift` | A delivered site silently behind the kit. One sat **19% larger on every image for weeks** and it surfaced by accident. Ten rows, reported and never fixed. The repair procedure lives in `site-runbooks`, which calls this rather than restating it |
+| `npm run check:drift` | A delivered site silently behind the kit. One sat **19% larger on every image for weeks** and it surfaced by accident. Eleven rows, reported and never fixed. The repair procedure lives in `site-runbooks`, which calls this rather than restating it |
 | `npm run check:contrast` | Text on a photograph that no runner can see — axe reports a flat ~1.01:1 because nothing composites a transparent element over an image. Two of three real regions could not fail at all; the exposure was a scrim someone had **lightened** |
 | `scripts/fixture-site.mjs` | A network-facing script silently changing what it *reports* — 0.1.11 shipped a redirect cap that turned a live page into a 302 in the inventory, with every gate green. `verify` is 1,069 lines deciding go-live and had no case proving any of its three `exit(1)` paths still fired |
-| `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 29 cases, 15 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |
+| `npm run test:gates` | A gate that stopped gating — `check-env` matched nothing for a whole project and passed every deploy; `tells` counted `dist` CSS so a threshold could never trip. 203 cases, 104 proving a refusal, and it asserts what a gate *wrote* where the exit code cannot see the bug |
 | `npm run check:secrets` | A deploy that captures leads and silently cannot email them — `secret()` returns `undefined`, the form returns 200, nobody is notified |
 | Inverse check in `audit:docs` | A feature that ships and is documented nowhere — the audit was green through two README drifts because it only checked that references *resolve* |
 | Legal content collection | Three near-identical page files, and an editor who cannot change an effective date without a developer |

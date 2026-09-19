@@ -52,6 +52,17 @@ const KNOWN_FAULTS = [
   'accepts-empty', // an empty submission accepted instead of 422
   'allows-cross-origin', // a submission from another origin accepted instead of 403
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
+
+  /* ── Faults only a browser can see ───────────────────────────────────────
+   * Everything above is visible to `fetch`. These five are not: the response
+   * is 200, the HTML is correct, and the failure happens after it arrives —
+   * which is the whole reason check-console, check-reflow and check-a11y
+   * drive Chrome instead of reading markup. */
+  'console-error', // a script that throws once the page is parsed
+  'asset-404', // a referenced asset the server does not have
+  'overflow-320', // a fixed-width element wider than a 320px viewport
+  'dark-only-contrast', // AA contrast that passes in light and fails in dark
+  'no-stylesheet', // a page that arrives with no CSS at all
 ];
 for (const f of FAULTS) {
   if (!KNOWN_FAULTS.includes(f)) {
@@ -62,23 +73,79 @@ for (const f of FAULTS) {
 
 const BASE = `http://127.0.0.1:${PORT}`;
 
+/** A 1x1 PNG, served as both the page's image and its favicon. */
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/*
+ * ── THE STYLESHEET IS LOAD-BEARING, AND IT IS THE SMALLEST ONE POSSIBLE ────
+ *
+ * ⚠ The clean fixture has to PASS check-reflow, and an `<img width="800">`
+ *   with no CSS at all renders 800px wide — so the default site failed the
+ *   320px case before this existed, and every reflow assertion would have been
+ *   "the fixture is broken" wearing the costume of "the gate works".
+ *
+ * Three rules, no layout: images shrink, the body has a margin, and the body
+ * declares a background. Nothing here caps a width — a `max-width` in rem plus
+ * content-box padding overflows at 200% text, which is the OTHER case
+ * check-reflow measures, and it would have failed the clean run in exactly the
+ * same invisible way.
+ *
+ * ⚠ The background is not decoration either. `shots` refuses to file a capture
+ *   whose body computes to `rgba(0, 0, 0, 0)`, because an unstyled screenshot
+ *   filed as evidence turns a harness problem into a design problem — and a
+ *   body with no background rule computes to exactly that. The `no-stylesheet`
+ *   fault removes the whole element to exercise that refusal.
+ *
+ * The greys below are greyscale `rgb()` on purpose, not a brand hex. See the
+ * provenance sweep in CLAUDE.md: this file is inside the kit's own `scripts/`,
+ * and a `#rrggbb` here reads as a client colour to the grep that looks for one.
+ */
+const STYLE = `
+img { max-width: 100%; height: auto; }
+body { margin: 1rem; background: rgb(255, 255, 255); color: rgb(24, 24, 24); }
+.ok { color: rgb(60, 60, 60); }
+${
+  FAULTS.has('dark-only-contrast')
+    ? /* 3.41:1 on the dark background it sets, measured by htmlcs — an AA
+         failure for normal text, in one scheme
+         only, which is the shape of the bug the kit's own landing page
+         shipped: 4.83:1 in dark, 3.91:1 in light, green locally and red in
+         CI. It is invisible to a run that does not FORCE the scheme. */
+      `@media (prefers-color-scheme: dark) {
+  body { background: rgb(18, 18, 18); color: rgb(240, 240, 240); }
+  a { color: rgb(150, 190, 255); }
+  .ok { color: rgb(105, 105, 105); }
+}`
+    : ''
+}`;
+
 /** A page that passes every per-page check verify makes, unless a fault says otherwise. */
 function page({ path, title, description, h1 = 'Heading', canonical = `${BASE}${path}` }) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <meta name="description" content="${description}">
 <link rel="canonical" href="${canonical}">
+${FAULTS.has('no-stylesheet') ? '' : `<style>${STYLE}</style>`}
 </head>
 <body>
+<main>
 <h1>${h1}</h1>
 ${FAULTS.has('two-h1') && path === '/about/' ? '<h1>A second heading</h1>' : ''}
-<p>Body copy long enough to be substantial, so the page is not treated as empty
+<p class="ok">Body copy long enough to be substantial, so the page is not treated as empty
 by anything measuring content length. It links onward to <a href="/about/">about</a>
 and back to <a href="/">home</a>.</p>
 <img src="/hero.png" width="800" height="600" alt="A hero image">
+${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
+${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
+</main>
+${FAULTS.has('console-error') ? '<script>notAFunctionAnywhere();</script>' : ''}
 </body>
 </html>`;
 }
@@ -132,7 +199,15 @@ const server = createServer((req, res) => {
       'x-fixture': 'yes',
       'referrer-policy': 'strict-origin-when-cross-origin',
       'permissions-policy': 'geolocation=(), camera=(), microphone=()',
-      'content-security-policy': "default-src 'self'",
+      /* ⚠ THE SAME FOUR DIRECTIVES THE TEMPLATE SHIPS, and no more. This was
+         `default-src 'self'`, which no real site here serves — and under it
+         Chrome refused the page's own inline <style>, so the CLEAN run of
+         check-console reported a console error on every route. A fixture that
+         is stricter than the thing it stands in for does not test harder; it
+         tests something else. verify checks this header is present, never what
+         it says, so the faithful value costs nothing. */
+      'content-security-policy':
+        "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'",
       'strict-transport-security': 'max-age=31536000; includeSubDomains',
       'x-content-type-options': 'nosniff',
     });
@@ -187,10 +262,20 @@ const server = createServer((req, res) => {
   /* A 1x1 PNG, so the internal-link check has a real asset to resolve. */
   if (path === '/hero.png') {
     res.writeHead(200, { 'content-type': 'image/png' });
-    return res.end(Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-      'base64',
-    ));
+    return res.end(PIXEL);
+  }
+
+  /*
+   * ⚠ NO MARKUP ASKS FOR THIS ONE, AND IT STILL HAS TO EXIST. A browser
+   *   requests /favicon.ico by itself when a page declares no icon, so
+   *   serving 404 here puts a failed request on EVERY route — and the clean
+   *   run of check-console, the control every fault case is measured against,
+   *   would report two failures and prove nothing. check-console carries a
+   *   hint about this exact request because it has confused someone before.
+   */
+  if (path === '/favicon.ico') {
+    res.writeHead(200, { 'content-type': 'image/x-icon' });
+    return res.end(PIXEL);
   }
 
   /*

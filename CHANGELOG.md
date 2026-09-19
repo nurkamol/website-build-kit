@@ -1,5 +1,86 @@
 # Changelog
 
+## 2026-09-20 — the browser gates get refusal cases, and one of them was inert
+
+`test:gates` carried eight scripts in its `UNCOVERED` ledger. Six said `BROWSER`. That reason was
+the same inherited excuse the ledger already exists to prevent — **a browser points at localhost,
+and `scripts/fixture-site.mjs` is localhost.** Two of the six needed no server at all: `md-to-pdf`
+renders a local markdown file, and `shots` reaches both of its usage refusals before it launches
+Chrome. Its ledger entry read "headless Chrome fetching the rendered page". It fetches nothing.
+
+All six are now covered. **203 cases across 24 gates, 104 of them proving a refusal**, and the
+ledger is down to `dns-snapshot` and `indexnow` — the two that talk to a third party, which is the
+one thing that cannot be pointed at a fixture.
+
+### ⚠ What the first run found: `check-a11y` was measuring one palette twice
+
+`--force-prefers-color-scheme=<scheme>` **is not a Chrome switch.** Chrome ignores flags it does
+not know without a word, so both passes measured whatever scheme the machine was set to, and
+printed *"clean in light and dark"*. Measured on Chrome 148, reading the media query back from the
+page:
+
+| launched with | page reports |
+| --- | --- |
+| nothing | dark ← this machine's own setting |
+| `--force-prefers-color-scheme=light` | **dark** ← ignored |
+| `--force-dark-mode` | dark ← browser UI only |
+| `--blink-settings=preferredColorScheme=0` | dark |
+| `--blink-settings=preferredColorScheme=1` | light |
+
+So the dark palette of every site built from this kit went unmeasured by the gate that reported
+measuring it — and `a11y:evidence` wrote that sentence into a **dated compliance pack**, which is
+the artefact a client hands to a lawyer. The flag was added to fix a real escape (`--ink-3` at
+4.83:1 dark and **3.91:1 light**, green locally and red in CI), reviewed, documented in three
+files, and never once asked whether it did anything. Nothing it could print would have looked
+different.
+
+`.github/workflows/pages.yml` had it too — four lines above a reflow step that was using
+`emulateMediaFeatures` and testing both schemes properly the whole time.
+
+**The replacement is checked, not trusted.** `preferredColorScheme` is a Blink setting taken by
+ordinal — mojom `PreferredColorScheme { kDark, kLight }` — so it can go quiet exactly the way a
+flag name did, and an out-of-range value falls back to light rather than erroring. `assertForced()`
+launches Chrome, reads `prefers-color-scheme` out of a real page, and **refuses the run** when what
+came back is not what was asked for. Both `check-a11y` and `a11y-evidence` call it before measuring
+anything; the workflow runs the same probe inline.
+
+### And `a11y:evidence` against a deployed host had never worked
+
+`pa11y-ci` has no `--standard` option — that belongs to `pa11y`. Passing it exited immediately with
+`error: unknown option '--standard'`, which this script reports as *"pa11y-ci could not run. Start
+the site first"*, pointing at the wrong problem entirely. The documented way to produce an evidence
+pack against a deployed site was broken, and the only excuse for never testing it was that it
+needed a deployment. The standard reaches pa11y through `defaults.standard` in the config, which is
+where the no-host form has always read it from.
+
+### The case that makes the scheme visible
+
+A fixture page that passes AA in light and fails it in dark. `--only=light` must exit 0 and the
+two-scheme run must exit 1 — under the dead flag **exactly one of those two is wrong on any given
+machine**, whichever way it is set, which is why a single case could not have caught this.
+
+Run against the pre-fix scripts, on a dark-mode machine: the light-only case fails and the evidence
+pack records two dark rows and no clean light pass. With the probe restored and the dead flag back,
+all four a11y cases refuse rather than report. Both directions verified before the fix was kept.
+
+### Six faults the fixture gained
+
+`console-error`, `asset-404`, `overflow-320`, `dark-only-contrast`, `no-stylesheet` — plus a
+`/favicon.ico`, because a browser asks for one unprompted and a 404 there put a failed request on
+every route of the CLEAN run, which is the control every other case is measured against.
+
+⚠ The fixture's CSP was `default-src 'self'`, which no site this kit builds actually serves. Under
+it Chrome refused the page's own inline `<style>` and the clean `check-console` run reported an
+error on every route. **A fixture stricter than the thing it stands in for does not test harder, it
+tests something else.** It now sends the four directives `public/_headers` ships.
+
+### Reaching the sites already delivered
+
+The template is copied, not linked, so none of this arrives anywhere by itself. `check:drift`
+gained **D9**: a site carrying the dead flag is reported as drift, and the state it names is
+*present and inert* — the runner, the green gate and the evidence pack are all there, and the dark
+palette has never been measured. That is worse than missing, because nobody re-checks a tick.
+
 ## 2026-09-02 — five failures in `check:cms`, four of them silent
 
 Found by auditing two shipped sites and **checking every finding against the files instead of

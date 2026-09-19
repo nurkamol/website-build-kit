@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { SCHEMES, configForScheme } from './lib/schemes.mjs';
+import { SCHEMES, assertForced, configForScheme } from './lib/schemes.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -103,10 +103,22 @@ const runScheme = (scheme) => {
   const file = join(tmp, `${scheme}.json`);
   writeFileSync(file, JSON.stringify(configForScheme(config, scheme), null, 2));
 
-  /* --config supplies the forced-scheme defaults either way; --sitemap only
-     replaces where the URL list comes from. */
+  /*
+   * --config supplies the forced-scheme defaults either way; --sitemap only
+   * replaces where the URL list comes from.
+   *
+   * ⚠ NO `--standard` HERE. That is a `pa11y` option, not a `pa11y-ci` one, and
+   *   passing it made the CLI exit immediately with `unknown option
+   *   '--standard'` — which this function reports as "pa11y-ci could not run.
+   *   Start the site first", pointing at the wrong problem entirely. So the
+   *   documented way to produce a pack against a DEPLOYED host had never once
+   *   worked; it was the form nobody ran, because the only excuse for not
+   *   testing this script was that it needed a deployment. The standard reaches
+   *   pa11y through `defaults.standard` in the config, which is where the
+   *   no-host form has always read it from.
+   */
   const args = host
-    ? ['pa11y-ci', '--config', file, '--sitemap', `${host}/sitemap-index.xml`, '--standard', standard, '--json']
+    ? ['pa11y-ci', '--config', file, '--sitemap', `${host}/sitemap-index.xml`, '--json']
     : ['pa11y-ci', '--config', file, '--json'];
 
   try {
@@ -129,6 +141,21 @@ const runScheme = (scheme) => {
     }
   }
 };
+
+/*
+ * ⚠ THE SAME PROOF check-a11y MAKES, AND IT MATTERS MORE HERE. This file
+ *   writes a dated document stating which schemes were measured. Under the
+ *   flag that did nothing, that document was wrong in writing — an evidence
+ *   pack asserting a dark-palette pass that never happened. Refuse rather than
+ *   write it.
+ */
+for (const scheme of SCHEMES) {
+  const why = await assertForced(scheme);
+  if (why) {
+    console.error(`${RED}✗${RESET} ${why}\n`);
+    process.exit(1);
+  }
+}
 
 const passes = SCHEMES.map((scheme) => {
   const report = runScheme(scheme);

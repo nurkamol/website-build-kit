@@ -20,7 +20,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SCHEMES, configForScheme } from './lib/schemes.mjs';
+import { SCHEMES, assertForced, configForScheme } from './lib/schemes.mjs';
 
 const RESET = '\x1b[0m';
 const RED = '\x1b[31m';
@@ -49,6 +49,21 @@ const schemes = only ? SCHEMES.filter((s) => s === only) : SCHEMES;
 if (!schemes.length) {
   console.error(`${RED}✗${RESET} --only=${only} is not a scheme. Try: ${SCHEMES.join(', ')}`);
   process.exit(1);
+}
+
+/*
+ * ⚠ PROVE THE SCHEME FORCING WORKS BEFORE MEASURING ANYTHING. The previous
+ *   flag was one Chrome silently ignores, so this loop ran twice against the
+ *   machine's own palette and reported "clean in light and dark". Refusing here
+ *   costs one Chrome launch per scheme and is the only thing standing between
+ *   that sentence and the truth. See scripts/lib/schemes.mjs.
+ */
+for (const scheme of schemes) {
+  const why = await assertForced(scheme);
+  if (why) {
+    console.error(`${RED}✗${RESET} ${why}\n`);
+    process.exit(1);
+  }
 }
 
 const base = JSON.parse(readFileSync(CONFIG, 'utf8'));

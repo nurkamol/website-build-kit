@@ -66,15 +66,43 @@ jobs:
       # failure, invisible to a one-scheme test. A site with a light and a dark
       # palette has two sets of contrast pairs and testing one proves nothing
       # about the other.
+      #
+      # ⚠ AND THE FIX FOR THAT DID NOTHING FOR A YEAR. It passed
+      #   `--force-prefers-color-scheme`, which is not a Chrome switch — Chrome
+      #   ignores unknown flags in silence, so both runs measured the runner's
+      #   own scheme (light) and the dark palette of this page was never tested
+      #   by the step that said it was. The reflow step below, four lines away,
+      #   was using `emulateMediaFeatures` and testing both properly the whole
+      #   time. Found by covering the template's own a11y gate in test:gates.
+      #
+      #   `preferredColorScheme` is a Blink setting taken by ORDINAL — mojom
+      #   PreferredColorScheme { kDark = 0, kLight = 1 } — so it can go quiet
+      #   the same way if that enum ever moves. The probe refuses instead.
       - name: Accessibility — WCAG 2.2 AA, light and dark
         run: |
           npx wait-on http://localhost:8099 -t 30000
+          node -e "
+          import('puppeteer').then(async ({default:p})=>{
+            for (const [scheme,ordinal] of [['light',1],['dark',0]]) {
+              const b=await p.launch({args:['--no-sandbox','--blink-settings=preferredColorScheme='+ordinal]});
+              const pg=await b.newPage();
+              await pg.goto('data:text/html,<p>probe');
+              const dark=await pg.evaluate(()=>matchMedia('(prefers-color-scheme: dark)').matches);
+              await b.close();
+              if (dark !== (scheme==='dark')) {
+                console.error('asked Chrome for '+scheme+' and got '+(dark?'dark':'light')+' — the run below would measure one palette twice');
+                process.exit(1);
+              }
+            }
+            console.log('colour scheme forcing verified in both directions');
+          });"
           for scheme in light dark; do
+            case $scheme in light) ordinal=1 ;; dark) ordinal=0 ;; esac
             echo "── $scheme ──"
             cat > /tmp/pa11y-$scheme.json <<JSON
             { "defaults": { "standard": "WCAG2AA", "runners": ["axe", "htmlcs"],
                 "timeout": 30000,
-                "chromeLaunchConfig": { "args": ["--no-sandbox", "--force-prefers-color-scheme=$scheme"] } },
+                "chromeLaunchConfig": { "args": ["--no-sandbox", "--blink-settings=preferredColorScheme=$ordinal"] } },
               "urls": ["http://localhost:8099/"] }
           JSON
             npx pa11y-ci --config /tmp/pa11y-$scheme.json || exit 1

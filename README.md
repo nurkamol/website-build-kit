@@ -128,7 +128,11 @@ does ship is the skeleton of the parts that take longest to get right:
   a mobile menu that replaces the header rather than layering under it, a focus trap, a sticky
   close control, and every interactive state a control needs
 - **Accessibility statement page** — a required published artefact under the EAA and PSBAR —
-  plus `npm run a11y` over one URL per template family
+  plus `npm run a11y` over one URL per template family, **in both colour schemes**, because a
+  light and a dark palette are two sets of contrast pairs and measuring one proves nothing about
+  the other. ⚠ It verifies that Chrome actually answered `prefers-color-scheme` the way it was
+  asked before it measures anything — the previous forcing flag was one Chrome silently ignores,
+  so the run measured a single palette twice and reported two
 - **`npm run reflow`** — WCAG 1.4.10 and 1.4.4 against the **deployed** site: 320px wide and
   text at 200%, naming the widest offending element rather than reporting the page as broken.
   It is what keeps the testing claim on `/accessibility` honest — on one build that sentence was
@@ -170,8 +174,9 @@ does ship is the skeleton of the parts that take longest to get right:
   analytics
 - **`npm run check:drift`** — what a **delivered** site is behind on. Every other check here
   protects the next project; the template is copied, not linked, so a shipped site never receives
-  any of them. Ten rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images, binary
-  source files, the CMS checks, the client guide — reported and never fixed, because drift is a
+  any of them. Eleven rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images,
+  binary source files, the CMS checks, the client guide, and an accessibility run that measures one
+  palette twice — reported and never fixed, because drift is a
   decision waiting to be made, not an error. `--json` for many sites at once. The repair procedure
   lives in [site-runbooks](https://github.com/nurkamol/site-runbooks), which calls this rather than
   restating it
