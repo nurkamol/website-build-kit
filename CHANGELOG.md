@@ -1,6 +1,42 @@
 # Changelog
 
-## 2026-09-20 — the browser gates get refusal cases, and one of them was inert
+## 2026-09-20 — 0.1.20, the browser gates get refusal cases, and one of them was inert
+
+Released with the `check:cms` round of 2026-09-02, which had not shipped: fifteen commits had
+touched `template/` since 0.1.19 and none of them reached a new scaffold, because the scaffolder
+packs `template/` at pack time. Two of those commits fixed checks that were reporting clean on
+real defects.
+
+### The dependency update this release also carries
+
+`npm audit --omit=dev` was **red before any of today's work**, on a **critical** advisory:
+[GHSA-26w7-cxv4-gfx2](https://github.com/advisories/GHSA-26w7-cxv4-gfx2), remote code execution through Astro's **AVIF image optimization** — in a kit
+whose entire media argument is AVIF. Every fix sat inside a declared semver range, so `npm audit
+fix` moved nothing anybody had pinned:
+
+| | was | now |
+| --- | --- | --- |
+| astro | 7.1.6 | 7.3.3 |
+| sharp | 0.35.3 | 0.35.4 |
+| wrangler | 4.118.0 | 4.135.0 |
+
+Production dependencies now report **zero**. The dev-tree `extract-zip` advisory is unchanged and
+still unpatched upstream — `docs/dependencies.md` carries why, and that file was itself wrong: it
+claimed "three scripts" reference puppeteer and named two that do not while missing three that do.
+
+### puppeteer is a declared dependency now
+
+Four scripts import it outright and it arrived under `pa11y-ci`, which made it a dependency of
+every site by accident of how pa11y happened to be installed. `md-to-pdf.mjs` has carried a written
+warning about exactly that since it was written; shipping test cases for four browser-driving
+scripts on an implicit dependency is where it stopped being defensible.
+
+⚠ **And the package is not the browser.** puppeteer fetches Chrome in a postinstall, and **npm 11
+withholds install scripts pending approval** — so a clean `npm ci` can leave the module present and
+Chrome absent, which every browser gate then fails on for a reason that reads as unrelated. CI asks
+for it explicitly (`npx puppeteer browsers install chrome`, idempotent, about a second warm) rather
+than relying on a side effect. That is the same lesson as the flag below, one layer down.
+
 
 `test:gates` carried eight scripts in its `UNCOVERED` ledger. Six said `BROWSER`. That reason was
 the same inherited excuse the ledger already exists to prevent — **a browser points at localhost,

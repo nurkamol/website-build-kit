@@ -28,30 +28,36 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, basename, resolve } from 'node:path';
 
 /*
- * ⚠ puppeteer IS A TRANSITIVE DEPENDENCY, NOT A DECLARED ONE. The comment above
- *   is true only while `pa11y-ci` is a devDependency of this project. Run pa11y
- *   as `npx --yes pa11y-ci` instead — which a project reasonably might — and
- *   puppeteer is never installed here at all.
+ * ⚠ puppeteer USED TO BE A TRANSITIVE DEPENDENCY, AND THIS BLOCK IS WHY IT IS
+ *   NOT ANY MORE. It arrived under `pa11y-ci`, so it was installed here only
+ *   while pa11y-ci was a devDependency and only while it was installed rather
+ *   than run as `npx --yes pa11y-ci` — which a project reasonably might do.
  *
  *   A fork that did exactly that compensated by hunting for a puppeteer inside
  *   `~/.npm/_npx`, found a stale one whose bundled Chrome would not launch, and
  *   timed out after thirty seconds with nothing pointing at the cause.
  *
- *   So say it plainly rather than let a bare import throw ERR_MODULE_NOT_FOUND:
- *   a script whose dependency is a side effect of how you happened to run a
- *   different script is a script that breaks later, on someone else's machine,
- *   for reasons that look unrelated.
+ *   The note stayed here, correct and unacted on, until four scripts driving a
+ *   browser got test cases and shipping them on an implicit dependency stopped
+ *   being defensible. `puppeteer` is now declared in package.json. This guard
+ *   stays, because a declaration is not an installation.
+ *
+ *   ⚠ AND THE PACKAGE IS NOT THE BROWSER. puppeteer fetches Chrome in a
+ *   postinstall, and npm 11 withholds install scripts pending approval, so a
+ *   clean `npm ci` can leave the module present and the browser absent.
  */
 let puppeteer;
 try {
   puppeteer = (await import('puppeteer')).default;
 } catch {
   console.error(
-    `\nmd-to-pdf needs puppeteer, which is not installed.\n\n` +
-      `  It normally arrives with pa11y-ci, so this usually means pa11y-ci was\n` +
-      `  removed from devDependencies, or is being run as \`npx --yes pa11y-ci\`\n` +
-      `  rather than installed.\n\n` +
-      `  Fix: npm install --save-dev puppeteer\n`,
+    `\nmd-to-pdf needs puppeteer, which is declared in package.json and is not\n` +
+      `  installed here.\n\n` +
+      `  Fix: npm install\n\n` +
+      `  If it installs and Chrome still will not launch, the postinstall that\n` +
+      `  fetches the browser was withheld — npm 11 holds install scripts until\n` +
+      `  they are approved:\n\n` +
+      `  npx puppeteer browsers install chrome\n`,
   );
   process.exit(1);
 }

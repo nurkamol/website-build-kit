@@ -27,11 +27,18 @@ one problem. Do not read the larger number as six separate holes.
 
 ## Where it comes from
 
-Accessibility testing is the whole chain. Each step declares the next:
+Browser-driven checking is the whole chain. Each step declares the next:
 
 ```
-pa11y-ci  →  pa11y ^9.1.1  →  puppeteer ^24.37.5  →  @puppeteer/browsers 2.13.2  →  extract-zip ^2.0.1
+puppeteer ^24.43.1  →  @puppeteer/browsers 2.13.2  →  extract-zip ^2.0.1
+pa11y-ci  →  pa11y ^9.1.1  →  puppeteer  →  (the same two)
 ```
+
+⚠ **`puppeteer` is declared here directly, and it did not used to be.** It arrived under
+`pa11y-ci`, which made it a dependency of this project only by accident of how pa11y was
+installed — run as `npx --yes pa11y-ci` instead and four scripts that import it outright would
+have had nothing to import. Declaring it changes nothing about the advisory below; the chain
+underneath is the same one.
 
 `extract-zip` is what unpacks the Chrome build that puppeteer downloads the first time you run
 `npm run a11y`.
@@ -65,9 +72,11 @@ requiring user interaction.
 More to the point:
 
 - It is a **development** dependency. It is not bundled, imported, or served.
-- **Nothing under `src/` references pa11y or puppeteer.** Only three scripts do —
-  `check-a11y.mjs`, `a11y-evidence.mjs` and `md-to-pdf.mjs` — and none of them run in a
-  deploy.
+- **Nothing under `src/` references pa11y or puppeteer.** Only the scripts do, and none of them
+  run in a deploy: `check-console.mjs`, `check-reflow.mjs`, `shots.mjs`, `md-to-pdf.mjs` and
+  `lib/schemes.mjs` import puppeteer; `check-a11y.mjs` and `a11y-evidence.mjs` spawn pa11y-ci.
+  ⚠ This list said "three scripts" and named two that do not import it while missing three that
+  do — a count nobody re-derives is a count that drifts.
 - A production install (`npm ci --omit=dev`) does not install it at all.
 
 ⚠ **This is a reason it is low risk, not a reason it is fine.** If you ever start running the

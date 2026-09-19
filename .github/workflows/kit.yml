@@ -87,6 +87,16 @@ jobs:
       #
       # Asserting here turns a misleading failure twenty lines deep into a clear
       # one at the step that caused it.
+      # ⚠ CHROME IS NOT A SIDE EFFECT TO RELY ON. puppeteer fetches it in a
+      # postinstall, and npm 11 WITHHOLDS install scripts pending approval —
+      # so `npm ci` can report success and leave the browser gates below with
+      # no browser to drive. Asking for it explicitly is the same lesson as the
+      # colour-scheme flag: do not trust somebody else's default to have done
+      # the thing you need. Idempotent, and about a second on a warm cache.
+      - name: Chrome for the browser gates
+        working-directory: template
+        run: npx puppeteer browsers install chrome
+
       # ⚠ AFTER THE INSTALL, NOT BEFORE. test:gates exercises extract.mjs, which
       # imports turndown — a template dependency. Run earlier it fails with a
       # module-not-found that reads as three broken gates rather than a missing

@@ -52,6 +52,7 @@
     "@astrojs/check": "^0.9.10",
     "@cloudflare/workers-types": "^5.20260815.1",
     "pa11y-ci": "^4.1.1",
+    "puppeteer": "^24.43.1",
     "sharp": "^0.35.3",
     "turndown": "^7.2.4",
     "typescript": "^6.0.3",

@@ -9,7 +9,9 @@ Astro (static) on Cloudflare Workers. Built from
 npm run dev                                  # localhost:4321 — no bindings, /api/* will not work
 npm run media                                # after adding or replacing any image
 npm run build:staging && npx wrangler dev    # localhost:8788, real KV + secrets
-npm run a11y                                 # accessibility check, one URL per family
+npm run a11y                                 # accessibility check, one URL per family, both schemes
+npx puppeteer browsers install chrome        # ...if that says Chrome is missing. npm 11 withholds
+#                                              install scripts, so the download may not have run
 npm run tells                                # what is undecided, and the design tells
 npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
