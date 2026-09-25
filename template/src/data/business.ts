@@ -9,6 +9,24 @@
  * ── FILL THIS IN FIRST. Everything else depends on it. ─────────────────────
  */
 
+/*
+ * ── ONE NUMBER, ONE ADDRESS, WRITTEN ONCE ──────────────────────────────────
+ *
+ * ⚠ `tel:` AND `sms:` USED TO BE FIELDS OF THEIR OWN, so this file held FOUR
+ *   copies of the phone number and TWO of the email address. That is the shape
+ *   this kit warns about everywhere else — *never store a derived value; two
+ *   fields holding one fact is how a tap-to-call button ends up dialling last
+ *   year's number.* Somebody changes the number they can SEE, in `display`, and
+ *   has no reason to suspect a second copy two lines below it.
+ *
+ * So the links are built, not typed. What remains is the one pair that cannot
+ * be derived either way: `display` is locale formatting and `e164` needs the
+ * country code, and no amount of string work turns one into the other. That
+ * pair is what `npm run check:contact` compares.
+ */
+const PHONE_E164 = '+00000000000'; // E.164 WITH the country code — schema.org and tel: need it
+const EMAIL = 'hello@example.com';
+
 export const business = {
   name: 'Business Name',
 
@@ -30,15 +48,17 @@ export const business = {
   foundedYear: 2010,
 
   phone: {
-    display: '(000) 000-0000', // what a visitor reads, in local convention
-    e164: '+00000000000', // E.164 WITH the country code — schema.org and tel: need it
-    href: 'tel:+00000000000',
-    sms: 'sms:+00000000000',
+    /* What a visitor READS, in local convention. The only phone field a client
+       ever asks you to change — and the reason the two below are derived. */
+    display: '(000) 000-0000',
+    e164: PHONE_E164,
+    href: `tel:${PHONE_E164}`,
+    sms: `sms:${PHONE_E164}`,
   },
 
   email: {
-    display: 'hello@example.com', // shown on the site
-    href: 'mailto:hello@example.com',
+    display: EMAIL, // shown on the site
+    href: `mailto:${EMAIL}`,
     sender: 'hello@example.com', // must be a VERIFIED sender at your email provider
     senderName: 'Business Name',
     notify: 'owner@example.com', // where live enquiries land

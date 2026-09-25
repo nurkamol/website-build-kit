@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-09-26c — four fields held one phone number
+
+⚠ **`business.ts` invited the bug this kit warns about everywhere else.** `business.phone` carried
+`display`, `e164`, `href` and `sms`, and `email` carried `display` and `href` — **six fields for two
+facts**, in the file whose own header calls itself the one place business facts live.
+
+The failure is the one `check:cms` already describes and could not reach, because this is code
+rather than content: a client's number changes, you update the number you can **see**, and every
+`tel:` link keeps dialling the old one. The page is correct in every screenshot and every review.
+`astro check` is clean, axe is clean, and `verify` skips `tel:` by design — a protocol handler is
+not a page. **The only person who finds out is the customer whose call went nowhere, and they
+cannot tell you, because the number they dialled did not answer.**
+
+### The fix is the derivation; the check is for what is left
+
+`href` and `sms` are built from one `PHONE_E164` constant and `email.href` from one `EMAIL`
+constant, so **three of those copies can no longer disagree.** Consumers are untouched —
+`business.phone.href` still exists and still reads the same.
+
+What cannot be derived is `display` against `e164`: one is locale formatting, the other needs the
+country code, and no string work turns either into the other without a phone-number library and a
+region. Both must exist, so both can drift. `npm run check:contact` compares them, before the build,
+in both environments, beside `check-form` and `check-cms` — a source bug, invisible in a built page,
+free to check.
+
+⚠ **A UK TRUNK ZERO IS NOT A MISMATCH.** `020 7946 0018` dials `+442079460018`; E.164 drops the
+domestic 0. A naive digit comparison reports every British site as broken, and a check that is wrong
+about a whole country is one people learn to ignore — at which point its silence means nothing.
+
+It also refuses a `tel:`/`sms:`/`mailto:` typed out by hand, which is the shape the template itself
+had until today.
+
+### Two bugs in the checker, both the shape it exists to catch
+
+⚠ **It reported the template's own `e164` as MISSING.** The first version read only quoted literals,
+so `e164: PHONE_E164` — the form it exists to encourage — looked absent. A checker that only
+understands the shape it is trying to eliminate fails on every site that took its advice. It now
+follows one level of indirection to a top-level `const`.
+
+**And it told a two-number site off for having a second number.** An earlier draft branched on
+whether a hand-typed link happened to be *correct*, which produced a different complaint for a
+legitimate second line. The finding is the hand-typing, whatever the digits say: one number, one
+constant, links built from it — the same advice for a site with one number and a site with five.
+
+### 214 cases, 108 proving a refusal
+
+Eight new, including the UK case, the const-indirection case as a `then` assertion on the output,
+and the two that must NOT fail: a site with no phone block at all, and a display carrying no digits.
+
+⚠ The fixtures use **reserved fictional ranges** — `555-01xx` and Ofcom's `020 7946 xxxx` — and both
+files say so, because the provenance sweep greps `scripts` for anything phone-shaped and is designed
+to produce false positives a person reads.
+
 ## 2026-09-26b — the link check, asked backwards
 
 `verify` proved every internal href resolves. Nothing asked the inverse off the same graph: **is

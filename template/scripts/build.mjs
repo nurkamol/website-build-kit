@@ -107,6 +107,11 @@ step(process.execPath, ['scripts/check-form.mjs']);
    check. A no-op on projects with no `.pages.yml`. */
 step(process.execPath, ['scripts/check-cms.mjs']);
 
+/* And the same again: the number a visitor taps is a source fact, it is
+   invisible in a built page — the link works, it just rings somewhere else — and
+   the only person who finds out is the customer whose call went nowhere. */
+step(process.execPath, ['scripts/check-contact.mjs']);
+
 run(['build']);
 
 if (env === 'staging') {

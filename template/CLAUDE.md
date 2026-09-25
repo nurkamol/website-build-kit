@@ -32,6 +32,13 @@ Astro dev server models none of them, and they are exactly where things break.
 
 ## Rules for this codebase
 
+⚠ **The phone number is written ONCE.** `business.ts` used to hold four copies of it —
+`display`, `e164`, `href`, `sms` — and two of the email address. `href` and `sms` are now built
+from one constant, because the fourth copy is how a tap-to-call button ends up dialling last
+year's number: somebody changes the number they can *see* and has no reason to suspect another
+two lines below. What is left is `display` against `e164`, which cannot be derived either way,
+and `npm run check:contact` compares them on every build. Never type a `tel:` or `mailto:` out.
+
 **`src/data/business.ts` is the only place business facts live.** Name, phone, address,
 hours, service areas, credentials — plus `locale`, `timeZone` and `schemaTypes`, whose
 defaults are deliberately neutral (`en`, `UTC`, `LocalBusiness`) rather than correct. Neutral

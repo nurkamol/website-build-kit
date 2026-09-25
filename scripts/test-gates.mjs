@@ -934,6 +934,103 @@ gate('no src — refuses', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * check:contact — the number a visitor taps versus the number they read
+ *
+ * ⚠ THE UK CASE IS THE LOAD-BEARING ONE. A British number displays as
+ *   `020 7946 0018` and dials as `+442079460018` — E.164 drops the domestic
+ *   trunk zero — so a naive digit comparison reports every British site as
+ *   broken. A check that is wrong about a whole country is a check that gets
+ *   switched off, and then its silence means nothing.
+ *
+ * The numbers below are RESERVED FICTIONAL RANGES — `555-01xx` across the NANP,
+ * `020 7946 xxxx` from Ofcom's drama range — so the provenance sweep that greps
+ * `scripts` for anything phone-shaped can be answered from this comment instead
+ * of by tracing a number nobody recognises.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:contact');
+
+const contact = (body) => ({ 'src/data/business.ts': body });
+
+const US = `const PHONE_E164 = '+14155550100';
+export const business = {
+  phone: { display: '(415) 555-0100', e164: PHONE_E164, href: \`tel:\${PHONE_E164}\` },
+  email: { display: 'hello@example.com', href: \`mailto:\${EMAIL}\` },
+} as const;
+`;
+
+gate('a number that reads as it dials passes', {
+  script: 'check-contact.mjs',
+  files: contact(US),
+  expect: 0,
+  contains: 'what the site shows is what it dials',
+});
+
+gate('a UK trunk zero is not a mismatch', {
+  script: 'check-contact.mjs',
+  files: contact(`const PHONE_E164 = '+442079460018';
+export const business = {
+  phone: { display: '020 7946 0018', e164: PHONE_E164, href: \`tel:\${PHONE_E164}\` },
+} as const;
+`),
+  expect: 0,
+});
+
+gate('refuses a display and an e164 that are different numbers', {
+  script: 'check-contact.mjs',
+  files: contact(US.replace("(415) 555-0100", '(415) 555-0199')),
+  expect: 1,
+  contains: 'are different numbers',
+});
+
+/*
+ * ⚠ RESOLVES ONE LEVEL OF INDIRECTION, and the first version did not. It read
+ *   only quoted literals, so `e164: PHONE_E164` — the shape this check exists to
+ *   encourage — reported as a MISSING field. A checker that only understands the
+ *   form it is trying to eliminate fails on every site that took its advice.
+ */
+gate('reads an e164 held in a const, not only a literal', {
+  script: 'check-contact.mjs',
+  files: contact(US),
+  expect: 0,
+  /* Raw output, not `plain()` — that helper is defined further down the file, and
+     a bare word does not need the colour stripped to be found. */
+  then: (_dir, out) => (/missing/i.test(out) ? 'reported a const-held e164 as missing' : null),
+});
+
+gate('refuses a dial link typed out by hand', {
+  script: 'check-contact.mjs',
+  files: contact(US.replace('href: \`tel:\${PHONE_E164}\`', "href: 'tel:+1 (415) 555-0100'")),
+  expect: 1,
+  contains: 'typed out by hand',
+});
+
+gate('refuses a mailto no display field shows', {
+  script: 'check-contact.mjs',
+  files: contact(`export const business = {
+  email: { display: 'hello@new.example.com', href: 'mailto:hello@old.example.com' },
+} as const;
+`),
+  expect: 1,
+  contains: 'no `display` field shows',
+});
+
+/* A site with no phone number is a real site, not a failure — and it says so
+   rather than skipping in silence, because a renamed field looks the same. */
+gate('a site with no phone block is not a failure', {
+  script: 'check-contact.mjs',
+  files: contact("export const business = { name: 'X' } as const;\n"),
+  expect: 0,
+  contains: 'nothing to compare',
+});
+
+gate('no business.ts at all refuses legibly', {
+  script: 'check-contact.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'not found',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * The coverage ledger
  *
  * Every template script that can exit 1 is either covered above or listed

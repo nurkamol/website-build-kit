@@ -175,6 +175,14 @@ does ship is the skeleton of the parts that take longest to get right:
   written across trailing-slash forms, an unsupported status. None of these stop the file parsing
   or the site building; they break a URL that used to rank, weeks later, in somebody else's
   analytics
+- **`npm run check:contact`** — the number a visitor **taps** against the number they **read**.
+  A client's number changes, you update the one you can see, and every `tel:` link keeps dialling
+  the old one: the page is right in every screenshot, types and axe are clean, and `verify` skips
+  `tel:` because a protocol handler is not a page. **The only person who finds out is the customer
+  whose call went nowhere.** `business.phone` now derives `href` and `sms` from one constant, so
+  three of the four copies cannot disagree; this checks the pair that cannot be derived — locale
+  formatting against E.164 — and ⚠ **it knows a UK trunk zero is not a mismatch**, because a check
+  that is wrong about a whole country gets switched off
 - **`npm run check:drift`** — what a **delivered** site is behind on. Every other check here
   protects the next project; the template is copied, not linked, so a shipped site never receives
   any of them. Eleven rows — AVIF, HEIC, a pipeline that drops files silently, hardcoded images,

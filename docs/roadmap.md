@@ -53,6 +53,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `npm run check:contact` | A tap-to-call button dialling last year's number. `business.phone` held **four fields for one fact**, so updating the visible one left `tel:` pointing at the old number — page correct in every screenshot, types clean, axe clean, and `verify` skips `tel:` by design. Three copies are now derived; the irreducible pair is gated. ⚠ It knows a **UK trunk zero** is not a mismatch |
 | Orphan routes in `verify` | A page that returns 200, sits in the sitemap, gets indexed, and **cannot be reached by clicking** — what a rewritten nav leaves behind on a rebuild. The link check proved every href resolves; nothing asked the inverse, off the same graph already in memory. Warns rather than fails, because a deliberately unlinked campaign page is a real thing |
 | One origin in `a11y:evidence` | A dated compliance pack whose two halves measured **two different sites** — pa11y read `.pa11yci.json` while reflow fell back to `localhost:8788`, and nothing in the document said so |
 | `@layer kit` via `src/styles/index.css` | A project rule losing to a more specific kit rule, and `!important` becoming the answer. `.on-dark .btn` is 0,2,0 against a project's own `.btn` at 0,1,0, so load order — the only thing holding the seam — never came into it. Unlayered beats layered, so the kit is layered and the project is not. Measured in a browser both ways: `#fff` before, the project's value after |

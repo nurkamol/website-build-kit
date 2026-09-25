@@ -33,6 +33,9 @@ build.
 scripts/recon.mjs              inventory the OLD site → recon/urls.txt, preserved, integrations
 scripts/dns-snapshot.mjs       the zone before you move it, and the diff after. MX, CAA, SPF
 scripts/redirects.mjs          proposes a redirect map. never writes public/_redirects
+scripts/check-contact.mjs      what the site shows against what it dials. the one
+                               phone pair that cannot be derived, and a UK trunk
+                               zero is not a mismatch
 scripts/verify.mjs             the deployed site, as a gate. exits non-zero.
                                includes the internal link crawl and its inverse — a
                                route nothing links to — coverage against
