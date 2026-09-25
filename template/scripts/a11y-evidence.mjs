@@ -77,6 +77,31 @@ const standard = config.defaults?.standard ?? 'WCAG2AA';
 const runners = config.defaults?.runners ?? ['htmlcs'];
 
 /*
+ * ⚠ THE TWO HALVES OF THIS PACK COULD MEASURE TWO DIFFERENT SITES.
+ *
+ *   With no host argument, pa11y reads the URLs in `.pa11yci.json` — and
+ *   `.pa11yci.json` says in its own comment to point those at wrangler dev "or
+ *   at the deployed staging host". check-reflow, meanwhile, defaults to
+ *   localhost:8788. Point the config at staging with a local preview running
+ *   and §1 describes staging while §2 describes whatever is on your machine,
+ *   in one dated document, with nothing in it saying so.
+ *
+ *   So the origin is taken from the config when no host is given, and both
+ *   halves are handed the same one.
+ */
+const configOrigin = (() => {
+  const first = (config.urls ?? [])[0];
+  if (typeof first !== 'string') return null;
+  try {
+    return new URL(first).origin;
+  } catch {
+    return null;
+  }
+})();
+/** The one origin both sections measure, and the one the pack names. */
+const measured = host ?? configOrigin;
+
+/*
  * ⚠ EVERY SCHEME, because the pack is a COMPLIANCE ARTEFACT.
  *
  * pa11y drives Chrome, and Chrome picks a colour scheme from the machine it
@@ -190,7 +215,7 @@ console.log(`\n${BOLD}── reflow · 320px + 200% ${'─'.repeat(35)}${RESET}`
 let reflowOut = '';
 let reflowOk = false;
 try {
-  reflowOut = execFileSync('node', ['scripts/check-reflow.mjs', ...(host ? [host] : [])], {
+  reflowOut = execFileSync('node', ['scripts/check-reflow.mjs', ...(measured ? [measured] : [])], {
     encoding: 'utf8',
   });
   reflowOk = true;
@@ -227,7 +252,10 @@ const totalErrors = passes.reduce(
   (n, pass) => n + pass.rows.reduce((m, r) => m + r.errors.length, 0),
   0,
 );
-const target = host ?? 'http://localhost:8788 (wrangler dev)';
+/* Name what was measured, never a default that may not be what ran. A pack
+   headed `localhost:8788` about a staging run is a wrong fact in a document
+   somebody attests to. */
+const target = host ?? (configOrigin ? `${configOrigin} (from .pa11yci.json)` : 'unknown — .pa11yci.json lists no usable URL');
 
 const issueLines = passes
   .flatMap((pass) => pass.rows.filter((r) => r.errors.length).map((r) => ({ ...r, scheme: pass.scheme })))

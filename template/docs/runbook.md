@@ -271,7 +271,8 @@ npm run console -- https://new.example.com     # console errors + failed request
 literal rule in `_redirects` plus whether its target actually resolves, **every URL the old site
 served**, the security headers,
 the staging noindex/analytics split, sitemap `lastmod` variance, every internal link and
-`og:image`, the title/description/canonical sweep, page weight and render-blocking counts, and
+`og:image`, **any route nothing links to**, the title/description/canonical sweep, page weight
+and render-blocking counts, and
 the three form submissions the API is supposed to refuse — including that caught spam does not
 land on the conversion URL.
 

@@ -158,7 +158,10 @@ does ship is the skeleton of the parts that take longest to get right:
   against the **deployed** site. Routes, a real 404, every redirect rule and whether its target
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
   and render-blocking counts — bytes and counts, never a timing, because a hand-rolled number
-  from one machine disagrees with Lighthouse and nothing tells you it is wrong
+  from one machine disagrees with Lighthouse and nothing tells you it is wrong. It crawls every
+  internal link **and asks the inverse**: a route that nothing links to returns 200, sits in the
+  sitemap, gets indexed, and cannot be reached by clicking — which is what a rewritten nav leaves
+  behind
 - **The scaffolder stamps `websiteBuildKit.version` into the new site's `package.json`.** The
   template is copied, not linked, so nothing the kit fixes afterwards reaches a site already
   built — and without a stamp, *"is this site current?"* is archaeology against a repo whose

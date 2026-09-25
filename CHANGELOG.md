@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-09-26b — the link check, asked backwards
+
+`verify` proved every internal href resolves. Nothing asked the inverse off the same graph: **is
+there a page nothing points at?**
+
+⚠ **That page passes every gate the kit has.** It returns 200, it is in the sitemap,
+`check:sitemap` is happy, the build is green and a crawler will index it — and no visitor can
+reach it by clicking. It is what a rebuild leaves behind when the nav is rewritten and the route
+stays: a service or a location page, live, indexed, invisible. The graph was already in memory, so
+this is one set difference and **no extra requests**.
+
+Three things are deliberately not orphans, because a check that is wrong gets switched off:
+
+| | why |
+| --- | --- |
+| the home page | an entry point by definition |
+| a `noindex` page | unlinked *and* noindex is a decision — a thank-you page after a form post is exactly this |
+| a redirect target | somebody arriving from an old URL reaches it, which on a migration is most of the point |
+
+A page linking to **itself** does not count either — a header logo points at `/` from everywhere.
+
+It **warns** rather than fails. A deliberately unlinked indexable page is real (a campaign landing
+page) and this cannot tell that from a mistake, so it names the pages and does not block go-live.
+
+⚠ **And the cap is a false-positive source, so the report says so.** The link scan reads the first
+150 pages; a route linked only from page 151 would report here wrongly. When both conditions hold,
+the detail says to raise `LINK_PAGE_CAP` before believing it.
+
+`public/_redirects` is now parsed by one function rather than two, because the orphan check needs
+the target column and two parses would be free to disagree about what a rule is.
+
+### The evidence pack was measuring two sites
+
+`a11y:evidence` with no host argument ran pa11y against `.pa11yci.json` and `check-reflow` against
+its own default, `localhost:8788`. `.pa11yci.json` says in its own comment to point those URLs at
+wrangler dev *"or at the deployed staging host"* — so with staging in the config and a local preview
+running, **§1 of one dated document described staging and §2 described your laptop**, with nothing
+in it saying so. Both halves now take the same origin, and the pack's `Target:` line names what was
+actually measured instead of a default that may not be what ran.
+
+### Both proved against the code that had the bug
+
+**206 cases, 104 proving a refusal.** Three new ones, and each was run against the pre-fix script:
+
+- the orphan warning pairs with a clean control on the same fixture — *"the check works"* and
+  *"the check always fires"* are indistinguishable without it
+- the warning has to **name `/pricing/`**, and the harness gained a `names` assertion for that. It
+  was verified by pointing it at a page that does not exist and watching it fail, because an
+  assertion nobody has seen refuse is an assumption
+- the evidence case fails against the old script with the exact reason: *"the reflow section ran
+  against a different origin than pa11y did"*
+
+⚠ The fixture's orphan page exists **only under the fault**. Adding it to the default site would
+have made the clean run report an orphan — and the control every other `verify` case is measured
+against would have been carrying the defect it exists to disprove.
+
 ## 2026-09-26 — the seam between the kit and a project was a convention
 
 `project.css` exists so one client's cards and heroes do not land in `global.css` and get

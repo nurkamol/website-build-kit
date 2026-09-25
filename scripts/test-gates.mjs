@@ -1149,7 +1149,7 @@ function startFixture(faults) {
 const plain = (out) => out.replace(/\u001b\[[0-9;]*m/g, '');
 const showsCheck = (out, mark, name) => plain(out).includes(`${mark} ${name}`);
 
-function verifyGate(label, { faults = '', expect, mark, check }) {
+function verifyGate(label, { faults = '', expect, mark, check, names }) {
   let fixture;
   try {
     fixture = startFixture(faults);
@@ -1163,8 +1163,13 @@ function verifyGate(label, { faults = '', expect, mark, check }) {
       files: VERIFY_FILES,
       args: [fixture.origin],
       expect,
-      then: (_dir, out) =>
-        showsCheck(out, mark, check) ? null : `did not report ${JSON.stringify(`${mark} ${check}`)}`,
+      then: (_dir, out) => {
+        if (!showsCheck(out, mark, check)) return `did not report ${JSON.stringify(`${mark} ${check}`)}`;
+        /* `names` pins WHICH page or rule the report blamed. A check that fires
+           on the right run for the wrong reason reads identically without it. */
+        if (names && !plain(out).includes(names)) return `reported ${JSON.stringify(check)} without naming ${JSON.stringify(names)}`;
+        return null;
+      },
     });
   } finally {
     fixture.child.kill('SIGKILL');
@@ -1203,6 +1208,28 @@ verifyGate('warns on a second h1, without failing the run', {
   expect: 0,
   mark: '!',
   check: 'exactly one h1 per page',
+});
+
+/*
+ * ── The inverse of the link check, and it needs BOTH marks ─────────────────
+ *
+ * A route nothing links to returns 200, sits in the sitemap and passes every
+ * other gate. It warns rather than fails, so the exit code says nothing at all
+ * here — the assertion is entirely on the mark, and the clean run beside it is
+ * what separates "the check works" from "the check always fires".
+ */
+verifyGate('says nothing about orphans on a site where everything is linked', {
+  expect: 0,
+  mark: '✓',
+  check: 'every route is linked from another page',
+});
+
+verifyGate('warns on a route nothing links to, and names it', {
+  faults: 'orphan-route',
+  expect: 0,
+  mark: '!',
+  check: 'every route is linked from another page',
+  names: '/pricing/',
 });
 
 /* The warning is the preserved-path check; the exit 1 comes from the redirect
@@ -1496,6 +1523,33 @@ if (cannotLinkModules) {
       if (!/\|\s*light\s*\|\s*0\s*\|/.test(pack)) return 'did not record a clean light pass';
       if (!/\|\s*dark\s*\|\s*[1-9]/.test(pack)) return 'recorded no dark failure — the pack claims a pass that did not happen';
       if (!/no horizontal scroll/.test(pack)) return 'the reflow section did not run inside the pack';
+      return null;
+    },
+  });
+  /*
+   * ⚠ THE NO-HOST FORM, WHICH IS WHERE THE TWO HALVES USED TO DISAGREE.
+   *
+   *   Without a host argument, pa11y reads `.pa11yci.json` and check-reflow used
+   *   to fall back to localhost:8788 — so a config pointing anywhere else
+   *   produced one dated document describing two different sites, and said
+   *   nothing about it. The reflow section reporting a real result is what
+   *   proves both halves were handed the same origin.
+   */
+  againstFixture('the pack measures ONE origin when no host is given', {
+    script: 'a11y-evidence.mjs',
+    passOrigin: false,
+    files: pa11yConfig,
+    setup: withTemplateModules((dir) => {
+      cpSync(TEMPLATE_SCRIPTS, join(dir, 'scripts'), { recursive: true });
+    }),
+    expect: 0,
+    then: (dir) => {
+      const packDir = join(dir, 'docs', 'a11y-evidence');
+      if (!existsSync(packDir)) return 'wrote no evidence pack';
+      const pack = readFileSync(join(packDir, readdirSync(packDir)[0]), 'utf8');
+      if (/No routes found/.test(pack)) return 'the reflow section ran against a different origin than pa11y did';
+      if (!/no horizontal scroll/.test(pack)) return 'the reflow section produced no result';
+      if (/localhost:8788/.test(pack)) return 'the pack names localhost:8788, which is not what it measured';
       return null;
     },
   });

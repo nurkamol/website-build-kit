@@ -63,6 +63,7 @@ const KNOWN_FAULTS = [
   'overflow-320', // a fixed-width element wider than a 320px viewport
   'dark-only-contrast', // AA contrast that passes in light and fails in dark
   'no-stylesheet', // a page that arrives with no CSS at all
+  'orphan-route', // a page in the sitemap that no other page links to
 ];
 for (const f of FAULTS) {
   if (!KNOWN_FAULTS.includes(f)) {
@@ -166,6 +167,25 @@ const ROUTES = {
     description: 'An about page, present so that cross-page checks have two pages to compare.',
     canonical: ABOUT_CANONICAL,
   }),
+
+  /*
+   * ⚠ ONLY UNDER THE FAULT, and that is the point rather than tidiness. It is
+   *   served, it is in the sitemap, it returns 200 and no page links to it — so
+   *   adding it to the default site would make the CLEAN run report an orphan,
+   *   and the control every other verify case is measured against would be
+   *   carrying the defect it exists to disprove.
+   *
+   * The page itself links OUT, like any real page. Nothing links IN.
+   */
+  ...(FAULTS.has('orphan-route')
+    ? {
+        '/pricing/': page({
+          path: '/pricing/',
+          title: 'Pricing, reachable only by typing the URL',
+          description: 'A page in the sitemap that no other page links to — the shape a rewritten nav leaves behind.',
+        }),
+      }
+    : {}),
 };
 
 const robots = () =>

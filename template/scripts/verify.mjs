@@ -230,6 +230,27 @@ record('unknown path returns a real 404', missing.status === 404,
  */
 section('Links');
 
+/**
+ * Literal rules from public/_redirects, as `[from, to, code?]`.
+ *
+ * Two checks read this now — the redirect section tests the rules themselves,
+ * and the orphan check below counts a redirect TARGET as an entry point. One
+ * parse, because two would be free to disagree about what a rule is.
+ *
+ * Splat and placeholder rules are skipped: they need a concrete example to
+ * test, and asking for a literal `*` reports a failure that is not one.
+ */
+function redirectRules() {
+  if (!existsSync('public/_redirects')) return [];
+  return readFileSync('public/_redirects', 'utf8')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split(/\s+/))
+    .filter((r) => r.length >= 2 && r[0].startsWith('/'))
+    .filter((r) => !r[0].includes('*') && !r[0].includes(':'));
+}
+
 const LINK_PAGE_CAP = 150;
 const pagesToScan = routes.slice(0, LINK_PAGE_CAP);
 if (routes.length > LINK_PAGE_CAP) {
@@ -381,6 +402,92 @@ record(
         `          linked from: ${sourcesOf(r.url).join(', ')}`,
     )
     .join('\n      '),
+  { warn: true },
+);
+
+/*
+ * ── A ROUTE NOTHING LINKS TO ───────────────────────────────────────────────
+ *
+ * The check above asks whether every href resolves. This asks the inverse, off
+ * the same graph: is there a page NOTHING points at?
+ *
+ * ⚠ IT IS THE SHAPE THE LINK CHECK CANNOT SEE, AND EVERY OTHER GATE PASSES IT.
+ *   The page returns 200. It is in the sitemap. `check:sitemap` is happy, the
+ *   build is green, and a crawler will index it. It simply cannot be reached by
+ *   clicking, which is how a rebuild loses a service or a location page: the nav
+ *   was rewritten, the route stayed, and nobody visits a page they cannot find.
+ *   The data was already in memory — this is one set difference and no requests.
+ *
+ * Three things are deliberately NOT orphans, because a check that is wrong gets
+ * switched off:
+ *
+ *   the home page      an entry point by definition, linked or not
+ *   a noindex page     unlinked AND noindex is a decision — a thank-you page
+ *                      reached after a form post is exactly this
+ *   a redirect target  somebody arriving from an old URL reaches it, which on a
+ *                      migration is most of the point
+ *
+ * A page linking to ITSELF does not count as reachable either — a logo in the
+ * header points at `/` from everywhere, and the same shape appears on any page
+ * that links to its own canonical.
+ *
+ * It WARNS rather than fails. A deliberately unlinked indexable page is a real
+ * thing (a campaign landing page), and this cannot tell that from a mistake.
+ */
+const withSlash = (path) => (path.endsWith('/') ? path : `${path}/`);
+
+const linkedFrom = new Map();
+for (const [url, sources] of targets) {
+  let path;
+  try {
+    path = withSlash(new URL(url).pathname);
+  } catch {
+    continue;
+  }
+  if (!linkedFrom.has(path)) linkedFrom.set(path, new Set());
+  for (const src of sources) linkedFrom.get(path).add(withSlash(src));
+}
+
+const redirectTargets = new Set(
+  redirectRules()
+    .map(([, to]) => {
+      try {
+        return withSlash(new URL(to, origin).pathname);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean),
+);
+
+const noindexPaths = new Set(
+  [...meta.entries()].filter(([, m]) => m.noindex).map(([path]) => withSlash(path)),
+);
+
+const orphans = routes
+  .map((url) => withSlash(new URL(url).pathname))
+  .filter((path) => path !== '/')
+  .filter((path) => !noindexPaths.has(path))
+  .filter((path) => !redirectTargets.has(path))
+  .filter((path) => {
+    const sources = linkedFrom.get(path);
+    return !sources || [...sources].every((src) => src === path);
+  });
+
+record(
+  'every route is linked from another page',
+  orphans.length === 0,
+  orphans.join('\n      ') +
+    /* A path on its own is a finding nobody can act on. Name the three ways out,
+       including the one where the page is right and the check is noise. */
+    (orphans.length
+      ? '\n      nothing links to these — put them in src/data/nav.ts, link them from a parent' +
+        '\n      page, or set noindex if being unlinked is deliberate'
+      : '') +
+    (orphans.length && routes.length > LINK_PAGE_CAP
+      ? `\n      ⚠ only the first ${LINK_PAGE_CAP} page(s) were read for links, so a page linked` +
+        `\n        only from beyond that cap reports here wrongly — raise LINK_PAGE_CAP to be sure`
+      : ''),
   { warn: true },
 );
 
@@ -899,15 +1006,7 @@ section('Redirects');
 if (!existsSync('public/_redirects')) {
   record('public/_redirects present', false, 'no redirect map — expected on a migration');
 } else {
-  const rules = readFileSync('public/_redirects', 'utf8')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'))
-    .map((l) => l.split(/\s+/))
-    .filter((p) => p.length >= 2 && p[0].startsWith('/'))
-    /* Splats and placeholders need a concrete example to test; skip them
-       rather than request a literal '*' and report a false failure. */
-    .filter((p) => !p[0].includes('*') && !p[0].includes(':'));
+  const rules = redirectRules();
 
   console.log(`  ${DIM}${rules.length} literal rule(s) — splat and placeholder rules are not testable without an example${RESET}`);
 
