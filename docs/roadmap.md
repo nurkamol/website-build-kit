@@ -53,6 +53,7 @@ Kept short — `CHANGELOG.md` carries the detail.
 
 | | Catches |
 | --- | --- |
+| `npm run check:alt` | An alt attribute that exists and says nothing — `DSC_0421.jpg`, `image`, `Photo of a kitchen`, or one description across nine photographs. axe proves the attribute is *there*, `Img.astro` makes it required, and **nothing read the value**. Most alt text on a finished site is typed by the client into a CMS field, which is why it is weak. ⚠ Two rules were tightened by their own must-not-fire cases: prose beginning "Photo 2024…", and correct alt on a well-named file |
 | `npm run check:contact` | A tap-to-call button dialling last year's number. `business.phone` held **four fields for one fact**, so updating the visible one left `tel:` pointing at the old number — page correct in every screenshot, types clean, axe clean, and `verify` skips `tel:` by design. Three copies are now derived; the irreducible pair is gated. ⚠ It knows a **UK trunk zero** is not a mismatch |
 | Orphan routes in `verify` | A page that returns 200, sits in the sitemap, gets indexed, and **cannot be reached by clicking** — what a rewritten nav leaves behind on a rebuild. The link check proved every href resolves; nothing asked the inverse, off the same graph already in memory. Warns rather than fails, because a deliberately unlinked campaign page is a real thing |
 | One origin in `a11y:evidence` | A dated compliance pack whose two halves measured **two different sites** — pa11y read `.pa11yci.json` while reflow fell back to `localhost:8788`, and nothing in the document said so |

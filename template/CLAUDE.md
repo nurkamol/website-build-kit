@@ -144,6 +144,13 @@ ordinary client request — and every enquiry from a company that types its name
 a thank-you page and nothing stored. **Name the real field `companyName`** and leave the trap alone;
 `npm run check:form` fails the build if two controls share a name.
 
+**Alt text is read as text.** `npm run check:alt` reads `dist/` and reports an alt that exists and
+says nothing — a filename, a manifest key, `image`, `Photo of a…`, or one description shared by two
+different pictures. axe proves the attribute is *there* and `<Img>` makes it required; **nothing read
+the value**, and most of it on a finished site is typed by the client into a CMS field. ⚠ `alt=""` is
+never a finding — an empty alt is how you say *this picture adds nothing, skip it*, and it is the
+right answer for decoration. Warns on staging, refuses on production.
+
 **Notes to yourself never ship.** `check:copy` reads the text a browser would show — not the
 source, not comments, not `<script>` — and looks for the markers people actually leave: `TODO`,
 `FIXME`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}`. It warns on staging and

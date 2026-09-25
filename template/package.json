@@ -15,6 +15,7 @@
     "build:staging": "node scripts/build.mjs staging",
     "cards": "node scripts/og-cards.mjs",
     "check": "astro check",
+    "check:alt": "node scripts/check-alt.mjs",
     "check:cms": "node scripts/check-cms.mjs",
     "check:contact": "node scripts/check-contact.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",

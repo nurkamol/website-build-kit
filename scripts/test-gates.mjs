@@ -934,6 +934,87 @@ gate('no src — refuses', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * check:alt — the attribute axe proves exists and nobody reads
+ *
+ * ⚠ THE MUST-NOT-FIRE CASES ARE THE POINT HERE. Alt text is prose, and a check
+ *   that argues with a real sentence is one people switch off — at which point
+ *   its silence means nothing. Two rules were tightened while writing this, each
+ *   because of a case below:
+ *
+ *     "Photo 2024 winners"   an unanchored camera pattern matched ordinary prose
+ *     "Ada Lovelace"         a rule comparing alt to the FILENAME reported
+ *                            correct alt on a well-named file as pasted
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('check:alt');
+
+/* `page` is taken further down this file by another gate's fixture. */
+const builtPage = (body) => ({ 'dist/client/index.html': body });
+
+for (const [label, rule, tag] of [
+  ['a filename with an extension', 'a filename', '<img src="/a.webp" alt="DSC_0421.jpg">'],
+  ['a camera filename', 'a filename', '<img src="/b.webp" alt="IMG_2938">'],
+  ['a manifest key pasted in', 'a slug, not a sentence', '<img src="/c.webp" alt="hero-1200">'],
+  ['a word that adds nothing', 'adds nothing', '<img src="/d.webp" alt="image">'],
+  ['a bare "Logo"', 'adds nothing', '<img src="/e.webp" alt="Logo">'],
+  ['a redundant opening', 'redundant opening', '<img src="/f.webp" alt="Photo of a kitchen">'],
+]) {
+  gate(`refuses ${label}`, {
+    script: 'check-alt.mjs',
+    files: builtPage(tag),
+    args: ['--strict'],
+    expect: 1,
+    contains: rule,
+  });
+}
+
+gate('refuses two different images sharing one description', {
+  script: 'check-alt.mjs',
+  files: builtPage('<img src="/h1.webp" alt="Our work"><img src="/h2.webp" alt="Our work">'),
+  args: ['--strict'],
+  expect: 1,
+  contains: 'share this',
+});
+
+/* ── and the ones that must stay silent ─────────────────────────────────── */
+
+for (const [label, tag] of [
+  ['an empty alt is how you say "decorative"', '<img src="/d.webp" alt="">'],
+  ['aria-hidden is not judged', '<img src="/h.webp" alt="image" aria-hidden="true">'],
+  ['role=presentation is not judged', '<img src="/p.webp" alt="photo" role="presentation">'],
+  ['"Screenshot of…" says something "Photo of…" does not', '<img src="/s.webp" alt="Screenshot of the booking dashboard">'],
+  ['ONE image used twice shares its alt correctly', '<img src="/logo.svg" alt="Acme Plumbing"><img src="/logo.svg" alt="Acme Plumbing">'],
+  ['a name that matches a well-chosen filename', '<img src="/ada-lovelace.webp" alt="Ada Lovelace">'],
+  ['prose that happens to start with "Photo"', '<img src="/p.webp" alt="Photo 2024 winners">'],
+  ['a single lowercase word is not a slug', '<img src="/b.webp" alt="bath">'],
+  ['a hyphenated word inside a sentence', '<img src="/c.webp" alt="covid-19 poster">'],
+  ['an alt that simply describes the picture', '<img src="/k.webp" alt="A plumber fitting a copper pipe under a kitchen sink">'],
+]) {
+  gate(label, {
+    script: 'check-alt.mjs',
+    files: builtPage(tag),
+    args: ['--strict'],
+    expect: 0,
+    contains: 'every alt says something',
+  });
+}
+
+/* Warn on staging, refuse on production — the same split as check-copy, and the
+   reason the build passes one flag and not the other. */
+gate('warns without --strict, so a draft can build', {
+  script: 'check-alt.mjs',
+  files: builtPage('<img src="/a.webp" alt="image">'),
+  expect: 0,
+  contains: 'tell a screen-reader user nothing',
+});
+
+gate('no dist at all refuses legibly', {
+  script: 'check-alt.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'no dist/',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * check:contact — the number a visitor taps versus the number they read
  *
  * ⚠ THE UK CASE IS THE LOAD-BEARING ONE. A British number displays as

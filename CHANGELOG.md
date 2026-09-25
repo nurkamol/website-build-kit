@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-09-26d — the attribute everything checks and nothing read
+
+axe checks that an `<img>` **has** an alt. `Img.astro` makes it a required prop, so a missing one
+cannot ship. ⚠ **Nothing anywhere read what it said**, so every one of these passed every gate the
+kit has, and every one is useless to the person the attribute exists for:
+
+```
+alt="DSC_0421.jpg"        the camera's filename
+alt="hero-1200"           the media manifest's key, pasted in
+alt="image"               a word that adds nothing to "image"
+alt="Photo of a kitchen"  a screen reader already said "image"
+nine photographs, all alt="Our work"
+```
+
+`npm run check:alt` reads `dist/` rather than `src/`, because **the alt text that matters is usually
+not in `src/`**: it is typed by a client into a CMS field that `check:cms` made sure exists, which is
+precisely why the value is weak. `.astro`, markdown, a content collection and a CMS field all arrive
+as one `<img>` in a built page, so the built page is the only place to read all four at once. Warns
+on staging, refuses on production — the same split as `check:copy`, because a placeholder alt is
+normal while drafting and unacceptable at go-live.
+
+### The must-not-fire cases are the point
+
+Alt text is prose, and a check that argues with a real sentence gets switched off — after which its
+silence means nothing. **Two rules were tightened by the cases that caught them out:**
+
+| the case | what it broke |
+| --- | --- |
+| `alt="Photo 2024 winners"` | an unanchored camera pattern matched ordinary prose about a photograph. It now has to be the WHOLE alt |
+| `alt="Ada Lovelace"` on `ada-lovelace.webp` | a rule comparing alt to the file's own name called correct alt on a well-named file "pasted". **A good pipeline has descriptive filenames**, so that rule was a false positive waiting to happen. Replaced by a shape rule — all lowercase, no spaces, a hyphen — which prose cannot match |
+
+⚠ **`alt=""` is never a finding.** An empty alt is how you say *this picture adds nothing, skip it*,
+and it is the correct answer for decoration. Nor are `aria-hidden` and `role="presentation"`, and nor
+is one image used twice sharing one description — a logo in a header and a footer is one picture,
+described once. Two DIFFERENT pictures sharing a description is the finding.
+
+Rules deliberately left out, because they need judgement: alt matching the page's `h1` (correct on a
+product page), and `"Screenshot of…"`, which conveys a fact that `"Image of…"` does not.
+
+### 233 cases, 116 proving a refusal
+
+Nineteen new ones, and **ten of them assert silence** — including both tightening cases, a single
+lowercase word (`bath`, not a slug), a hyphenated word inside a sentence (`covid-19 poster`), and an
+alt that simply describes the picture.
+
 ## 2026-09-26c — four fields held one phone number
 
 ⚠ **`business.ts` invited the bug this kit warns about everywhere else.** `business.phone` carried

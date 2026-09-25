@@ -175,6 +175,15 @@ does ship is the skeleton of the parts that take longest to get right:
   written across trailing-slash forms, an unsupported status. None of these stop the file parsing
   or the site building; they break a URL that used to rank, weeks later, in somebody else's
   analytics
+- **`npm run check:alt`** — alt text read as **text**. axe and `Img.astro` prove the attribute
+  exists; nothing anywhere read what it said, so `alt="DSC_0421.jpg"`, `alt="image"`,
+  `alt="Photo of a kitchen"` and nine photographs all reading `alt="Our work"` passed every gate
+  the kit has while telling a screen-reader user nothing. It reads `dist/`, because alt arrives
+  from `.astro`, markdown, a content collection **and a CMS field a client types into** — which is
+  exactly why the value is weak — and the built page is the only place all four can be read at
+  once. ⚠ **Few rules, deliberately.** Alt text is prose and a check that argues with a real
+  sentence gets switched off: `alt=""` is never a finding, "Screenshot of…" is not "Photo of…", and
+  a picture used twice may share its description. Warns on staging, refuses on production
 - **`npm run check:contact`** — the number a visitor **taps** against the number they **read**.
   A client's number changes, you update the one you can see, and every `tel:` link keeps dialling
   the old one: the page is right in every screenshot, types and axe are clean, and `verify` skips

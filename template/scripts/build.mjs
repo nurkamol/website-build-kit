@@ -123,6 +123,12 @@ if (env === 'staging') {
    `tells --undecided-only`. */
 step(process.execPath, ['scripts/check-copy.mjs', ...(env === 'production' ? ['--strict'] : [])]);
 
+/* After the build and on the same split, for the same reason: alt text arrives
+   from `.astro`, markdown, a content collection and a CMS field, and the built
+   page is the only place all four can be read at once. axe proves the attribute
+   is THERE; nothing else reads what it says. */
+step(process.execPath, ['scripts/check-alt.mjs', ...(env === 'production' ? ['--strict'] : [])]);
+
 step(process.execPath, ['scripts/check-env.mjs']);
 
 if (env === 'production') {
