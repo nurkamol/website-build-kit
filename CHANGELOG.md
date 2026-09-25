@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-09-26 — the seam between the kit and a project was a convention
+
+`project.css` exists so one client's cards and heroes do not land in `global.css` and get
+inherited by the next site. What held that seam was **load order**, and load order settles a tie
+and nothing else.
+
+⚠ **It was already broken in the file.** `.on-dark .btn` in `global.css` is specificity 0,2,0. A
+project writing its own `.btn` is 0,1,0 and **loses**, however late it loads — so the honest
+instruction was the one `project.css` actually carried: *"if a rule here needs `!important` to
+win…"*. A seam that depends on somebody reading a comment is not a seam.
+
+**Cascade layers settle it by rule.** `src/styles/index.css` is now the only stylesheet the layout
+loads: it imports the kit's three into `@layer kit` and `project.css` unlayered, and **an unlayered
+style beats a layered one whatever the selectors say.**
+
+Measured in a browser, both directions, on the same built CSS with an unlayered `.btn` standing in
+for `project.css`:
+
+| | `--btn-bg` inside `.on-dark` |
+| --- | --- |
+| without the layer (as shipped) | `#fff` — the kit wins |
+| with the layer | the project's value — the project wins |
+
+The second row is the change; the first is what proves the change does something.
+
+**Nothing was re-indented and `tokens.css` was not touched.** The nested `@import`s inherit the
+layer from the one that pulls `global.css` in, which is also the thing to check if styles ever stop
+behaving: ⚠ **an `@import` that has lost its `layer()` looks identical and behaves oppositely.** The
+built CSS says which — 11,652 bytes inside `@layer kit`, everything project-side outside it.
+
+### Where this came from, and what was declined with it
+
+Reading [lumos-for-astro](https://github.com/lumosframework/lumos-for-astro), a component and
+styling framework for Astro. Most of what it advertises the template already had — a fluid clamp
+scale, dark-section token inheritance via `.on-dark`, states rather than styles. **Cascade layers
+were the one mechanism it had and the kit did not.**
+
+The framework itself is **not** listed in `stacks.md`, and `docs/roadmap.md` records why on the
+usual terms: nothing here has shipped a build with it, and 35 shared components are a shared look
+whether they intend to be or not.
+
+⚠ **One thing I got wrong in the reading, and it is worth writing down because it sounds right.**
+Lumos scales everything in `rem`, and I claimed a `max-width` in `rem` overflows at 200% text and
+that `--width-max: 1240px` was in px for that reason. It does not: a `max-width` never forces an
+element past its containing block, and `global.css` sets `box-sizing: border-box`. The overflow I
+had actually seen was in a bare test fixture with no reset. **`--width-text: 44rem` is fine, and
+the px was not defending anything.**
+
 ## 2026-09-20 — 0.1.20, the browser gates get refusal cases, and one of them was inert
 
 Released with the `check:cms` round of 2026-09-02, which had not shipped: fifteen commits had

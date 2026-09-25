@@ -1,0 +1,29 @@
+/*
+ * ── THE ONLY STYLESHEET Base.astro LOADS, AND THE WHOLE REASON IS SPECIFICITY ──
+ *
+ * `project.css` is where this project's look goes and `global.css` is the kit's
+ * shared layer. The seam between them held only by LOAD ORDER, which settles a
+ * tie and nothing else — so the moment a kit selector was more specific than a
+ * project one, the kit won and the project author reached for `!important`.
+ *
+ * ⚠ IT IS NOT HYPOTHETICAL AND IT IS ALREADY IN THE FILE. `.on-dark .btn` in
+ *   global.css is specificity 0,2,0. A project writing its own `.btn` is 0,1,0
+ *   and LOSES, however late it loads. Same for `.on-dark .btn--ghost`.
+ *
+ * Cascade layers settle it by rule rather than by convention: an UNLAYERED
+ * style beats a layered one no matter what the selectors say. So the kit goes
+ * in a layer and this project's own CSS stays out of one, and a project rule
+ * wins every collision with the kit — without `!important`, and without anyone
+ * having to know why.
+ *
+ * ⚠ THE NESTED IMPORTS INHERIT THE LAYER. global.css imports tokens.css and
+ *   prose.css at its top, and both land inside `layer(kit)` from here, which is
+ *   why neither file had to be touched. Check the built CSS if you move them:
+ *   an `@import` that loses its layer looks identical and behaves oppositely.
+ *
+ * Anything a project adds goes in project.css — NOT here, and not in a second
+ * layer. One layer for the kit, none for the project, is the whole model.
+ */
+
+@import './global.css' layer(kit);
+@import './project.css';

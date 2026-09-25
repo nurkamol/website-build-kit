@@ -109,11 +109,17 @@ stay JPEG because Facebook and LinkedIn still will not render a WebP `og:image`.
 **preserves manifest keys it does not own** — a generator that rewrites a shared manifest and
 resets it to `{}` deletes every entry another generator wrote, silently.
 
-**`src/styles/`** — four files, in load order. `tokens.css` is the only place a raw value is
-written. `prose.css` is long-form markdown. `global.css` carries the interactive **states**
-(`hover`, `focus-visible`, `disabled`, `busy`, `invalid`), never a look. `project.css` is the
-seam for this project's cards, heroes and bands — it ships empty, and it exists because
-without it those land in `global.css` and the next site inherits them.
+**`src/styles/`** — five files. `tokens.css` is the only place a raw value is written.
+`prose.css` is long-form markdown. `global.css` carries the interactive **states** (`hover`,
+`focus-visible`, `disabled`, `busy`, `invalid`), never a look. `project.css` is the seam for
+this project's cards, heroes and bands — it ships empty, and it exists because without it those
+land in `global.css` and the next site inherits them.
+
+`index.css` is the only one the layout loads, and it is what makes that seam hold: it imports
+the kit's three into `@layer kit` and `project.css` unlayered, so **a project rule beats a kit
+rule regardless of specificity.** Load order alone settled a tie and nothing more — `.on-dark
+.btn` is 0,2,0 and a project's own `.btn` is 0,1,0, so the kit won and the answer was
+`!important`. Measured in a browser both ways before and after.
 
 It ships **undecided**: a grey placeholder ramp, the system stack for both faces, a `--unset`
 marker, no typefaces in `public/fonts/`, and an `index.astro` that says so. This is the single

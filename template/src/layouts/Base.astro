@@ -8,10 +8,10 @@ import EnvBadge from '../components/EnvBadge.astro';
 import { site, icons } from '../data/site';
 import { business } from '../data/business';
 import { preloadFonts } from '../data/fonts';
-import '../styles/global.css';
-/* This project's own look. See the note at the top of the file — a card or a
-   hero style belongs here, never in global.css. */
-import '../styles/project.css';
+/* ONE stylesheet, and the order and the cascade LAYER live in it. Importing
+   global.css and project.css separately here is what let a more specific kit
+   selector beat a project one — see the note at the top of index.css. */
+import '../styles/index.css';
 
 interface Props {
   title: string;
