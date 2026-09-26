@@ -74,7 +74,7 @@ function declaredSecrets() {
 function deployedSecrets() {
   let out;
   try {
-    out = execFileSync(WIN ? 'npx.cmd' : 'npx', ['wrangler', 'secret', 'list'], {
+    out = execFileSync(WIN ? 'npx.cmd' : 'npx', ['wrangler', 'secret', 'list', '--format', 'json'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: WIN,
@@ -86,22 +86,68 @@ function deployedSecrets() {
     if (/script_not_found|workers\.api\.error\.script_not_found|10007|not found/i.test(text)) {
       return null;
     }
+    /*
+     * ⚠ NAME THE ACTUAL BLOCKER. This said "Usually `wrangler login`" for every
+     *   failure, and then `--format json` was added — so a wrangler too old to
+     *   know that flag would print its usage and be told to log in, which it
+     *   already was. A hint that is wrong is worse than no hint: it sends the
+     *   next person somewhere the fault is not.
+     */
+    const tooOld = /unknown (argument|option)|not enough non-option arguments|--format/i.test(text);
     console.error(
       `\n${RED}✗ could not read the worker's secrets${RESET}\n\n` +
         `${text.trim().split('\n').slice(-6).map((l) => `  ${l}`).join('\n')}\n\n` +
-        '  Usually `wrangler login`. This check cannot pass without an answer —\n' +
-        '  it refuses rather than assume the secrets are fine.\n',
+        (tooOld
+          ? '  That reads like a wrangler that does not know `--format json`, which this\n' +
+            '  check passes explicitly rather than trusting the default. Upgrade wrangler,\n' +
+            '  or drop the flag here and accept whatever format it chooses.\n'
+          : '  Usually `wrangler login`. This check cannot pass without an answer —\n' +
+            '  it refuses rather than assume the secrets are fine.\n'),
     );
     process.exit(1);
   }
-  /* wrangler prints a banner before the JSON. Take the array, not the noise. */
+  /*
+   * wrangler prints a banner before the JSON. Take the array, not the noise.
+   *
+   * ⚠ `--format json` IS PASSED EXPLICITLY, and it used not to be. JSON is the
+   *   current default — `wrangler secret list --help` says
+   *   `[choices: "json", "pretty"] [default: "json"]` — and a default that is
+   *   now a documented CHOICE is a default that can be changed under us. This
+   *   script is the only thing standing between a deploy and a site that
+   *   captures leads and silently cannot email them; it should not rest on
+   *   somebody else's default.
+   *
+   * ⚠ AND BOTH FALLBACKS USED TO `return []`, WHICH IS A LIE WITH A MEANING.
+   *   An empty array is a real answer — a deployed worker holding no secrets —
+   *   so returning it for output we could not parse said "this worker has no
+   *   secrets" when the truth was "I cannot tell". The report that follows then
+   *   names every declared secret as missing, which is the right alarm for the
+   *   wrong reason: someone goes hunting for secrets that are all present.
+   *
+   *   Parsed-and-empty still returns `[]`, because that IS the answer.
+   */
   const match = out.match(/\[[\s\S]*\]/);
-  if (!match) return [];
-  try {
-    return JSON.parse(match[0]).map((s) => s.name);
-  } catch {
-    return [];
+  let parsed = null;
+  if (match) {
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      parsed = null;
+    }
   }
+  if (!Array.isArray(parsed)) {
+    console.error(
+      `\n${RED}✗ could not read wrangler's answer${RESET}\n\n` +
+        '  `wrangler secret list --format json` did not return a JSON array, so this\n' +
+        '  check cannot say whether the worker has its secrets. It refuses rather than\n' +
+        '  report them all as missing, which is what it used to do.\n\n' +
+        `${out.trim().split('\n').slice(-8).map((l) => `  ${DIM}${l}${RESET}`).join('\n')}\n\n` +
+        '  If wrangler has changed its output, this script needs updating — not the\n' +
+        '  secrets.\n',
+    );
+    process.exit(1);
+  }
+  return parsed.map((entry) => entry?.name).filter(Boolean);
 }
 
 const declared = declaredSecrets();

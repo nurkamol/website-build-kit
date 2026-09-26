@@ -242,6 +242,26 @@ if (process.platform === 'win32') {
   const notDeployed = npxStub(`echo "workers.api.error.script_not_found" >&2; exit 1`);
   const loggedOut = npxStub(`echo "You are not authenticated. Run wrangler login." >&2; exit 1`);
 
+  /*
+   * ⚠ A STUB THAT DEMANDS THE FLAG IS HOW A FLAG STAYS PASSED. `wrangler secret
+   *   list` prints JSON by DEFAULT, so dropping `--format json` would change
+   *   nothing today and break silently the day that default moves — which is
+   *   exactly the class this suite exists for. This stub refuses without it, so
+   *   the passing case below is what pins the argument.
+   */
+  const demandsJsonFlag = npxStub(
+    'case " $* " in\n' +
+      '  *" --format json "*) echo \'[{"name":"BREVO_API_KEY"},{"name":"LEADS_EXPORT_TOKEN"}]\' ;;\n' +
+      '  *) echo "this stub requires --format json" >&2; exit 1 ;;\n' +
+      'esac',
+  );
+
+  /* Output that is not the JSON this expects — what a changed default looks like. */
+  const prettyTable = npxStub(`printf 'Secret Name\\n-----------\\nBREVO_API_KEY\\n'`);
+
+  /* A deployed worker genuinely holding nothing. Parsed, empty, and an ANSWER. */
+  const noneSet = npxStub(`echo '[]'`);
+
   gate('every declared secret is set', {
     script: 'check-secrets.mjs',
     files: { '.dev.vars.example': EXAMPLE },
@@ -281,7 +301,57 @@ if (process.platform === 'win32') {
     contains: 'not found',
   });
 
-  for (const d of [bothSet, oneSet, notDeployed, loggedOut]) {
+  /* A wrangler that does not know the flag prints its usage, and the hint has to
+     say so — it used to say "Usually `wrangler login`" to a session that was
+     already logged in. */
+  const tooOldForFlag = npxStub(
+    `echo "Unknown argument: format" >&2; echo "wrangler secret list" >&2; exit 1`,
+  );
+
+  gate('an old wrangler is told what is actually wrong', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE },
+    env: { PATH: `${tooOldForFlag}:${process.env.PATH}` },
+    expect: 1,
+    contains: 'does not know `--format json`',
+  });
+
+  gate('passes --format json, rather than trusting the default', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE },
+    env: { PATH: `${demandsJsonFlag}:${process.env.PATH}` },
+    expect: 0,
+  });
+
+  /*
+   * ⚠ THE DIRECTION THAT MATTERS. Both parse fallbacks used to `return []`,
+   *   which is a real answer meaning "this worker holds no secrets" — so
+   *   unreadable output was reported as EVERY SECRET MISSING. The right alarm
+   *   for the wrong reason: somebody goes looking for secrets that are all
+   *   present, and the actual fault is that wrangler changed its output.
+   */
+  gate('output it cannot parse is a refusal, not "all secrets missing"', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE },
+    env: { PATH: `${prettyTable}:${process.env.PATH}` },
+    expect: 1,
+    contains: "could not read wrangler's answer",
+    then: (_dir, out) =>
+      /is not set|missing/i.test(out.replace(/[^\x20-\x7e\n]/g, '')) && !/could not read/.test(out)
+        ? 'blamed the secrets instead of the output'
+        : null,
+  });
+
+  /* And the other half: parsed-and-empty still MEANS no secrets are set. */
+  gate('an empty array is an answer, not an unreadable one', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE },
+    env: { PATH: `${noneSet}:${process.env.PATH}` },
+    expect: 1,
+    contains: 'BREVO_API_KEY',
+  });
+
+  for (const d of [bothSet, oneSet, notDeployed, loggedOut, demandsJsonFlag, prettyTable, noneSet, tooOldForFlag]) {
     rmSync(d, { recursive: true, force: true });
   }
 }

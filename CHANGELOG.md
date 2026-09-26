@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-09-26e — a gate resting on somebody else's default
+
+`check:secrets` is the only thing standing between a deploy and a site that captures leads and
+**silently cannot email them** — `secret()` returns `undefined`, the form returns 200, the visitor
+gets a thank-you, and nobody is notified. It read `wrangler secret list` and parsed the JSON.
+
+Nobody had asked for JSON. `wrangler secret list --help` says
+`--format [choices: "json", "pretty"] [default: "json"]` — so it worked, and **a default that is
+now a documented choice is a default that can move.** It is passed explicitly now.
+
+### ⚠ The worse half: `return []` is a lie with a meaning
+
+Both parse fallbacks returned an empty array. An empty array is a *real answer* — a deployed worker
+holding no secrets — so output this script could not read was reported as **every declared secret
+missing.** The right alarm for entirely the wrong reason: somebody goes hunting for secrets that are
+all present, while the actual fault is that wrangler changed its output.
+
+It refuses now and says so, printing what it actually got. **Parsed-and-empty still returns `[]`,
+because that one IS the answer** — and a case pins each direction apart.
+
+### And the hint pointed the wrong way
+
+The failure message said *"Usually `wrangler login`"* for every failure. Add a flag an older wrangler
+does not know, and that wrangler prints its usage and gets told to log in — which it already was. **A
+wrong hint is worse than none: it sends the next person somewhere the fault is not.** It now
+recognises an unknown-argument error and names the flag.
+
+### 237 cases, 119 proving a refusal
+
+Four new, and three were run against the shipped script:
+
+- ⚠ **A stub that REFUSES without `--format json`** is what pins the argument. Dropping the flag
+  changes nothing today, so nothing else could have caught it
+- the unparseable-output case **exits 1 either way** — the old code exited 1 while blaming the
+  secrets. Only the assertion on *what it said* separates them, which is why this suite asserts what
+  a gate wrote and not only its exit code
+- and one for the old-wrangler hint
+
 ## 2026-09-26d — the attribute everything checks and nothing read
 
 axe checks that an `<img>` **has** an alt. `Img.astro` makes it a required prop, so a missing one
