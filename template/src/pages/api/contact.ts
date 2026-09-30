@@ -75,7 +75,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   try {
     if (contentType.includes('application/json')) {
-      input = (await request.json()) as Record<string, string>;
+      const parsed = await request.json();
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return json({ ok: false, error: 'Could not read the submission.' }, 400);
+      }
+      input = Object.fromEntries(
+        Object.entries(parsed).map(([k, v]) => [k, typeof v === 'string' ? v : String(v ?? '')]),
+      );
     } else {
       const form = await request.formData();
       input = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
