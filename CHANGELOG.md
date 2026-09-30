@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-30 — ten undici advisories, in through wrangler
+
+CI went red on `npm audit --omit=dev` and **no commit caused it.** Ten advisories against `undici`
+were published since the last run and reach the template through
+`wrangler → miniflare → undici`: denial of service, response splitting, a TLS certificate
+validation bypass in `BalancedPool`, and cross-user cookie disclosure via `Set-Cookie` caching.
+
+`npm audit fix` cleared all ten inside the declared range — `wrangler` 4.135.0 → **4.144.0**, which
+`^4.135.0` already allowed, so nothing anybody pinned moved. Production dependencies report **zero**
+again. Lockfile only; `package.json` is untouched.
+
+⚠ **This is the second time in four weeks that the audit gate went red from the outside**, after the
+critical Astro AVIF advisory before 0.1.20. It is worth saying plainly because it changes how the
+gate should be read: **a red `npm audit` step is not evidence that the last commit did something.**
+The first question is always whether the advisory is newer than the code.
+
 ## 2026-09-26e — a gate resting on somebody else's default
 
 `check:secrets` is the only thing standing between a deploy and a site that captures leads and
