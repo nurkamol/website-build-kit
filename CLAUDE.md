@@ -291,6 +291,27 @@ be reused.
 To publish by hand instead, the tree must be clean: `prepack` copies `template/` in and
 `postpack` removes it, so a dirty tree ships whatever is on disk at that moment.
 
+### ⚠ Then update the Agensi listing, by hand, from the tag
+
+The skill is also listed on [Agensi](https://agensi.io/), and **a listing is an upload rather than
+a link to this repo** — confirmed by them: the file structure has to be standard for their MCP
+server to read it, and there is no API for updating a listing. So it is a COPY, of exactly the kind
+`check:drift` exists because of.
+
+That makes it a release step, not a one-off:
+
+- upload from the **tag**, never from `master`, or the listing is a version that exists nowhere
+- put the version in the listing text, so a reader can tell what they have
+- a stale copy of this skill is worse than no copy — its value is that the traps and gates are
+  current, and an old one gives specific, confident advice about failures that have since been
+  fixed, with nothing to say so
+
+The one thing that needs no watching: they use the skill's `description` **verbatim**, because
+trigger behaviour depends on it. That string is the whole trigger, so a rewritten one would change
+when the skill fires rather than just how it reads.
+
+⚠ Like the GitHub social preview, this has no API and is therefore the step that gets forgotten.
+
 ## After changing the landing page
 
 ```bash

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-30 — 0.1.21, five gates and ten undici advisories
+
+Six commits since 0.1.20, and **none of them had reached a new scaffold**: the scaffolder packs
+`template/` at pack time, so a gate is only real once a version ships. This release carries the
+cascade-layer seam, orphan routes in `verify`, `check:contact`, `check:alt`, the `check:secrets`
+hardening, and the dependency fix below.
+
+⚠ **It is also the first release that has a manual step outside this repo.** The skill is listed on
+Agensi, listings are uploads rather than links, and there is no API — so the listing is a copy that
+goes stale unless someone re-uploads it from the tag. `CLAUDE.md` carries it beside the social-preview
+step, for the same reason: no API means it gets forgotten.
+
 ## 2026-09-30 — ten undici advisories, in through wrangler
 
 CI went red on `npm audit --omit=dev` and **no commit caused it.** Ten advisories against `undici`
