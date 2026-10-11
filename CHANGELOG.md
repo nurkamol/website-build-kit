@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-10-11b — a malformed submission returned 500, and the obvious fix was worse
+
+PR #9, from an automated scanner, pointed at `api/contact.ts`:
+`input = (await request.json()) as Record<string, string>` is an assertion, not a check. The concern
+was right and **the failure is measured, not theoretical** — `wrangler dev`, a body of
+`{"name": {"a": 1}}` with everything else valid:
+
+```
+before   status 500
+after    status 400   {"ok":false,"error":"Expected a string for \"name\"."}
+```
+
+`validateLead` does `(input.name ?? '').trim()`, so a non-string threw
+`TypeError: .trim is not a function` — unhandled, which is a 500 for a body the API could simply
+have refused.
+
+### ⚠ The patch's fix was `String(value)`, and that is the worse answer
+
+Coercion turns `{"name": {"a": 1}}` into `"[object Object]"` — **fifteen characters, so it passes the
+name rule.** The lead is then stored in KV and emailed to the client with a nonsense name. That
+trades a loud 500 for a silent bad record, which is the wrong direction everywhere else in this kit
+and especially here, where the whole form design is built around never losing an enquiry quietly.
+
+So this refuses instead, naming the field: `Expected a string for "name".` `null` and `undefined`
+still pass through as *absent*, because that is already what they meant — `{"phone": null}` worked
+before any of this and still does.
+
+### ⚠ And it runs AFTER the honeypot, which the patch did not
+
+The patch coerced before the trap, which silently changed it: `company: 0` and `company: false` went
+from *allowed through* to *discarded as spam*. Worse, ordered that way `company: {}` answers 400
+while `company: "x"` answers 303 — **two different answers to the same trap**, which is the one
+thing a honeypot must never give. Caught spam leaves by the quiet door first; the type check only
+sees what the trap let past.
+
+### Both wrong answers are now tested, because only one of them is obvious
+
+`verify` gains a fourth form submission, and it fails on **anything 2xx as well as anything 5xx** —
+a fixture that modelled only the crash would pass a site that had adopted the coercion. The fixture
+site gained `coerces-malformed` to prove it.
+
+**238 cases, 120 proving a refusal.**
+
 ## 2026-10-11 — sharp and http-cache-semantics, and a pattern worth naming
 
 Two advisories, both reaching production dependencies:

@@ -1438,6 +1438,7 @@ for (const [label, faults, check] of [
   ['caught spam landing on the conversion URL', 'spam-converts', 'caught spam does NOT land on the conversion URL'],
   ['an empty submission accepted', 'accepts-empty', 'empty submission is rejected'],
   ['a cross-origin submission accepted', 'allows-cross-origin', 'cross-origin submission is refused'],
+  ['a non-string field coerced into a lead', 'coerces-malformed', 'a non-string field is refused, not coerced and not a 500'],
 ]) {
   verifyGate(`refuses ${label}`, { faults, expect: 1, mark: '✗', check });
 }

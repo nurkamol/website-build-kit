@@ -51,6 +51,7 @@ const KNOWN_FAULTS = [
   'spam-converts', // the honeypot redirect carrying ?sent=, inflating conversions
   'accepts-empty', // an empty submission accepted instead of 422
   'allows-cross-origin', // a submission from another origin accepted instead of 403
+  'coerces-malformed', // a non-string field coerced into a lead instead of refused
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
 
   /* ── Faults only a browser can see ───────────────────────────────────────
@@ -335,6 +336,22 @@ const server = createServer((req, res) => {
         });
         return res.end();
       }
+      /*
+       * ⚠ THE FAULT HERE IS ACCEPTANCE, NOT A CRASH. The template's own bug was
+       *   a 500 — `(input.name ?? '').trim()` on an object — but the tempting
+       *   FIX is `String(value)`, which turns `{"name":{"a":1}}` into
+       *   `"[object Object]"`, passes the length rule, and stores a lead with a
+       *   nonsense name. A fixture that only modelled the 500 would pass a site
+       *   that had quietly adopted the worse answer.
+       */
+      const nonString = Object.entries(fields).find(
+        ([, v]) => v !== null && v !== undefined && typeof v !== 'string',
+      );
+      if (nonString && !FAULTS.has('coerces-malformed')) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        return res.end('{"error":"not a string"}');
+      }
+
       if (!fields.name && !FAULTS.has('accepts-empty')) {
         res.writeHead(422, { 'content-type': 'application/json' });
         return res.end('{"error":"missing fields"}');

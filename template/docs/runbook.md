@@ -273,7 +273,7 @@ served**, the security headers,
 the staging noindex/analytics split, sitemap `lastmod` variance, every internal link and
 `og:image`, **any route nothing links to**, the title/description/canonical sweep, page weight
 and render-blocking counts, and
-the three form submissions the API is supposed to refuse — including that caught spam does not
+the four form submissions the API is supposed to refuse — including that caught spam does not
 land on the conversion URL.
 
 It reads `public/_redirects` and the deployed sitemap rather than a list inside the script, so

@@ -71,11 +71,27 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   const contentType = request.headers.get('content-type') ?? '';
-  let input: Record<string, string>;
+  /*
+   * ⚠ `unknown`, NOT `Record<string, string>`. This used to assert the cast and
+   *   the assertion was simply untrue: `request.json()` returns whatever was
+   *   posted. A body like `{"name": {"a": 1}}` reached `validateLead`, which
+   *   does `(input.name ?? '').trim()`, and threw
+   *   `TypeError: .trim is not a function` — an unhandled throw, so a malformed
+   *   submission came back **500** instead of the 422 the form knows how to show.
+   *
+   *   The site's own form posts `FormData`, where every value is already a
+   *   string, so this path belongs entirely to outside integrations.
+   */
+  let input: Record<string, unknown>;
 
   try {
     if (contentType.includes('application/json')) {
-      input = (await request.json()) as Record<string, string>;
+      const parsed: unknown = await request.json();
+      /* A list or a bare value is not a submission. */
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return json({ ok: false, error: 'Could not read the submission.' }, 400);
+      }
+      input = parsed as Record<string, unknown>;
     } else {
       const form = await request.formData();
       input = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
@@ -101,7 +117,43 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return wantsHtml(request) ? seeOther(FORM_PAGE) : json({ ok: true, id: 'accepted' }, 200);
   }
 
-  const { ok, errors, values } = validateLead(input);
+  /*
+   * ── Every value is a string, or this is not a submission we can read ──────
+   *
+   * ⚠ REFUSE, NEVER COERCE. `String(value)` turns `{"name": {"a": 1}}` into the
+   *   string `"[object Object]"`, which is 15 characters long and therefore
+   *   PASSES the name rule — so the lead is stored in KV and emailed to the
+   *   client with a nonsense name. That trades a loud 500 for a silent bad
+   *   record, which is the worse half of the trade everywhere else in this kit.
+   *
+   * ⚠ AND IT RUNS AFTER THE HONEYPOT, deliberately. A submission the honeypot
+   *   CATCHES has already left by the quiet door — 303 to the form page, or a
+   *   bland 200 — and never reaches this check. Ordered the other way round,
+   *   `company: {}` would come back 400 while `company: "x"` came back 303:
+   *   two different answers to the same trap, which is the one thing it must
+   *   never give. (A falsy non-string like `company: 0` is not caught by the
+   *   honeypot in the first place, so it does get the 400 — correctly: it is a
+   *   malformed body, and nothing about the answer names the field as a trap.)
+   *
+   * `null` and `undefined` are allowed through as absent, because that is what
+   * they already meant: `validateLead` reads `(input.name ?? '')`, so a client
+   * sending `{"phone": null}` worked before this check existed and still does.
+   */
+  const notAString = Object.entries(input).find(
+    ([, value]) => value !== null && value !== undefined && typeof value !== 'string',
+  );
+  if (notAString) {
+    return json(
+      { ok: false, error: `Expected a string for "${notAString[0]}".` },
+      400,
+    );
+  }
+
+  /* Narrowed once, here, rather than cast at every use — the check above is
+     what makes this true, so the two belong next to each other. */
+  const fields = input as Record<string, string | undefined>;
+
+  const { ok, errors, values } = validateLead(fields);
   if (!ok) {
     if (wantsHtml(request)) {
       // Carry the failing field names back in the query string so the form can
@@ -118,7 +170,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     receivedAt,
     env: site.leadTag,
     ...values,
-    page: (input.page ?? '').slice(0, 300),
+    page: (fields.page ?? '').slice(0, 300),
     userAgent: (request.headers.get('user-agent') ?? '').slice(0, 300),
     country: request.headers.get('cf-ipcountry') ?? '',
     ip: clientAddress ?? '',

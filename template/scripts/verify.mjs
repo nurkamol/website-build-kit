@@ -1097,6 +1097,33 @@ const empty = await req('/api/contact/', {
 });
 record('empty submission is rejected', empty.status === 422, `got ${empty.status}, expected 422`);
 
+/*
+ * ⚠ A MALFORMED BODY HAS TWO WRONG ANSWERS AND THIS CHECKS FOR BOTH.
+ *
+ *   `validateLead` does `(input.name ?? '').trim()`, so a non-string value threw
+ *   `TypeError: .trim is not a function` — unhandled, which is a **500**:
+ *   measured, not assumed. A submitter sees a server error for a body the API
+ *   could simply have refused.
+ *
+ *   The tempting fix is `String(value)`, and it is worse: `{"name":{"a":1}}`
+ *   becomes `"[object Object]"`, which is 15 characters and therefore PASSES the
+ *   name rule — so the lead is stored and emailed with a nonsense name. **A
+ *   silent bad record beats a loud error on exactly nobody.** So anything in the
+ *   2xx range fails this too, not only the 5xx.
+ */
+const malformed = await req('/api/contact/', {
+  method: 'POST',
+  headers: { origin, accept: 'application/json', 'content-type': 'application/json' },
+  body: JSON.stringify({ name: { a: 1 }, email: 'verify@example.com', phone: '5555550123', message: 'verification' }),
+});
+record(
+  'a non-string field is refused, not coerced and not a 500',
+  malformed.status >= 400 && malformed.status < 500,
+  malformed.status >= 500
+    ? `got ${malformed.status} — the handler threw rather than refusing`
+    : `got ${malformed.status} — the submission was ACCEPTED with a non-string field`,
+);
+
 const crossOrigin = await req('/api/contact/', {
   method: 'POST',
   headers: { origin: 'https://not-this-site.example', accept: 'application/json', 'content-type': 'application/json' },
