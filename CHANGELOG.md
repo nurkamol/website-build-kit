@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-11 — sharp and http-cache-semantics, and a pattern worth naming
+
+Two advisories, both reaching production dependencies:
+
+| | |
+| --- | --- |
+| `sharp` <0.35.5 | a librsvg vulnerability, CVE-2026-96889 — in **directly**, and again through `miniflare` |
+| `http-cache-semantics` | cross-user cached response disclosure via `max-stale` handling |
+
+`npm audit fix` cleared both inside the declared ranges: `sharp` 0.35.4 → **0.35.5**, which `^0.35.3`
+already allowed. Lockfile only. Production dependencies report **zero**.
+
+⚠ **`sharp` ships a NATIVE BINARY and the media pipeline is built on it**, so a clean install
+reporting success proves less here than elsewhere — `npm run media` on a fresh template has no
+images and therefore exercises nothing. Verified with a real round-trip instead: a generated bitmap
+encoded to both emitted formats and read back, **AVIF 299 bytes and WebP 120 bytes at 200×150**.
+
+### The third time in six weeks, which makes it a pattern rather than an event
+
+| | |
+| --- | --- |
+| before 0.1.20 | a **critical** Astro RCE through AVIF image optimization |
+| 2026-09-30 | ten `undici` advisories, in through `wrangler → miniflare` |
+| today | these two |
+
+Every one of them arrived from outside the repository, on a commit that had nothing to do with it,
+and looked like a broken build. **A red `npm audit` step is not evidence that the last commit did
+something** — the first question is whether the advisory is newer than the code. Each has been
+fixable inside the declared semver ranges, which is the argument for carets over pins holding up.
+
 ## 2026-09-30 — 0.1.21, five gates and ten undici advisories
 
 Six commits since 0.1.20, and **none of them had reached a new scaffold**: the scaffolder packs
