@@ -312,6 +312,26 @@ when the skill fires rather than just how it reads.
 
 ⚠ Like the GitHub social preview, this has no API and is therefore the step that gets forgotten.
 
+## The audit runs on a schedule, not only on push
+
+`.github/workflows/audit.yml` asks `npm audit --omit=dev` every Monday, against
+`template/package-lock.json` with `--package-lock-only` — no install, seconds to run.
+
+⚠ **It exists because `kit.yml` only asks when somebody commits.** Three times in six weeks that
+step went red for a reason that had nothing to do with the commit under it: a critical Astro RCE
+through AVIF, ten `undici` advisories through `wrangler → miniflare`, and `sharp` <0.35.5. Each one
+read as a broken build and was not. **A red audit step is not evidence that the last commit did
+something** — ask first whether the advisory is newer than the code. On a schedule the two are
+separable: a failure there is the world moving, a failure in `kit.yml` is this repository moving.
+
+**The lockfile is the thing that ships.** `prepack` packs `template/package-lock.json`, so a new
+site inherits those exact versions — a site scaffolded from 0.1.21 reported a **high** before
+anybody had written a line of code. That is why the schedule audits the lockfile rather than an
+install.
+
+A failing scheduled run emails the repository owner, which is all it does on purpose: opening an
+issue needs write permission and a bot identity, and an inbox on a Monday is enough.
+
 ## After changing the landing page
 
 ```bash

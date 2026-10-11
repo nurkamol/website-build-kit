@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-10-11c — 0.1.22, and the audit stops waiting for a commit
+
+⚠ **A site scaffolded from the published 0.1.21 reported a high-severity advisory before anybody
+had written a line of code.** Measured, not assumed:
+
+```
+sharp  <0.35.5
+Severity: high
+sharp : Vulnerability in librsvg dependency CVE-2026-96889
+```
+
+`prepack` packs `template/package-lock.json`, so **the lockfile is the thing that ships** and a new
+site inherits those exact pins. Fixing it on master fixed it for nobody. The kit's own lesson, for
+the third time: a fix that has not been released does not exist.
+
+Severity honestly: librsvg bites when processing untrusted SVG, and the media pipeline processes
+images a *developer* put in `media/source/`. It is not a live exposure on a typical site. It is
+still a **high** on `npm audit` in minute one of a new project, from a kit whose whole argument is
+that it catches what other setups miss — and `template/CLAUDE.md` states as fact that *"Production
+dependencies report zero"*, which was false for anyone who scaffolded it.
+
+Also in this release: `contact.ts` refusing a non-string field instead of returning 500, and the two
+advisory clearances.
+
+### The audit now runs on Mondays
+
+`.github/workflows/audit.yml`. `kit.yml` already gates on `npm audit --omit=dev`, but only asks when
+somebody commits — so three times in six weeks it went red under a commit that had nothing to do
+with it. On a schedule the two are separable: a failure there is the world moving, a failure on push
+is this repository moving.
+
+It audits the lockfile with `--package-lock-only` — no install, seconds, and it asks about the file
+that actually ships. ⚠ **Proved in both directions before shipping**: exit 0 against the current
+lockfile, exit 1 against 0.1.21's.
+
 ## 2026-10-11b — a malformed submission returned 500, and the obvious fix was worse
 
 PR #9, from an automated scanner, pointed at `api/contact.ts`:

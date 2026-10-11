@@ -1,0 +1,58 @@
+# The world changes without touching this repository.
+#
+# ── WHY THIS IS SEPARATE FROM `kit.yml` ────────────────────────────────────
+# `kit.yml` already fails on `npm audit --omit=dev`, and it runs on push — so it
+# only ever asks the question when somebody happens to commit. Three times in six
+# weeks that step has gone red for a reason that had nothing to do with the
+# commit under it:
+#
+#   before 0.1.20   a CRITICAL Astro RCE through AVIF image optimization
+#   2026-09-30      ten undici advisories, in through wrangler → miniflare
+#   2026-10-11      sharp <0.35.5 (librsvg) and http-cache-semantics
+#
+# Each one looked like a broken build and was not. ⚠ A red audit step is not
+# evidence that the last commit did something — the first question is always
+# whether the advisory is newer than the code. Asking on a schedule separates
+# the two: a failure here is the world moving, a failure in `kit.yml` is this
+# repository moving.
+#
+# ── WHY IT DOES NOT INSTALL ANYTHING ───────────────────────────────────────
+# `--package-lock-only` audits the lockfile, which is the thing that ships: the
+# scaffolder packs `template/package-lock.json`, so a new site inherits these
+# exact versions. That is not a detail — a site scaffolded from 0.1.21 reported
+# a high-severity sharp advisory before anybody had written a line of code.
+#
+# It also keeps the job to seconds rather than pulling node_modules and a Chrome
+# download to ask a question about a text file.
+#
+# ── HOW YOU HEAR ABOUT IT ──────────────────────────────────────────────────
+# A failing scheduled run emails the repository owner. That is GitHub's default
+# and it is deliberately all this does: opening an issue would need write
+# permission and a bot identity, and an inbox on a Monday is enough for
+# something that has happened three times in six weeks.
+name: Audit
+
+on:
+  schedule:
+    # Monday, 08:00 UTC. Early enough in the week to act on it.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.node-version
+
+      # The same threshold `kit.yml` gates on, against the same file, so the two
+      # cannot disagree about what counts as a problem.
+      - name: Production dependencies, as the lockfile pins them
+        working-directory: template
+        run: npm audit --omit=dev --audit-level=high --package-lock-only
