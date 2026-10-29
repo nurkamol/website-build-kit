@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-10-29 — the Monday audit went red under no commit at all
+## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 
 `.github/workflows/audit.yml` shipped in 0.1.22 to separate the world moving from this repository
 moving. Its first three scheduled runs settled the question:
