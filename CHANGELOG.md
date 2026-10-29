@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-10-29 — the Monday audit went red under no commit at all
+
+`.github/workflows/audit.yml` shipped in 0.1.22 to separate the world moving from this repository
+moving. Its first three scheduled runs settled the question:
+
+```
+12 Oct  schedule  success
+19 Oct  schedule  success
+26 Oct  schedule  FAILURE
+```
+
+Nothing was committed between the 19th and the 26th. Under `kit.yml` that same red would have
+appeared beneath whatever commit happened to be next, and been read — for the fourth time — as a
+broken build.
+
+Three packages, three highs, all reaching in through dependencies the template never names:
+
+| | from | to | arrives through |
+|---|---|---|---|
+| `vite` | 8.2.0 | **8.3.5** | `astro`, `@astrojs/cloudflare` |
+| `undici` | 7.29.1 | 7.30.1 | `wrangler` → `miniflare` |
+| `undici` | 8.10.2 | 8.12.3 | `unifont` |
+| `zod` | 4.6.5 | 4.6.7 | `astro` |
+
+**Lockfile only.** Every bump was already inside a range `astro` and `wrangler` permit, so
+`package.json` does not move — the lockfile was the only thing holding the old pins.
+
+⚠ **And the lockfile is the thing that ships, so this was not academic.** `prepack` packs
+`template/package-lock.json`; the published 0.1.22 carries the exact file this commit replaces. A
+site scaffolded from npm reported three highs in minute one — the same failure 0.1.21 had, one
+release later, from a different direction. Fixing it on master fixes it for nobody until it is
+released.
+
+Worth naming one of them: among the vite advisories is a **high** in `launch-editor` whose
+`fs.existsSync()` existence check can be bypassed **on Windows** — a platform this kit claims to
+support and has broken three times already.
+
+### Dependabot had opened a PR, and merging it would have been the wrong move
+
+PR #10 bumped `vite` to 8.3.4. Correct, green on both runners, rebased onto current master — and
+it would have cleared **one of the three**, leaving the other two highs in the lockfile and the
+release looking done. `npm audit fix --package-lock-only` clears all three in one change and lands
+vite a patch further on.
+
+The general shape, which is the same one PR #9 had: **a dependency PR is scoped to a dependency,
+and an advisory is scoped to a lockfile.** Read the audit, not the PR. The PR is closed pointing
+at this commit, with no `ignore` condition set — the next one is still wanted.
+
+Verified on a clean install before committing: `build:staging` green, `check` 0 errors, `tells`
+reports *fresh template*, `check:sitemap` exit 0, and **238 gate cases pass, 120 of them proving a
+gate still refuses**. A bump can break a gate without touching its source.
+
 ## 2026-10-11c — 0.1.22, and the audit stops waiting for a commit
 
 ⚠ **A site scaffolded from the published 0.1.21 reported a high-severity advisory before anybody
