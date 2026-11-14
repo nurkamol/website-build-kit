@@ -48,7 +48,7 @@
     "@astrojs/cloudflare": "^14.1.7",
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.3",
-    "astro": "^7.1.6"
+    "astro": "^7.4.12"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
