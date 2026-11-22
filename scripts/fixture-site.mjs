@@ -67,6 +67,14 @@ const KNOWN_FAULTS = [
   'dark-only-contrast', // AA contrast that passes in light and fails in dark
   'no-stylesheet', // a page that arrives with no CSS at all
   'orphan-route', // a page in the sitemap that no other page links to
+
+  /* ── Faults only a comparison can see ────────────────────────────────────
+   * `match` reads two sites, so these run as the NEW side against a clean
+   * fixture as the OLD side. Each page is still a valid page on its own; the
+   * fault is only visible against what it replaced. */
+  'section-drift', // the second section changes colour and grows taller
+  'drop-paragraph', // a paragraph of the second section is gone
+  'rename-heading', // the third section's heading is reworded
 ];
 for (const f of FAULTS) {
   if (!KNOWN_FAULTS.includes(f)) {
@@ -126,7 +134,14 @@ ${
     : ''
 }`;
 
-/** A page that passes every per-page check verify makes, unless a fault says otherwise. */
+/**
+ * A page that passes every per-page check verify makes, unless a fault says otherwise.
+ *
+ * Three <section>s inside <main>, so `match` has sections to pair. They carry no
+ * colour of their own unless a fault gives them one: every other gate's clean
+ * run reads this same page, and a styled band would be a contrast case nobody
+ * asked for.
+ */
 function page({ path, title, description, h1 = 'Heading', canonical = `${BASE}${path}` }) {
   return `<!doctype html>
 <html lang="en">
@@ -142,6 +157,7 @@ ${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" asyn
 </head>
 <body>
 <main>
+<section>
 <h1>${h1}</h1>
 ${FAULTS.has('two-h1') && path === '/about/' ? '<h1>A second heading</h1>' : ''}
 <p class="ok">Body copy long enough to be substantial, so the page is not treated as empty
@@ -151,6 +167,16 @@ and back to <a href="/">home</a>.</p>
 ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
+</section>
+<section${FAULTS.has('section-drift') ? ' style="background: rgb(200, 200, 200); padding: 6rem 0"' : ''}>
+<h2>Second section</h2>
+<p>The quarterly ledger reconciles itself overnight, and nobody has to stay late for it.</p>
+${FAULTS.has('drop-paragraph') ? '' : '<p>Our couriers deliver parcels before breakfast on weekdays.</p>'}
+</section>
+<section>
+<h2>${FAULTS.has('rename-heading') ? 'A renamed section' : 'Third section'}</h2>
+<p>Questions go to the front desk, which answers them in the order they arrive.</p>
+</section>
 </main>
 ${FAULTS.has('console-error') ? '<script>notAFunctionAnywhere();</script>' : ''}
 </body>

@@ -1872,6 +1872,147 @@ gate('shots without --before or --after is a usage error', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * match — a faithful rebuild, measured
+ *
+ * Two fixture sites at once: a clean one as the OLD side and one carrying the
+ * fault as the NEW side. Every fault here is invisible on either site alone —
+ * each page is valid, returns 200 and passes every per-page check — which is
+ * exactly why `shots` plus a skimming eye let it through.
+ *
+ * ⚠ EVERY REFUSAL HAS ITS CLEAN TWIN with the same flags. A comparison that
+ *   reports drift between two copies of the same page is measuring the harness,
+ *   and it would "catch" every fault below for the wrong reason.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('match — old site against new, section by section');
+
+const MATCH_FILES = { 'recon/urls.txt': '/\n/about/\n/retired/ # gone-on-old-site\n' };
+
+function againstTwoSites(label, { oldFaults = '', newFaults = '', args = [], ...rest }) {
+  let before;
+  let after;
+  try {
+    before = startFixture(oldFaults);
+    after = startFixture(newFaults);
+  } catch (err) {
+    before?.child.kill('SIGKILL');
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    return;
+  }
+  try {
+    gate(label, {
+      script: 'match.mjs',
+      files: MATCH_FILES,
+      args: ['--old', before.origin, '--new', after.origin, ...args],
+      ...rest,
+    });
+  } finally {
+    before.child.kill('SIGKILL');
+    after.child.kill('SIGKILL');
+  }
+}
+
+const matchJson = (dir) => {
+  const file = join(dir, 'shots', 'match', 'match.json');
+  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+};
+
+againstTwoSites('two copies of the same site match, at every width', {
+  args: ['--only=/about/'],
+  expect: 0,
+  contains: 'every compared section within 3%',
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    if (!existsSync(join(dir, 'shots', 'match', 'index.html'))) return 'wrote no report';
+    const vps = json.routes[0]?.viewports ?? [];
+    if (vps.map((v) => v.name).join() !== 'mobile,tablet,desktop') return `compared ${vps.map((v) => v.name).join() || 'no viewport'}`;
+    /* Zero sections compared is not a pass; it is a detector that found nothing. */
+    if (vps.some((v) => v.sections.length < 3)) return 'found fewer than the three sections the page has';
+    return null;
+  },
+});
+
+/* Pinned to WHERE — route, viewport and section. "Something drifted" is an afternoon. */
+againstTwoSites('refuses a section that changed colour and size, and names it', {
+  newFaults: 'section-drift',
+  args: ['--only=/about/'],
+  expect: 1,
+  contains: '/about/ · mobile · section 2',
+});
+
+againstTwoSites('--report-only writes the same verdict and exits 0', {
+  newFaults: 'section-drift',
+  args: ['--only=/about/', '--viewports=mobile', '--report-only'],
+  expect: 0,
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    if (json.passed !== false) return 'recorded a pass for a page that drifted';
+    return json.failures.some((f) => f.section === 'section 2') ? null : 'did not record section 2 as the failure';
+  },
+});
+
+/* Text: no browser, so the words are measured on their own. */
+againstTwoSites('the same words on both sides pass, without a browser', {
+  args: ['--text-only'],
+  expect: 0,
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    if (json.routes.some((r) => r.route === '/retired/')) return 'compared a route tagged gone-on-old-site';
+    return json.routes.length === 2 && json.routes.every((r) => r.text?.ratio === 1) ? null : 'did not compare both pages in full';
+  },
+});
+
+againstTwoSites('refuses a dropped paragraph, and names the missing words', {
+  newFaults: 'drop-paragraph',
+  args: ['--text-only'],
+  expect: 1,
+  contains: 'couriers, deliver, parcels',
+});
+
+/* A reworded heading costs one word of ~60, so the ratio still passes — the
+   heading check is the only thing that sees it. */
+againstTwoSites('refuses a renamed heading the word ratio lets through', {
+  newFaults: 'rename-heading',
+  args: ['--text-only'],
+  expect: 1,
+  contains: 'headings: missing: “Third section”',
+});
+
+againstTwoSites('refuses a page the new site no longer serves', {
+  newFaults: 'route-404',
+  args: ['--text-only'],
+  expect: 1,
+  contains: '/about/ — missing: HTTP 404 on the new site',
+});
+
+/* Usage — reachable with no server and no browser. */
+gate('match without --old and --new is a usage error', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: [],
+  expect: 1,
+  contains: '--old is required',
+});
+
+gate('match refuses the same origin on both sides', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:9/'],
+  expect: 1,
+  contains: 'same origin',
+});
+
+gate('match refuses a threshold that is not a percentage', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--threshold=lots'],
+  expect: 1,
+  contains: '--threshold is a percentage',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * md-to-pdf — which never needed a deployment at all
  *
  * Its ledger entry read "needs a deployed site (headless Chrome fetching the

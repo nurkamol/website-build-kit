@@ -21,6 +21,9 @@ npm run seo -- https://old-site.com          # optional: SEO baseline to diff af
 npm run verify -- https://new.example.com    # the deployed site, not the build. exits non-zero
 npm run console                              # console errors + failed requests, in a real browser
 npm run shots -- --before https://old-site.com  # visual record, WHILE the old site is still up
+npm run match -- --old https://old-site.com --new https://staging.example.com
+#                                            # faithful rebuild: per-section pixel diff + words
+#                                            # kept, exits 1 past 3% / 0.98. --text-only: no browser
 npm run extract                              # captured HTML → recon/extracted/*.md
 npm run deploy:staging                       # or deploy:production
 ```

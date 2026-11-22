@@ -50,6 +50,9 @@ scripts/lib/inventory.mjs      the one parser for recon/urls.txt. paths or
                                absolute URLs; tags already-dead ones
 scripts/shots.mjs              before/after screenshots, both sides off recon/urls.txt,
                                paired into shots/index.html for the handover
+scripts/match.mjs              old vs new measured: per-section pixel diff at three widths,
+                               words + headings kept. shots/match/, exits 1 past threshold
+scripts/lib/page-text.mjs      a page's words and headings with site chrome removed
 scripts/optimize-media.mjs     media/source → public/img as AVIF + WebP, plus a manifest
 scripts/tells.mjs              what is still undecided, and design.md §3 checked mechanically
 scripts/check-env.mjs          PUBLIC_SITE_ENV vs the routes in wrangler.jsonc
@@ -238,6 +241,8 @@ where you look at half-finished work.
 - [ ] `npm run lastmod`, committed alongside the content it dates
 - [ ] `npm run build:staging && npx wrangler dev` — submit the form, check KV and the inbox
 - [ ] `npm run verify -- https://new.example.com` green
+- [ ] Faithful rebuild: `npm run match -- --old https://old-site.com --new https://new.example.com`
+      green, or each difference it reports named as deliberate
 - [ ] `npm run a11y` and `npm run reflow` clean, plus a keyboard pass by hand
 - [ ] www → apex redirect as a Cloudflare Single Redirect — see `runbook.md` §3a
 

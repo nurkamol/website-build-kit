@@ -145,7 +145,8 @@ These are not style preferences. Each prevents a specific, expensive failure.
 - **Verify against the deployed site, and look at it.** A page can build clean, return 200
   and render broken. A green build proves the bundler ran. `npm run verify -- https://…` is
   the mechanical half and exits non-zero; it also prints what it cannot see, which is the part
-  you still have to look at.
+  you still have to look at. On a faithful migration `npm run match` measures the rebuild
+  against the old site, section by section and word by word — `build.md` §3 phase 4.
 - **Personal data needs a retention period.** A lead store with no expiry holds it forever, and
   "indefinitely" is not an answer. One number in `site.ts`, matching the privacy notice.
 - **Measure rather than assert** on anything performance-related, and report the number even

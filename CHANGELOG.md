@@ -15,6 +15,19 @@
 - **A photo uploaded through the CMS turned the next build red.** The upload lands in
   `media/source/` and nobody runs `npm run media` after a CMS save. `build.mjs` now runs the
   (incremental) media pipeline before the gates.
+- **A faithful rebuild was judged by eye, and an eye skims.** `npm run shots` produced the
+  pairs; nothing measured them, so a section 40px shorter, a paragraph gone from the middle of a
+  long page or a reworded heading passed as long as the page looked roughly right. New
+  `npm run match -- --old … --new …` cuts both pages into their top-level sections (builder rows
+  for Salient/WPBakery, Elementor, Divi, Bricks and Gutenberg; the children of `<main>`
+  otherwise), pairs them by position and diffs each on its own at 390/768/1440 — a whole-page
+  diff fails everything below the first change. It fails a section above 3% of its pixels, a
+  page under 0.98 of the old page's distinct words (with the missing words in context), an old
+  h1–h3 missing, a second `<h1>`, or sideways scroll; `--text-only` runs the word half with no
+  browser. Report in `shots/match/`, worst first. The thresholds and the section-by-section
+  method come from a sister migration kit that gates on them. Fixture faults and paired cases
+  in `test:gates`: identical sites pass; a recoloured section, a dropped paragraph, a renamed
+  heading and a page the new site no longer serves each refuse, named.
 
 ## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 

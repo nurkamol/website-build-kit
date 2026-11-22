@@ -343,6 +343,23 @@ hex in components, form states. It runs on **every** build, not only on a redesi
 rebuild that quietly reproduces the last client's page shape is the failure this catches. It
 prints the tells it cannot check at the end; those still need your eyes.
 
+**On a faithful rebuild, fidelity is measured, not eyeballed.** Once a page family is on
+staging, compare it against the old site:
+
+```bash
+npm run match -- --old https://old-site.com --new https://staging.example.com
+```
+
+Every route in `recon/urls.txt`, at 390 / 768 / 1440: each top-level section paired with the
+one in the same position on the old page and diffed on its own, worst first, in
+`shots/match/index.html`. A section fails above **3%** of its pixels; a page fails under
+**0.98** of the old page's distinct words, on a missing h1–h3, or on a second `<h1>`. Section by
+section because a whole-page diff fails everything below the first change — one section 30px
+taller and the rest of the page reads as different. A redesign skips this; there is nothing to
+be faithful to. A deliberate change (a section dropped on the client's instruction) is
+recorded in `BUILD-STATE.md` and the run is read with `--report-only`, never by raising the
+threshold until it passes.
+
 ### 5 · Media
 AVIF + WebP through `npm run media`, per `stacks.md` §3. Encoding is incremental, so the
 AVIF cost is one-time per image and not per run.
@@ -410,7 +427,9 @@ Staging first, on a real host. Then the §7 verification matrix, then cutover **
 3. **Move Search Console verification to DNS TXT** if it currently relies on an HTML file, and
    confirm it still reads as verified. File verification breaks the moment the file stops
    resolving, and losing verification loses the property's history.
-4. Full verification matrix against staging.
+4. Full verification matrix against staging — and on a faithful rebuild, `npm run match`
+   against the old site **now**, while it still answers. After cutover the old URL is the new
+   site, and there is nothing left to compare against.
 5. Deploy production. **Read the bindings table in the deploy output** — it is the only visible
    signal that the intended environment was built.
 6. Cut DNS over, and watch it rather than assuming: `dig +short` both apex and `www`.
@@ -702,6 +721,7 @@ Not "the build passed." Every row verified against the **deployed** site.
 | Visual | One page per template family **looked at** in a browser at mobile and desktop widths — a page can build clean, return 200 and render broken. `stacks.md` §1c |
 | Console + network | Zero console errors and zero failed requests on the deployed site — `npm run console`. A blocked third-party script or a 404 asset is invisible to a status-code check |
 | Visual record | On a migration: `npm run shots` on both sides, and the pairs in `shots/index.html` actually looked at. Nothing else catches a page that came out *worse* — it builds clean, returns 200 and nobody compares it to what it replaced |
+| Fidelity | On a faithful rebuild: `npm run match -- --old … --new …` exits 0 against staging before cutover — every section within 3% at 390/768/1440, ≥ 0.98 of each page's words, every old h1–h3 present. Each deliberate difference named in the handover. A skimmed pair passes a page that is 6% different; the measurement does not |
 | Mobile | Verified on a real device, not only emulated widths — including a short/landscape viewport |
 | Performance | Measured on the deployed site. `npm run verify` reports page weight, render-blocking counts and whether the first substantial image is lazy — the inputs. Lighthouse supplies the timing. Any deliberate delay (splash, overlay, gate) costed in LCP and reported |
 | Rebuild | Deleting and recreating the deployment target from the repo produces a working site |

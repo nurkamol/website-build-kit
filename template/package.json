@@ -34,6 +34,7 @@
     "handover": "node scripts/md-to-pdf.mjs docs/handover.md docs/handover.pdf",
     "indexnow": "node scripts/indexnow.mjs",
     "lastmod": "node scripts/lastmod.mjs",
+    "match": "node scripts/match.mjs",
     "media": "node scripts/optimize-media.mjs",
     "preview": "wrangler dev",
     "recon": "node scripts/recon.mjs",

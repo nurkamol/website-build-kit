@@ -243,6 +243,11 @@ does ship is the skeleton of the parts that take longest to get right:
   paired into one page. Both sides read the same URL inventory, so a page that did not survive
   shows as a 404 beside its old screenshot. Take the before pass while the old site is still up;
   once DNS moves it is gone
+- **`npm run match`** — the same pairs, measured. Each top-level section of the old page is
+  diffed against the one in the same position on the new page at 390, 768 and 1440px, and each
+  page's words and h1–h3 are checked as kept; it exits 1 past 3% of a section's pixels or under
+  98% of the words. A section 40px shorter or a paragraph gone from the middle of a long page
+  passes a skimming eye, and it is the thing a client finds after launch
 - **Legal pages as content** — `src/content/legal/*.md` served through one route, with the
   footer links derived from the collection itself. A footer link to a page nobody has written
   yet is a 404 on every page of the site, and nothing reports it
