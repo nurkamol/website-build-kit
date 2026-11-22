@@ -250,7 +250,7 @@ scope is safe, reading a property outside a request is not.
 body on the Workers runtime. The endpoint looks broken while being perfectly fine.
 
 *Fix:* the form posts to `/api/contact/` with the slash. The trailing slash in
-`ContactForm.astro`'s `action` is load-bearing — do not "tidy" it away.
+`LeadForm.astro`'s `action` is load-bearing — do not "tidy" it away.
 
 ---
 

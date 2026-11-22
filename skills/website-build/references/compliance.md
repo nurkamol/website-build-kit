@@ -207,7 +207,7 @@ target, and test by Tabbing *after* activating it.
 **A live region injected at announce time is not announced.** `role="status"` must be in the DOM
 *before* its content changes, or the screen reader has nothing to observe. Building the element
 and its text together announces nothing. *Fix:* render the empty region on load and write into it.
-(The template's `ContactForm.astro` already does this — do not "simplify" it.)
+(The template's `LeadForm.astro` already does this — do not "simplify" it.)
 
 **`outline: none` plus a `box-shadow` focus ring disappears in forced-colors mode.** Windows
 High Contrast drops shadows. Focus becomes genuinely invisible for the users most likely to be

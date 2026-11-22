@@ -957,7 +957,7 @@ gate('no dist — refuses', {
 
 describe('check-form');
 
-const formFile = (body) => ({ 'src/components/ContactForm.astro': `<form>${body}</form>` });
+const formFile = (body) => ({ 'src/components/LeadForm.astro': `<form>${body}</form>` });
 
 gate('a clean form passes', {
   script: 'check-form.mjs',
@@ -1001,6 +1001,276 @@ gate('no src — refuses', {
   files: { 'placeholder.txt': '' },
   expect: 1,
   contains: 'no src',
+});
+
+/* A checkbox group posts every ticked box under ONE name — that is how the API
+   receives several choices, so it must not read as a duplicate. */
+gate('a checkbox group sharing one name passes', {
+  script: 'check-form.mjs',
+  files: formFile('<input type="checkbox" name="extras" value="a"><input type="checkbox" name="extras" value="b"><input type="radio" name="when" value="am"><input type="radio" name="when" value="pm">'),
+  expect: 0,
+});
+
+gate('a checkbox and a text input sharing a name still fail', {
+  script: 'check-form.mjs',
+  files: formFile('<input type="checkbox" name="extras" value="a"><input type="text" name="extras">'),
+  expect: 1,
+  contains: 'overwrites the first',
+});
+
+/*
+ * Since forms became data, LeadForm writes name={f.name} — an expression the
+ * markup scan skips by design. Without reading forms.ts, the honeypot landmine
+ * would simply have moved somewhere this gate does not look.
+ */
+const formsTs = (forms) => ({
+  'src/components/LeadForm.astro': '<form><input name={f.name}><input name="company"></form>',
+  'src/data/forms.ts':
+    "import { services } from './services';\n" +
+    'export const forms: Record<string, unknown> = {\n' +
+    forms +
+    '\n  // forms:import — imported forms are inserted above this line. Keep it.\n};\n',
+});
+const aForm = (key, fields, id = key) =>
+  `  ${key}: { id: '${id}', page: '/contact/', anchor: '#quote', submitLabel: 'Send', success: 'Thanks', subject: 'New', nameFields: [], fields: [${fields}] },`;
+const f = (name, extra = '') => `{ name: '${name}', label: '${name}', type: 'text'${extra} }`;
+
+gate('definitions: the same name in two different forms passes', {
+  script: 'check-form.mjs',
+  files: formsTs(aForm('contact', `${f('email')}, ${f('message')}`) + '\n' + aForm('booking', f('email'))),
+  expect: 0,
+  contains: '2 form definition(s)',
+});
+
+gate('definitions: a field named company is the honeypot', {
+  script: 'check-form.mjs',
+  files: formsTs(aForm('contact', `${f('name')}, ${f('company')}`)),
+  expect: 1,
+  contains: 'HONEYPOT',
+});
+
+gate('definitions: two fields of one form sharing a name', {
+  script: 'check-form.mjs',
+  files: formsTs(aForm('contact', `${f('phone')}, ${f('phone')}`)),
+  expect: 1,
+  contains: 'used by two fields',
+});
+
+/* The quiet one: the field can never appear, so the API never requires it and
+   DROPS whatever is posted for it. Every build and every submission stays green. */
+gate('definitions: a showWhen naming a field that is not there', {
+  script: 'check-form.mjs',
+  files: formsTs(aForm('contact', f('detail', ", showWhen: { field: 'kind', anyOf: ['Other'] }"))),
+  expect: 1,
+  contains: 'DROPS its answer',
+});
+
+gate('definitions: a showWhen value no option can produce', {
+  script: 'check-form.mjs',
+  files: formsTs(
+    aForm('contact', `{ name: 'kind', label: 'Kind', type: 'radio', options: ['One', 'Other'] }, ${f('detail', ", showWhen: { field: 'kind', anyOf: ['Other '] }")}`),
+  ),
+  expect: 1,
+  contains: 'not one of its options',
+});
+
+/* Options built from an import cannot be read here; skipping beats guessing. */
+gate('definitions: options built from an import are not guessed at', {
+  script: 'check-form.mjs',
+  files: formsTs(
+    aForm('contact', `{ name: 'svc', label: 'Service', type: 'select', options: [...services.map((s) => s.title), 'Else'] }, ${f('detail', ", showWhen: { field: 'svc', anyOf: ['A real service'] }")}`),
+  ),
+  expect: 0,
+});
+
+gate('definitions: a key that is not the form id', {
+  script: 'check-form.mjs',
+  files: formsTs(aForm('booking', f('email'), 'bookings')),
+  expect: 1,
+  contains: 'looks a form up by id',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
+ * forms-import — a WordPress form plugin's export → src/data/forms.ts
+ *
+ * The fixtures in scripts/fixtures/forms/ are INVENTED forms written for this
+ * file: no real site, no real recipient (example.com / example.org only).
+ *
+ * ⚠ THE "NOT CARRIED" CASES ARE THE POINT. Converting a rule the importer
+ *   cannot express exactly would build a form that shows the wrong question to
+ *   the wrong visitor and collects the wrong thing, behind a clean build. The
+ *   cases below prove an unsupported rule is REPORTED and its field KEPT — and
+ *   that a field required only while shown stops being required of everybody.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('forms-import');
+
+const FORM_FIXTURES = join(KIT, 'scripts', 'fixtures', 'forms');
+const fx = (name) => readFileSync(join(FORM_FIXTURES, name), 'utf8');
+const fieldLine = (out, name) => out.split('\n').find((l) => l.includes(`{ name: '${name}'`)) ?? '';
+const FORMS_WITH_MARKER = formsTs(aForm('contact', `${f('name')}, ${f('email')}`))['src/data/forms.ts'];
+
+gate('Fluent: a show rule is carried, through the option VALUE to its label', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: "showWhen: { field: 'roomType', anyOf: ['Other'] }",
+});
+
+gate('Fluent: an unsupported operator is reported, the field kept and made optional', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: 'not carried: “Site access notes”',
+  then: (_dir, out) => {
+    const line = fieldLine(out, 'siteAccess');
+    if (!line) return 'the field whose rule was not carried was DROPPED';
+    if (/showWhen/.test(line)) return 'the field kept a rule that was reported as not carried';
+    return /required/.test(line) ? 'a field required only while shown is now required of everybody' : null;
+  },
+});
+
+gate('Fluent: "all of several answers" is not carried', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: 'not carried: “Decking size”',
+});
+
+/* A plugin field called company, imported as-is, becomes the honeypot. */
+gate('Fluent: a field named company is renamed, never imported as the honeypot', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json') },
+  args: ['export.json', '--form', '7', '--print'],
+  expect: 0,
+  contains: "name: 'companyName'",
+  then: (_dir, out) => (/name: 'company'/.test(out) ? 'a field named company reached the snippet' : null),
+});
+
+gate('Fluent: a file upload is reported, not silently skipped', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: 'NOT IMPORTED: “Plans or photos”',
+});
+
+gate('Gravity: hide-when-not becomes show-when, exactly', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('gravity-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: "showWhen: { field: 'session', anyOf: ['Evening'] }",
+  then: (_dir, out) =>
+    out.includes("showWhen: { field: 'dietaryNeeds', anyOf: ['Other'] }") ? null : 'the plain show rule on a checkbox group was not carried',
+});
+
+gate('Gravity: a rule across two fields is not carried', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('gravity-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: 'not carried: “Access requirements”',
+  then: (_dir, out) => (fieldLine(out, 'accessRequirements') ? null : 'the field was dropped with its rule'),
+});
+
+gate('Gravity: hide-when-is is not carried', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('gravity-forms.json') },
+  args: ['export.json', '--print'],
+  expect: 0,
+  contains: 'not carried: “Who should we thank?”',
+});
+
+gate('CF7 export: Conditional Fields groups are carried', {
+  script: 'forms-import.mjs',
+  files: { 'export.xml': fx('contact-form-7.xml') },
+  args: ['export.xml', '--print'],
+  expect: 0,
+  contains: "showWhen: { field: 'projectType', anyOf: ['Other'] }",
+  then: (_dir, out) =>
+    !out.includes("showWhen: { field: 'rooms', anyOf: ['Stairs'] }")
+      ? 'the checkbox-group condition was not carried'
+      : !out.includes('not carried: “Budget note”')
+        ? 'a "greater than" condition was not reported'
+        : null,
+});
+
+gate('CF7 template text, with text-mode conditions', {
+  script: 'forms-import.mjs',
+  files: { 'form.txt': fx('contact-form-7.txt') },
+  args: ['form.txt', '--print'],
+  expect: 0,
+  contains: "showWhen: { field: 'rooms', anyOf: ['Stairs'] }",
+});
+
+/* Recipients are a business fact and personal data: printed, never committed. */
+gate('writes between markers; recipients are printed, never written', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json'), 'src/data/forms.ts': FORMS_WITH_MARKER },
+  args: ['export.json', '--form', '7', '--as', 'garden'],
+  expect: 0,
+  contains: 'enquiries@example.com',
+  then: (dir) => {
+    const run = () => spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, 'forms-import.mjs'), 'export.json', '--form', '7', '--as', 'garden'], { cwd: dir, encoding: 'utf8' });
+    const written = readFileSync(join(dir, 'src/data/forms.ts'), 'utf8');
+    if (!written.includes("  garden: {")) return 'forms.garden was not written';
+    if (written.includes('enquiries@example.com')) return 'a notification recipient was written into the repo';
+    const again = run();
+    const twice = readFileSync(join(dir, 'src/data/forms.ts'), 'utf8');
+    if (again.status !== 0) return `a rerun exited ${again.status}`;
+    return (twice.match(/<forms:import key="garden">/g) ?? []).length === 1 ? null : 'a rerun added a second copy instead of replacing';
+  },
+});
+
+gate('refuses to overwrite a form it did not write', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('fluent-forms.json'), 'src/data/forms.ts': FORMS_WITH_MARKER },
+  args: ['export.json', '--form', '8', '--as', 'contact'],
+  expect: 1,
+  contains: 'not written by this command',
+});
+
+gate('malformed: form_fields that is not JSON', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('malformed-fluent.json') },
+  args: ['export.json', '--print'],
+  expect: 1,
+  contains: 'form_fields is not valid JSON',
+});
+
+gate('malformed: a truncated export', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('truncated.json') },
+  args: ['export.json', '--print'],
+  expect: 1,
+  contains: 'not valid JSON',
+});
+
+gate('JSON that is not a form export', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': '{"name": "site", "version": "1.0.0"}' },
+  args: ['export.json', '--print'],
+  expect: 1,
+  contains: 'not a Fluent Forms or Gravity Forms export',
+});
+
+gate('no file — usage', {
+  script: 'forms-import.mjs',
+  files: { 'placeholder.txt': '' },
+  expect: 1,
+  contains: 'usage',
+});
+
+gate('no forms.ts and no --print — refuses rather than guessing a path', {
+  script: 'forms-import.mjs',
+  files: { 'export.json': fx('gravity-forms.json') },
+  args: ['export.json'],
+  expect: 1,
+  contains: 'run from the project root',
 });
 
 /* ────────────────────────────────────────────────────────────────────────

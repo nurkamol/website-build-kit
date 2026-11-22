@@ -1,0 +1,601 @@
+---
+import { business } from '../data/business';
+import type { FieldDef, FormDef } from '../data/forms';
+
+/**
+ * Renders any form defined in `src/data/forms.ts`.
+ *
+ * Here for its behaviour: server-side validation surfaced per field, a
+ * no-JavaScript path that still submits, a honeypot, a busy state that
+ * prevents double submission, an outcome announced via role="status" without
+ * stealing focus, and conditional fields that work without JavaScript.
+ *
+ * The fields come from the definition, so this component, the API, the
+ * notification email and the CSV export cannot disagree about them. Ask for
+ * what you will act on, and nothing a regulator says you may not hold
+ * (compliance.md §10).
+ *
+ * The styling is the STATES, not a look — hover, focus-visible, invalid,
+ * disabled, busy, succeeded. Restyle all of it; do not remove a state.
+ */
+
+interface Props {
+  form: FormDef;
+  /** Field names the server rejected, for the no-JavaScript path. */
+  invalidFields?: string[];
+}
+
+const { form, invalidFields = [] } = Astro.props;
+const invalid = (name: string) => (invalidFields.includes(name) ? '' : undefined);
+const ariaInvalid = (name: string) => (invalidFields.includes(name) ? 'true' : undefined);
+const id = (name: string) => `${form.id}-${name}`;
+const describedBy = (f: FieldDef) =>
+  [f.hint && `${id(f.name)}-hint`, f.showWhen && `${id(f.name)}-when`, `${id(f.name)}-error`].filter(Boolean).join(' ');
+const isGroup = (f: FieldDef) => f.type === 'checkboxes' || f.type === 'radio';
+
+/*
+ * The rule travels to the script as data; the sentence travels to the visitor
+ * as text. Without JavaScript nothing hides a conditional field, so the
+ * sentence is what tells them when to answer it — the server ignores it when
+ * it does not apply.
+ */
+const showWhen = (f: FieldDef) => (f.showWhen ? JSON.stringify(f.showWhen) : undefined);
+const whenNote = (f: FieldDef) => {
+  if (!f.showWhen) return '';
+  const controller = form.fields.find((c) => c.name === f.showWhen!.field);
+  const values = f.showWhen.anyOf.map((v) => `“${v}”`).join(' or ');
+  return `Only if “${controller?.label ?? f.showWhen.field}” is ${values}.`;
+};
+
+/* Set at BUILD time. Empty means no widget and nothing loaded from Cloudflare. */
+const turnstileKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+---
+
+<!--
+  The trailing slash is load-bearing. `trailingSlash: 'always'` makes
+  /api/contact 308 to /api/contact/, and a redirected POST loses the request
+  body on the Workers runtime — the endpoint then looks broken while being
+  perfectly fine. Post to the canonical URL directly.
+
+  data-phone carries the number into the script, so a failure message can name
+  it. Never hard-code a phone number in a component: one left in an error
+  string is a previous client's number in this client's worst moment.
+-->
+<form
+  class="form"
+  method="post"
+  action="/api/contact/"
+  novalidate
+  data-lead-form
+  data-form={form.id}
+  data-success={form.success}
+  data-phone={business.phone.display}
+>
+  <!-- Which definition the API validates against. Missing = the default form. -->
+  <input type="hidden" name="form" value={form.id} />
+
+  <div class="form__grid">
+    {
+      form.fields.map((f) =>
+        isGroup(f) ? (
+          <fieldset
+            class="field field--group field--full"
+            data-field={f.name}
+            data-invalid={invalid(f.name)}
+            data-show-when={showWhen(f)}
+            aria-describedby={describedBy(f)}
+          >
+            <legend>
+              {f.label} {f.required && <span aria-hidden="true">*</span>}
+              {f.required && <span class="visually-hidden">(required)</span>}
+            </legend>
+            {f.hint && <p class="field__hint" id={`${id(f.name)}-hint`}>{f.hint}</p>}
+            {f.showWhen && <p class="field__hint" id={`${id(f.name)}-when`} data-when-note>{whenNote(f)}</p>}
+            <div class="field__choices">
+              {f.options?.map((option, i) => (
+                <label class="choice" for={`${id(f.name)}-${i}`}>
+                  <input
+                    id={`${id(f.name)}-${i}`}
+                    type={f.type === 'radio' ? 'radio' : 'checkbox'}
+                    name={f.name}
+                    value={option}
+                    required={f.type === 'radio' && f.required}
+                    aria-invalid={ariaInvalid(f.name)}
+                  />
+                  <span>{option}</span>
+                </label>
+              ))}
+            </div>
+            <p class="field__error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden />
+          </fieldset>
+        ) : (
+          <div
+            class:list={['field', { 'field--full': f.full || f.type === 'textarea' }]}
+            data-field={f.name}
+            data-invalid={invalid(f.name)}
+            data-show-when={showWhen(f)}
+          >
+            <label for={id(f.name)}>
+              {f.label} {f.required && <span aria-hidden="true">*</span>}
+            </label>
+            {f.hint && <p class="field__hint" id={`${id(f.name)}-hint`}>{f.hint}</p>}
+            {f.showWhen && <p class="field__hint" id={`${id(f.name)}-when`} data-when-note>{whenNote(f)}</p>}
+            {f.type === 'textarea' ? (
+              <textarea
+                id={id(f.name)}
+                name={f.name}
+                rows="4"
+                placeholder={f.placeholder}
+                required={f.required}
+                aria-invalid={ariaInvalid(f.name)}
+                aria-describedby={describedBy(f)}
+              />
+            ) : f.type === 'select' ? (
+              <select
+                id={id(f.name)}
+                name={f.name}
+                autocomplete={f.autocomplete}
+                required={f.required}
+                aria-invalid={ariaInvalid(f.name)}
+                aria-describedby={describedBy(f)}
+              >
+                <option value="">{f.placeholder ?? 'Select…'}</option>
+                {f.options?.map((option) => (
+                  <option value={option}>{option}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={id(f.name)}
+                name={f.name}
+                type={f.type as 'text' | 'email' | 'tel' | 'date'}
+                autocomplete={f.autocomplete}
+                inputmode={f.type === 'tel' ? 'tel' : undefined}
+                placeholder={f.placeholder}
+                required={f.required}
+                aria-invalid={ariaInvalid(f.name)}
+                aria-describedby={describedBy(f)}
+              />
+            )}
+            <p class="field__error" id={`${id(f.name)}-error`} data-error-for={f.name} hidden />
+          </div>
+        ),
+      )
+    }
+  </div>
+
+  <!-- Honeypot. Hidden from sight and from assistive tech, and never focusable
+       via the keyboard, so no real person can fill it by accident. -->
+  <div class="form__trap" aria-hidden="true">
+    <label for={id('company')}>Company</label>
+    <input id={id('company')} name="company" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+
+  <input type="hidden" name="page" data-page-field value="" />
+
+  {
+    /*
+     * Turnstile needs JavaScript, so switching it on gives up the no-JavaScript
+     * path for this form: with no script there is no token, and the server
+     * refuses. The <noscript> line says so and offers the phone instead of a
+     * form that cannot succeed.
+     */
+    turnstileKey && (
+      <>
+        <div class="cf-turnstile" data-sitekey={turnstileKey} data-theme="auto" />
+        <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+        <noscript>
+          <p class="field__hint">This form needs JavaScript for its spam check. Please call {business.phone.display} instead.</p>
+        </noscript>
+      </>
+    )
+  }
+
+  <div class="form__foot">
+    <button class="btn form__submit" type="submit">
+      <span data-submit-label>{form.submitLabel}</span>
+    </button>
+  </div>
+
+  <!-- role="status" so the outcome is announced without stealing focus. -->
+  <p class="form__result" role="status" aria-live="polite" data-form-result hidden></p>
+</form>
+
+<style>
+  .form {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  .form__grid {
+    display: grid;
+    gap: var(--space-m);
+  }
+
+  @media (min-width: 34rem) {
+    .form__grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .field--full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .field {
+    display: grid;
+    gap: var(--space-3xs);
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* `display: grid` above outranks the UA rule for [hidden], so the attribute
+     the script sets on a conditional field needs saying again. This is not
+     CSS hiding anything — without the script nothing sets the attribute. */
+  .field[hidden],
+  .field__hint[hidden] {
+    display: none;
+  }
+
+  .field > label,
+  .field legend {
+    padding: 0;
+    font-size: var(--step--1);
+    font-weight: var(--weight-semibold);
+  }
+
+  .field__hint {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+
+  .field input:not([type='checkbox'], [type='radio']),
+  .field textarea,
+  .field select {
+    inline-size: 100%;
+    /* 44px minimum tap target, from padding so it survives a wrapped label. */
+    min-block-size: 2.75rem;
+    padding: 0.65em 0.9em;
+    font-size: var(--step-0);
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    border-radius: var(--radius-s);
+  }
+
+  .field textarea {
+    resize: vertical;
+    min-block-size: 7rem;
+  }
+
+  .field input:not([type='checkbox'], [type='radio']):hover,
+  .field textarea:hover,
+  .field select:hover {
+    border-color: var(--text-muted);
+  }
+
+  /* The outline is replaced, not removed — the ring is the visible focus
+     indicator and it must stay at least as obvious as the default. */
+  .field input:not([type='checkbox'], [type='radio']):focus-visible,
+  .field textarea:focus-visible,
+  .field select:focus-visible {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: var(--ring);
+  }
+
+  .field__choices {
+    display: grid;
+    gap: var(--space-3xs);
+  }
+
+  /* The whole row is the target, so the tap area is the label and not a 13px box. */
+  .choice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-block-size: 2.75rem;
+    cursor: pointer;
+  }
+
+  .choice input {
+    flex: none;
+    margin: 0;
+  }
+
+  .choice input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+
+  /* Colour is never the only cue: the error text is what carries the meaning,
+     and aria-invalid carries it to assistive tech. */
+  .field[data-invalid] input:not([type='checkbox'], [type='radio']),
+  .field[data-invalid] textarea,
+  .field[data-invalid] select {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+  }
+
+  .field__error {
+    font-size: var(--step--1);
+    color: var(--danger);
+  }
+
+  .field__error[hidden] {
+    display: none;
+  }
+
+  .form__trap {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .form__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-s) var(--space-m);
+  }
+
+  .form__result {
+    padding: var(--space-s) var(--space-m);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    font-size: var(--step--1);
+  }
+
+  .form__result[hidden] {
+    display: none;
+  }
+
+  .form__result[data-tone='error'] {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+    color: var(--danger);
+  }
+</style>
+
+<script>
+  /**
+   * Progressive enhancement, not a requirement.
+   *
+   * Without this script the form is a plain HTML POST to /api/contact — it
+   * still submits, still stores, still emails, and every conditional field is
+   * on show with a sentence saying when it applies. The script only upgrades
+   * the response to inline field errors and an in-page confirmation, and hides
+   * the fields that do not apply.
+   */
+  /**
+   * The single place a lead conversion is announced. One announcer, two pipes.
+   *
+   * ── WHY BOTH ─────────────────────────────────────────────────────────────
+   * `gtag` reaches GA4 directly; `dataLayer` reaches a Tag Manager container.
+   * A site may have either, both, or neither, and the two are independent —
+   * pushing to a dataLayer no container reads is inert, and so is a gtag call
+   * with no GA4 tag behind it.
+   *
+   * `form` is the definition's id from src/data/forms.ts, so a site with two
+   * forms can tell a quote from a booking without a second event name.
+   *
+   * ⚠ NEVER ALSO SEND THIS CONVERSION FROM A TAG MANAGER TRIGGER. Two pipes
+   * for one event double-counts, and a doubled conversion looks like a good
+   * month rather than a bug. Nothing in a build will catch it — confirm in
+   * Realtime that one submission produces one event.
+   */
+  function announceLead(formId: string) {
+    const w = window as any;
+    if (typeof w.gtag === 'function') {
+      w.gtag('event', 'generate_lead', { form: formId });
+    }
+    w.dataLayer = w.dataLayer || [];
+    w.dataLayer.push({ event: 'lead_submitted', form: formId });
+  }
+
+  /**
+   * The no-JavaScript conversion.
+   *
+   * Without JavaScript the form posts natively, the API 303s to `?sent=1`, and
+   * THIS page load is the only signal a lead happened. With JavaScript the
+   * fetch path calls the announcer and never navigates, so the two paths are
+   * mutually exclusive and cannot both fire.
+   *
+   * ⚠ THE OBVIOUS IMPLEMENTATION IS WRONG. A Tag Manager trigger on "URL
+   * contains sent=1" catches almost nothing here, because the enhanced path
+   * intercepts the submit and never changes the URL. It fires correctly in
+   * testing — where you click through by hand — and then reports a handful of
+   * conversions a month while looking like it works.
+   *
+   * The parameter is stripped with replaceState immediately after, so a
+   * reload, a bookmark or a shared link cannot invent a second conversion.
+   */
+  function announceNoScriptLead() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('sent')) return;
+
+    announceLead(document.querySelector<HTMLFormElement>('[data-lead-form]')?.dataset.form ?? 'form');
+
+    url.searchParams.delete('sent');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  /**
+   * Conditional fields, from `showWhen` in src/data/forms.ts.
+   *
+   * ⚠ THE SCRIPT BOTH HIDES AND REVEALS. Nothing hides a conditional field in
+   * CSS waiting for JavaScript to undo it, so a failed bundle leaves every
+   * field on show — with its "Only if…" sentence, which this removes once the
+   * logic is running — and the server drops whatever does not apply.
+   *
+   * A hidden field's controls are disabled as well, so they are neither posted
+   * nor reachable by Tab. A field whose controller is itself hidden counts as
+   * unanswered, so a chain collapses when an early answer changes.
+   */
+  function setupConditions(form: HTMLFormElement) {
+    const fields = [...form.querySelectorAll<HTMLElement>('[data-show-when]')];
+    if (!fields.length) return;
+
+    const wrapperOf = (name: string) => form.querySelector<HTMLElement>(`[data-field="${CSS.escape(name)}"]`);
+    const valuesOf = (name: string) => {
+      const wrapper = wrapperOf(name);
+      if (!wrapper || wrapper.hidden) return [];
+      type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+      return ([...wrapper.querySelectorAll('input, select, textarea')] as unknown as Control[])
+        .filter((control) => control.name === name)
+        .flatMap((control) =>
+          control instanceof HTMLInputElement && (control.type === 'checkbox' || control.type === 'radio')
+            ? control.checked
+              ? [control.value.trim()]
+              : []
+            : [control.value.trim()],
+        )
+        .filter(Boolean);
+    };
+
+    const apply = () => {
+      // Repeated until nothing changes, so a chain resolves in whatever order it is written.
+      for (let pass = 0; pass <= fields.length; pass++) {
+        let changed = false;
+        for (const field of fields) {
+          const rule = JSON.parse(field.dataset.showWhen ?? '{}') as { field: string; anyOf: string[] };
+          const show = valuesOf(rule.field).some((v) => rule.anyOf.includes(v));
+          if (field.hidden === show) {
+            field.hidden = !show;
+            changed = true;
+          }
+          field.querySelectorAll<HTMLInputElement>('input, select, textarea').forEach((control) => {
+            control.disabled = !show;
+          });
+        }
+        if (!changed) break;
+      }
+    };
+
+    form.querySelectorAll<HTMLElement>('[data-when-note]').forEach((note) => {
+      note.hidden = true;
+    });
+    form.addEventListener('change', apply);
+    form.addEventListener('input', apply);
+    form.addEventListener('reset', () => requestAnimationFrame(apply));
+    apply();
+  }
+
+  function setupLeadForm(form: HTMLFormElement) {
+    const result = form.querySelector<HTMLElement>('[data-form-result]')!;
+    const submit = form.querySelector<HTMLButtonElement>('.form__submit')!;
+    const label = form.querySelector<HTMLElement>('[data-submit-label]')!;
+    const pageField = form.querySelector<HTMLInputElement>('[data-page-field]');
+    if (pageField) pageField.value = location.pathname + location.search;
+    const formId = form.dataset.form ?? 'form';
+
+    // From the markup, which reads business.ts. Never a literal here.
+    const phone = form.dataset.phone ?? '';
+    const callUs = phone ? ` Please call us at ${phone}.` : ' Please call us instead.';
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((node) => {
+        node.hidden = true;
+        node.textContent = '';
+        const wrapper = node.closest('.field');
+        wrapper?.removeAttribute('data-invalid');
+        wrapper?.querySelectorAll('[aria-invalid]').forEach((control) => control.removeAttribute('aria-invalid'));
+      });
+    };
+
+    const showErrors = (errors: Record<string, string>) => {
+      let first: HTMLElement | null = null;
+      for (const [field, message] of Object.entries(errors)) {
+        const node = form.querySelector<HTMLElement>(`[data-error-for="${CSS.escape(field)}"]`);
+        if (!node) continue;
+        node.textContent = message;
+        node.hidden = false;
+        const wrapper = node.closest('.field');
+        wrapper?.setAttribute('data-invalid', '');
+        // A group marks every choice; focus goes to its first one.
+        const controls = [...(wrapper?.querySelectorAll<HTMLElement>('input, textarea, select') ?? [])];
+        controls.forEach((control) => control.setAttribute('aria-invalid', 'true'));
+        if (!first && controls[0]) first = controls[0];
+      }
+      first?.focus();
+    };
+
+    const say = (message: string, tone: 'success' | 'error') => {
+      result.textContent = message;
+      result.dataset.tone = tone;
+      result.hidden = false;
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (submit.hasAttribute('data-busy')) return;
+      clearErrors();
+      result.hidden = true;
+
+      submit.dataset.busy = '';
+      const original = label.textContent;
+      label.textContent = 'Sending…';
+
+      try {
+        // getAttribute, not form.action: a control NAMED "action" shadows the
+        // property on a form element, and an imported form can carry one.
+        const response = await fetch(form.getAttribute('action') ?? '/api/contact/', {
+          method: 'POST',
+          headers: { accept: 'application/json' },
+          body: new FormData(form),
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          errors?: Record<string, string>;
+          error?: string;
+        };
+
+        if (response.status === 422 && data.errors) {
+          showErrors(data.errors);
+          say('Please check the highlighted fields.', 'error');
+          return;
+        }
+
+        if (!response.ok || !data.ok) {
+          say(data.error ?? `Something went wrong.${callUs}`, 'error');
+          return;
+        }
+
+        HTMLFormElement.prototype.reset.call(form); // same reason: a field named "reset"
+        say(form.dataset.success ?? 'Thank you — we will be in touch shortly.', 'success');
+        announceLead(formId);
+      } catch {
+        say(`We could not reach the server.${callUs}`, 'error');
+      } finally {
+        delete submit.dataset.busy;
+        label.textContent = original;
+        // A Turnstile token is single-use: after ANY answer, including a 422, the
+        // next attempt needs a fresh one or it is refused for a reason the
+        // visitor cannot see.
+        (window as any).turnstile?.reset?.(form.querySelector('.cf-turnstile') ?? undefined);
+      }
+    });
+
+    // Clear a field's error state as soon as the visitor starts fixing it.
+    form.addEventListener('input', (event) => {
+      const field = (event.target as HTMLElement).closest('.field');
+      if (!field?.hasAttribute('data-invalid')) return;
+      field.removeAttribute('data-invalid');
+      const error = field.querySelector<HTMLElement>('[data-error-for]');
+      if (error) error.hidden = true;
+      field.querySelectorAll('[aria-invalid]').forEach((control) => control.removeAttribute('aria-invalid'));
+    });
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    document.querySelectorAll<HTMLFormElement>('[data-lead-form]').forEach((form) => {
+      setupConditions(form);
+      setupLeadForm(form);
+    });
+    announceNoScriptLead();
+  });
+</script>

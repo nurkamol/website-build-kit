@@ -21,6 +21,8 @@ interface ImportMetaEnv {
   /** Set by the build script. Never read directly — go through src/data/site.ts. */
   readonly PUBLIC_SITE_ENV?: 'development' | 'staging' | 'production';
   readonly PUBLIC_SITE_URL?: string;
+  /** Cloudflare Turnstile site key. Set at BUILD time to render the widget; empty = no widget. */
+  readonly PUBLIC_TURNSTILE_SITE_KEY?: string;
 }
 
 interface ImportMeta {

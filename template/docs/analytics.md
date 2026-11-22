@@ -31,7 +31,7 @@ Check Admin → Data streams → the stream → Enhanced measurement before writ
 and no enhanced-measurement category covers them. For a business whose phone number sits in
 every header and footer, that is a primary conversion going unmeasured.
 
-If you add it, the announcer belongs next to the one in `ContactForm.astro` — one function,
+If you add it, the announcer belongs next to the one in `LeadForm.astro` — one function,
 both pipes — and the same no-double-count rule applies.
 
 ## 3. The rules whose failure looks like success
@@ -41,14 +41,14 @@ Both fire `page_view`. Sessions halve, bounce rate collapses, and the numbers lo
 which is why it survives review. `Base.astro` loads `gtag.js` directly and GTM as a
 container — do not add a GA4 Configuration tag inside the container.
 
-**Never send the same conversion down both pipes.** `announceLead()` in `ContactForm.astro`
+**Never send the same conversion down both pipes.** `announceLead()` in `LeadForm.astro`
 pushes to `dataLayer` *and* calls `gtag`. If the container also has a trigger creating a GA4
 event from `lead_submitted`, every lead counts twice.
 
 **Never trigger a conversion on "URL contains `sent=1`".** It is the obvious implementation
 and it is wrong: the enhanced path intercepts the submit and never changes the URL, so the
 trigger only catches visitors without JavaScript. It fires correctly when you test by hand and
-then under-reports for the life of the site. See the long comment in `ContactForm.astro`.
+then under-reports for the life of the site. See the long comment in `LeadForm.astro`.
 
 **Verify the container is the client's own.** Fetch it and read it — do not reason about it:
 
