@@ -1,0 +1,40 @@
+<label> Your name
+    [text* your-name autocomplete:name] </label>
+
+<label> Your email
+    [email* your-email] </label>
+
+<label> Phone
+    [tel your-phone] </label>
+
+<label> Project type
+    [select* project-type first_as_label "Choose one" "Kitchen" "Bathroom" "Other"] </label>
+
+[group other-project]
+<label> Tell us about it
+    [text* other-detail] </label>
+[/group]
+
+<label> Rooms
+    [checkbox rooms use_label_element "Hall" "Landing" "Stairs"] </label>
+
+[group stairs-group]
+<label> Number of steps
+    [number step-count] </label>
+[/group]
+
+[group budget-group]
+<label> Budget note
+    [text* budget-note] </label>
+[/group]
+
+<label> Message
+    [textarea your-message] </label>
+
+[acceptance accept-terms] I agree to be contacted about this enquiry. [/acceptance]
+
+[submit "Send enquiry"]
+
+show [other-project] if [project-type] equals "Other"
+show [stairs-group] if [rooms] equals "Stairs"
+show [budget-group] if [project-type] greater than "1000"

@@ -15,6 +15,7 @@ that is deliberate, and it means a broken page can never reach visitors.
 | Blog categories | `src/data/categories.ts` |
 | A blog post | `src/content/blog/<slug>.md` |
 | Privacy, terms, house rules | `src/content/legal/<slug>.md` |
+| Form fields — a new question, a new form | `src/data/forms.ts` |
 | Images | `media/source/…`, then `npm run media` |
 | Colours, fonts, spacing | `src/styles/tokens.css` |
 
@@ -101,6 +102,47 @@ authority issues the permit, what the housing stock is, what actually drives dem
 Pages differing by nothing but the town name are doorway pages and can be penalised. A place
 you cannot write about distinctly still belongs in `business.serviceAreas`; it just does not
 get a page.
+
+---
+
+## Adding a form field, or a form
+
+Every form is a definition in `src/data/forms.ts`. The page, the server's checks, the notification
+email and the leads export all read it, so **a field added there appears in all four** — there is
+nothing else to edit.
+
+**A field** is one line in that form's `fields` list:
+
+```ts
+{ name: 'budget', label: 'Rough budget', type: 'select', options: ['Under 5k', '5–15k', 'Over 15k'] },
+```
+
+| Key | What it does |
+| --- | --- |
+| `name` | The key stored and exported. Letters and digits, unique within the form. **Never `company`** — that is the spam trap, and a real field with that name throws enquiries away. Use `companyName` |
+| `label` | What the visitor reads, and what the notification email prints |
+| `type` | `text`, `email`, `tel`, `date`, `textarea`, `checkboxes`, `radio` or `select` |
+| `options` | The choices for `checkboxes`, `radio` and `select`. An answer outside the list is refused |
+| `required`, `ask` | Must be answered; `ask` is the message when it is not |
+| `hint` | A line under the label, always shown |
+| `full` | Span the whole row (textareas and choice groups always do) |
+| `showWhen` | Only ask when another answer is given: `showWhen: { field: 'budget', anyOf: ['Over 15k'] }` |
+
+A `showWhen` field is hidden until the answer appears; without JavaScript it shows with a note saying
+when it applies, and the server ignores it if it does not. **The values in `anyOf` must be typed
+exactly as in the other field's `options`** — `npm run check:form` fails the build if one is not,
+because that field could otherwise never appear.
+
+Ask for nothing you will not act on: every answer is personal data, kept for the retention period
+in the privacy notice.
+
+**A second form** is a second entry in `forms`, with its own `id`, the `page` it lives on and the
+`anchor` on that page to return to. Render it on that page with
+`<LeadForm form={forms.<id>} invalidFields={invalidFieldsFor(Astro.url, forms.<id>)} />` inside an
+element whose `id` matches `anchor`, and make the page `export const prerender = false` so a
+no-JavaScript submission can come back with its errors. Migrating from WordPress?
+`npm run forms:import -- <export file>` writes the entry for you from a Fluent Forms, Gravity Forms
+or Contact Form 7 export.
 
 ---
 

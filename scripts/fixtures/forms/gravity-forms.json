@@ -1,0 +1,204 @@
+{
+  "0": {
+    "id": 3,
+    "title": "Workshop Booking",
+    "is_active": "1",
+    "button": {
+      "type": "text",
+      "text": "Book my place"
+    },
+    "fields": [
+      {
+        "id": 1,
+        "type": "name",
+        "label": "Name",
+        "isRequired": true,
+        "inputs": [
+          {
+            "id": "1.2",
+            "label": "Prefix",
+            "isHidden": true
+          },
+          {
+            "id": "1.3",
+            "label": "First"
+          },
+          {
+            "id": "1.6",
+            "label": "Last"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "type": "email",
+        "label": "Email",
+        "isRequired": true,
+        "layoutGridColumnSpan": 6
+      },
+      {
+        "id": 3,
+        "type": "phone",
+        "label": "Phone",
+        "layoutGridColumnSpan": 6
+      },
+      {
+        "id": 4,
+        "type": "radio",
+        "label": "Session",
+        "isRequired": true,
+        "choices": [
+          {
+            "text": "Morning",
+            "value": "morning"
+          },
+          {
+            "text": "Afternoon",
+            "value": "afternoon"
+          },
+          {
+            "text": "Evening",
+            "value": "evening"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "type": "checkbox",
+        "label": "Dietary needs",
+        "choices": [
+          {
+            "text": "Vegetarian",
+            "value": "Vegetarian"
+          },
+          {
+            "text": "Vegan",
+            "value": "Vegan"
+          },
+          {
+            "text": "Other",
+            "value": "Other"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "type": "text",
+        "label": "Other dietary need",
+        "isRequired": true,
+        "conditionalLogic": {
+          "actionType": "show",
+          "logicType": "any",
+          "rules": [
+            {
+              "fieldId": "5",
+              "operator": "is",
+              "value": "Other"
+            }
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "type": "text",
+        "label": "Evening parking",
+        "conditionalLogic": {
+          "actionType": "hide",
+          "logicType": "all",
+          "rules": [
+            {
+              "fieldId": "4",
+              "operator": "isnot",
+              "value": "evening"
+            }
+          ]
+        }
+      },
+      {
+        "id": 8,
+        "type": "textarea",
+        "label": "Access requirements",
+        "conditionalLogic": {
+          "actionType": "show",
+          "logicType": "all",
+          "rules": [
+            {
+              "fieldId": "4",
+              "operator": "is",
+              "value": "morning"
+            },
+            {
+              "fieldId": "5",
+              "operator": "is",
+              "value": "Vegan"
+            }
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "type": "select",
+        "label": "How did you hear about us?",
+        "choices": [
+          {
+            "text": "Search",
+            "value": "Search"
+          },
+          {
+            "text": "A friend",
+            "value": "Friend"
+          },
+          {
+            "text": "Social media",
+            "value": "Social"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "type": "text",
+        "label": "Who should we thank?",
+        "conditionalLogic": {
+          "actionType": "hide",
+          "logicType": "any",
+          "rules": [
+            {
+              "fieldId": "9",
+              "operator": "is",
+              "value": "Friend"
+            }
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "type": "fileupload",
+        "label": "Portfolio"
+      },
+      {
+        "id": 12,
+        "type": "consent",
+        "label": "Consent",
+        "isRequired": true,
+        "checkboxLabel": "I agree to the booking terms."
+      }
+    ],
+    "confirmations": {
+      "5f0a": {
+        "id": "5f0a",
+        "isDefault": true,
+        "type": "message",
+        "message": "Booked — see you there."
+      }
+    },
+    "notifications": {
+      "5f0b": {
+        "id": "5f0b",
+        "isActive": true,
+        "toType": "email",
+        "to": "bookings@example.com"
+      }
+    }
+  },
+  "version": "2.8.0"
+}

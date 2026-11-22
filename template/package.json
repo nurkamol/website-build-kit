@@ -31,6 +31,7 @@
     "dev": "astro dev",
     "dns": "node scripts/dns-snapshot.mjs",
     "extract": "node scripts/extract.mjs",
+    "forms:import": "node scripts/forms-import.mjs",
     "handover": "node scripts/md-to-pdf.mjs docs/handover.md docs/handover.pdf",
     "indexnow": "node scripts/indexnow.mjs",
     "lastmod": "node scripts/lastmod.mjs",

@@ -43,7 +43,7 @@ element every navigation and the old handler keeps mutating the previous page's 
 `POST /api/contact` 308-redirects to `/api/contact/` and the redirected request loses its body
 on the Workers runtime. The endpoint looks broken while being fine.
 
-*Fix:* the form posts to `/api/contact/`, slash included. That slash in `ContactForm.astro`'s
+*Fix:* the form posts to `/api/contact/`, slash included. That slash in `LeadForm.astro`'s
 `action` is load-bearing.
 
 ### Astro's CSRF protection rejects `Origin`-less POSTs with 403
@@ -115,7 +115,7 @@ correct, so nothing flags it. *Fix:* `inert`, which removes both.
 
 ### A live region injected at announce time announces nothing
 
-`role="status"` must be in the DOM *before* its content changes. `ContactForm.astro` renders
+`role="status"` must be in the DOM *before* its content changes. `LeadForm.astro` renders
 the empty region on load and writes into it — that ordering is deliberate.
 
 ### DNS negative caching outlives the fix

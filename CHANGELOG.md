@@ -29,6 +29,42 @@
   in `test:gates`: identical sites pass; a recoloured section, a dropped paragraph, a renamed
   heading and a page the new site no longer serves each refuse, named.
 
+### Forms are data, and a WordPress form imports instead of being retyped
+
+- **`src/data/forms.ts` defines every form; `LeadForm.astro` renders any of them.** It replaces
+  `ContactForm.astro` and keeps every behaviour it had — no-JavaScript POST and 303, per-field
+  errors, honeypot, busy state, `role="status"`, one conversion announcer (now carrying the form's
+  id). Field types gained `checkboxes`, `radio` and `select` groups, and `showWhen` conditional
+  fields that the script both hides and reveals: with JavaScript off every field shows with a
+  sentence saying when it applies. A fresh clone ships one `contact` form equal to the old fields,
+  so its URLs, messages and verify results are unchanged.
+- **The API validates against the definition the hidden `form` field names**, and applies
+  `showWhen` itself: a hidden field is never required and its value is dropped. No `form` field
+  means the default form, which is what keeps `verify`'s empty-body 422 true. A checkbox group's
+  several values arrive as a list; a list anywhere else is refused like an object. The lead record
+  is now `{ form, name, email, fields }`, the notification lists the form's own fields in order with
+  long answers below, and the CSV has a column for every field of every form — ⚠ **with a fallback
+  to the old top-level keys**, because leads stored before this change kept `phone`, `service` and
+  `message` there and would otherwise export blank for the rest of the retention period.
+- **`npm run forms:import`** reads a Fluent Forms or Gravity Forms JSON export, or a Contact Form 7
+  export with Conditional Fields groups, and writes the definition between markers. A rule is
+  carried only when it is exactly equivalent; everything else is printed as *not carried*, the field
+  kept, always shown, and **no longer required** — required-of-everybody blocks every visitor who
+  would never have seen the question, and passes the test of whoever picks the answer that shows
+  it. Recipients are printed, never written. Synthetic fixtures for all three plugins in
+  `scripts/fixtures/forms/`; `test:gates` proves a rule is carried, an unsupported rule is reported
+  with its field kept, and a malformed export exits 1.
+- **`check:form` now reads the definitions.** `LeadForm` writes `name={f.name}`, which the markup
+  scan skips by design — so the honeypot landmine had moved somewhere the gate did not look. It
+  refuses `company`, `form`, `page`, a name used twice in one form, a key that is not the form's id,
+  and a `showWhen` pointing at a field or answer that does not exist (the field can never appear and
+  its answer is silently dropped). A checkbox group sharing one name is no longer a duplicate; a
+  checkbox and a text input sharing one still is.
+- **Optional Turnstile, both halves or neither.** The widget renders only with
+  `PUBLIC_TURNSTILE_SITE_KEY` at build; the server checks only with the `TURNSTILE_SECRET` secret,
+  and ignores (and logs) a secret whose build had no key — enforcing it would refuse every lead. The
+  check runs after validation, so an invalid submission costs no round trip and verify's 422 holds.
+
 ## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 
 `.github/workflows/audit.yml` shipped in 0.1.22 to separate the world moving from this repository

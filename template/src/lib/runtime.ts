@@ -17,6 +17,9 @@ type Bindings = {
   LEADS_STAGING?: KVNamespace;
   BREVO_API_KEY?: string;
   LEADS_EXPORT_TOKEN?: string;
+  /** Cloudflare Turnstile secret. The form checks a token only when this is set AND the build had
+      PUBLIC_TURNSTILE_SITE_KEY — see src/pages/api/contact.ts. */
+  TURNSTILE_SECRET?: string;
 };
 
 export function bindings(): Bindings {
@@ -27,7 +30,7 @@ export function kv(name: 'LEADS' | 'LEADS_STAGING'): KVNamespace | undefined {
   return bindings()[name];
 }
 
-export function secret(name: 'BREVO_API_KEY' | 'LEADS_EXPORT_TOKEN'): string | undefined {
+export function secret(name: 'BREVO_API_KEY' | 'LEADS_EXPORT_TOKEN' | 'TURNSTILE_SECRET'): string | undefined {
   const value = bindings()[name];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }

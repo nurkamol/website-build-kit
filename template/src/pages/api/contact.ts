@@ -1,19 +1,56 @@
 import type { APIRoute } from 'astro';
-import { validateLead, leadKey, type LeadRecord } from '../../lib/lead';
+import { validateLead, leadKey, displayName, type LeadInput, type LeadRecord } from '../../lib/lead';
+import { forms, formById, DEFAULT_FORM, type FormDef } from '../../data/forms';
 import { notifyTeam } from '../../lib/brevo';
 import { site } from '../../data/site';
 import { kv, secret } from '../../lib/runtime';
 import { business } from '../../data/business';
 
 /**
- * Where the no-JavaScript path lands. One place, because these are routes and
- * a route that only exists in a redirect string is a route nobody notices has
- * gone — the first version of this file pointed at /contact-us/ and /thank-you/
- * from a different project, and both were 404s in a fresh build.
+ * Where the no-JavaScript path lands: the page the posting form lives on, from
+ * `src/data/forms.ts`. One place, because these are routes and a route that only
+ * exists in a redirect string is a route nobody notices has gone — the first
+ * version of this file pointed at /contact-us/ and /thank-you/ from a different
+ * project, and both were 404s in a fresh build.
+ *
+ * For the template's own form this is exactly the old `/contact/?sent=1#quote`.
  */
-const FORM_PAGE = '/contact/';
-const FORM_ANCHOR = '#quote';
-const SUCCESS = `${FORM_PAGE}?sent=1${FORM_ANCHOR}`;
+const pageOf = (form: FormDef, query = '') => `${form.page}${query}${form.anchor}`;
+const DEFAULT = forms[DEFAULT_FORM];
+
+/**
+ * Cloudflare Turnstile — optional, and OFF unless BOTH halves exist.
+ *
+ * The widget renders only when PUBLIC_TURNSTILE_SITE_KEY was set at build; the
+ * token is checked only when the TURNSTILE_SECRET secret is set. ⚠ REQUIRING
+ * BOTH IS THE POINT. A secret with no widget refuses every submission — no
+ * token can ever arrive — which is total lead loss behind a polite error. So a
+ * secret without a built key is logged and ignored, never enforced.
+ *
+ * Fails closed on a bad or missing token once both are present.
+ */
+const TURNSTILE_BUILT = Boolean(import.meta.env.PUBLIC_TURNSTILE_SITE_KEY);
+
+async function turnstileOk(token: string, ip: string): Promise<boolean> {
+  const secretKey = secret('TURNSTILE_SECRET');
+  if (!secretKey) return true;
+  if (!TURNSTILE_BUILT) {
+    console.error('TURNSTILE_SECRET is set but this build has no PUBLIC_TURNSTILE_SITE_KEY — not enforced');
+    return true;
+  }
+  if (!token) return false;
+  try {
+    const body = new FormData();
+    body.append('secret', secretKey);
+    body.append('response', token);
+    if (ip) body.append('remoteip', ip);
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
+    const data = (await r.json()) as { success?: boolean };
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
 
 // This is the one route that needs a runtime. Everything else is static.
 export const prerender = false;
@@ -83,6 +120,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    *   string, so this path belongs entirely to outside integrations.
    */
   let input: Record<string, unknown>;
+  /* A checkbox group posts one value per ticked box under one name. */
+  const repeated: Record<string, string[]> = {};
 
   try {
     if (contentType.includes('application/json')) {
@@ -93,8 +132,14 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       }
       input = parsed as Record<string, unknown>;
     } else {
-      const form = await request.formData();
-      input = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
+      const body = await request.formData();
+      input = {};
+      for (const [k, v] of body.entries()) {
+        const value = String(v);
+        if (k in input) repeated[k] = [...(repeated[k] ?? [input[k] as string]), value];
+        else input[k] = value;
+      }
+      Object.assign(input, repeated);
     }
   } catch {
     return json({ ok: false, error: 'Could not read the submission.' }, 400);
@@ -104,7 +149,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    * Honeypot. Accept silently — telling a bot it was caught just teaches it to
    * try again without the field.
    *
-   * ⚠ IT MUST NOT LAND ON `SUCCESS`. That URL is the conversion: the form page
+   * ⚠ IT MUST NOT LAND ON `?sent=1`. That URL is the conversion: the form page
    * fires `generate_lead` on `?sent=1` for the no-JavaScript path. Sending
    * caught spam there lets any bot that runs JavaScript inflate the only
    * conversion the website owns — silently, in a shape that looks like the site
@@ -114,8 +159,24 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    * can read as detection.
    */
   if (input.company) {
-    return wantsHtml(request) ? seeOther(FORM_PAGE) : json({ ok: true, id: 'accepted' }, 200);
+    const back = typeof input.form === 'string' ? (formById(input.form) ?? DEFAULT) : DEFAULT;
+    return wantsHtml(request) ? seeOther(pageOf(back)) : json({ ok: true, id: 'accepted' }, 200);
   }
+
+  /*
+   * Which definition this is. No `form` field means the default form — what
+   * this endpoint served before there was more than one, and what `verify`'s
+   * empty submission relies on to still get its 422. A `form` naming something
+   * that does not exist is refused, never guessed.
+   */
+  const formDef =
+    input.form === undefined || input.form === null || input.form === ''
+      ? DEFAULT
+      : typeof input.form === 'string'
+        ? formById(input.form)
+        : undefined;
+  if (!formDef) return json({ ok: false, error: 'Unknown form.' }, 400);
+  const multiValue = new Set(formDef.fields.filter((f) => f.type === 'checkboxes').map((f) => f.name));
 
   /*
    * ── Every value is a string, or this is not a submission we can read ──────
@@ -136,11 +197,19 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    *   malformed body, and nothing about the answer names the field as a trap.)
    *
    * `null` and `undefined` are allowed through as absent, because that is what
-   * they already meant: `validateLead` reads `(input.name ?? '')`, so a client
-   * sending `{"phone": null}` worked before this check existed and still does.
+   * they already meant, so a client sending `{"phone": null}` worked before
+   * this check existed and still does.
+   *
+   * The one list allowed is a checkbox group of THIS form, holding only strings —
+   * which is what a repeated FormData key becomes above, and what a JSON client
+   * sends for several choices. A list anywhere else is refused like an object.
    */
   const notAString = Object.entries(input).find(
-    ([, value]) => value !== null && value !== undefined && typeof value !== 'string',
+    ([key, value]) =>
+      value !== null &&
+      value !== undefined &&
+      typeof value !== 'string' &&
+      !(Array.isArray(value) && multiValue.has(key) && value.every((v) => typeof v === 'string')),
   );
   if (notAString) {
     return json(
@@ -151,16 +220,29 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   /* Narrowed once, here, rather than cast at every use — the check above is
      what makes this true, so the two belong next to each other. */
-  const fields = input as Record<string, string | undefined>;
+  const fields = input as LeadInput;
 
-  const { ok, errors, values } = validateLead(fields);
+  const { ok, errors, values } = validateLead(formDef, fields);
   if (!ok) {
     if (wantsHtml(request)) {
       // Carry the failing field names back in the query string so the form can
-      // highlight them without JavaScript having to re-post anything.
-      return seeOther(`${FORM_PAGE}?invalid=${encodeURIComponent(Object.keys(errors).join(','))}${FORM_ANCHOR}`);
+      // highlight them without JavaScript having to re-post anything — and the
+      // form id, so a page holding two forms highlights the right one.
+      return seeOther(
+        pageOf(formDef, `?form=${encodeURIComponent(formDef.id)}&invalid=${encodeURIComponent(Object.keys(errors).join(','))}`),
+      );
     }
     return json({ ok: false, errors }, 422);
+  }
+
+  /*
+   * After validation, deliberately: an invalid submission is answered without a
+   * round trip to Cloudflare, and `verify`'s empty-body probe still gets the
+   * 422 it asserts on a site that has Turnstile switched on.
+   */
+  if (!(await turnstileOk(typeof input['cf-turnstile-response'] === 'string' ? input['cf-turnstile-response'] : '', clientAddress ?? ''))) {
+    if (wantsHtml(request)) return seeOther(pageOf(formDef, '?failed=1'));
+    return json({ ok: false, error: 'The spam check did not pass. Please try again.' }, 403);
   }
 
   const receivedAt = new Date().toISOString();
@@ -169,8 +251,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     id,
     receivedAt,
     env: site.leadTag,
-    ...values,
-    page: (fields.page ?? '').slice(0, 300),
+    form: formDef.id,
+    name: displayName(formDef, values),
+    /* Reply-to: the form's first email field, whatever it is called. */
+    email: values[formDef.fields.find((f) => f.type === 'email')?.name ?? ''] ?? '',
+    fields: values,
+    page: (typeof input.page === 'string' ? input.page : '').slice(0, 300),
     userAgent: (request.headers.get('user-agent') ?? '').slice(0, 300),
     country: request.headers.get('cf-ipcountry') ?? '',
     ip: clientAddress ?? '',
@@ -212,7 +298,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let emailed = false;
   const apiKey = secret('BREVO_API_KEY');
   if (apiKey) {
-    const result = await notifyTeam(apiKey, lead);
+    const result = await notifyTeam(apiKey, lead, formDef);
     emailed = result.ok;
     if (!result.ok) console.error('lead email failed', { id, error: result.error });
   } else {
@@ -222,7 +308,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // Only a total loss is reported as failure to the visitor. If either channel
   // captured it, the enquiry reached us and the visitor should not retry.
   if (!stored && !emailed) {
-    if (wantsHtml(request)) return seeOther(`${FORM_PAGE}?failed=1${FORM_ANCHOR}`);
+    if (wantsHtml(request)) return seeOther(pageOf(formDef, '?failed=1'));
     return json(
       {
         ok: false,
@@ -235,9 +321,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     );
   }
 
-  if (wantsHtml(request)) return seeOther(SUCCESS);
+  if (wantsHtml(request)) return seeOther(pageOf(formDef, '?sent=1'));
   return json({ ok: true, id, stored, emailed }, 200);
 };
 
 /** A GET here is almost always a person pasting the URL. Send them to the form. */
-export const GET: APIRoute = () => new Response(null, { status: 303, headers: { location: FORM_PAGE } });
+export const GET: APIRoute = () => new Response(null, { status: 303, headers: { location: DEFAULT.page } });

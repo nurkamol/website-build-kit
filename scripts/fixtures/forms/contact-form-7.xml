@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Synthetic fixture: an invented form for test:gates. Not exported from any real site. -->
+<rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+	<title>Fixture</title>
+	<item>
+		<title><![CDATA[Renovation Enquiry]]></title>
+		<wp:post_id>42</wp:post_id>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_type><![CDATA[wpcf7_contact_form]]></wp:post_type>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_form]]></wp:meta_key>
+			<wp:meta_value><![CDATA[<label> Your name
+    [text* your-name autocomplete:name] </label>
+
+<label> Your email
+    [email* your-email] </label>
+
+<label> Phone
+    [tel your-phone] </label>
+
+<label> Project type
+    [select* project-type first_as_label "Choose one" "Kitchen" "Bathroom" "Other"] </label>
+
+[group other-project]
+<label> Tell us about it
+    [text* other-detail] </label>
+[/group]
+
+<label> Rooms
+    [checkbox rooms use_label_element "Hall" "Landing" "Stairs"] </label>
+
+[group stairs-group]
+<label> Number of steps
+    [number step-count] </label>
+[/group]
+
+[group budget-group]
+<label> Budget note
+    [text* budget-note] </label>
+[/group]
+
+<label> Message
+    [textarea your-message] </label>
+
+[acceptance accept-terms] I agree to be contacted about this enquiry. [/acceptance]
+
+[submit "Send enquiry"]]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_mail]]></wp:meta_key>
+			<wp:meta_value><![CDATA[a:4:{s:7:"subject";s:7:"Enquiry";s:6:"sender";s:37:"[_site_title] <wordpress@example.org>";s:9:"recipient";s:18:"studio@example.org";s:4:"body";s:14:"[your-message]";}]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_messages]]></wp:meta_key>
+			<wp:meta_value><![CDATA[a:2:{s:12:"mail_sent_ok";s:41:"Thank you — your enquiry is on its way.";s:12:"mail_sent_ng";s:19:"There was an error.";}]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wpcf7cf_options]]></wp:meta_key>
+			<wp:meta_value><![CDATA[a:3:{i:0;a:2:{s:10:"then_field";s:13:"other-project";s:9:"and_rules";a:1:{i:0;a:3:{s:8:"if_field";s:12:"project-type";s:8:"operator";s:6:"equals";s:8:"if_value";s:5:"Other";}}}i:1;a:2:{s:10:"then_field";s:12:"stairs-group";s:9:"and_rules";a:1:{i:0;a:3:{s:8:"if_field";s:5:"rooms";s:8:"operator";s:6:"equals";s:8:"if_value";s:6:"Stairs";}}}i:2;a:2:{s:10:"then_field";s:12:"budget-group";s:9:"and_rules";a:1:{i:0;a:3:{s:8:"if_field";s:12:"project-type";s:8:"operator";s:12:"greater than";s:8:"if_value";s:4:"1000";}}}}]]></wp:meta_value>
+		</wp:postmeta>
+	</item>
+</channel>
+</rss>

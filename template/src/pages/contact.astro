@@ -1,7 +1,9 @@
 ---
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
-import ContactForm from '../components/ContactForm.astro';
+import LeadForm from '../components/LeadForm.astro';
+import { forms } from '../data/forms';
+import { invalidFieldsFor } from '../lib/lead';
 import { business, addressOneLine } from '../data/business';
 
 /**
@@ -13,11 +15,13 @@ import { business, addressOneLine } from '../data/business';
  */
 export const prerender = false;
 
-const invalidFields = (Astro.url.searchParams.get('invalid') ?? '').split(',').filter(Boolean);
+const form = forms.contact;
+const invalidFields = invalidFieldsFor(Astro.url, form);
 const submitFailed = Astro.url.searchParams.has('failed');
-/** The no-JavaScript success landing. Keep in step with SUCCESS in
- *  src/pages/api/contact.ts — without this the native POST 303s to a page that
- *  looks exactly like the one the visitor just submitted. */
+/** The no-JavaScript success landing (`?sent=1`, from src/pages/api/contact.ts)
+ *  — without this the native POST 303s to a page that looks exactly like the
+ *  one the visitor just submitted. The form's `page` and `anchor` in
+ *  src/data/forms.ts must point here. */
 const submitted = Astro.url.searchParams.has('sent');
 ---
 
@@ -50,7 +54,7 @@ const submitted = Astro.url.searchParams.has('sent');
         {
           submitted && (
             <p role="status" class="contact__sent">
-              Thank you — your message is in. We will come back to you shortly.
+              {form.success}
             </p>
           )
         }
@@ -67,7 +71,7 @@ const submitted = Astro.url.searchParams.has('sent');
           )
         }
         <div class="contact__form">
-          <ContactForm invalidFields={invalidFields} />
+          <LeadForm form={form} invalidFields={invalidFields} />
         </div>
       </div>
     </div>

@@ -840,9 +840,42 @@ surface to keep working. Cloudflare Access also has to be set up, which is a rea
 operation, not a build step. Offer it at discovery — [`kickoff.md`](kickoff.md) §2 — rather than
 retrofitting it in week three.
 
+### Migrating a WordPress form plugin ✅ `npm run forms:import`
+
+The template's forms are data (`src/data/forms.ts`), so a plugin's form is an import, not a
+retype. Export it from the plugin and run `npm run forms:import -- <file>`:
+
+| Plugin | Export | Conditional logic it reads |
+| --- | --- | --- |
+| **Fluent Forms** | Tools → Export Forms (.json) | `conditional_logics` — `any`/`all`, operators per condition |
+| **Gravity Forms** | Forms → Import/Export → Export Forms (.json) | `conditionalLogic` — `show`/`hide`, `any`/`all`, rules by field id |
+| **Contact Form 7** | Tools → Export → Contact Forms (.xml), or the template pasted into a .txt | Only with the *Conditional Fields for CF7* add-on: `[group]` tags + its rules |
+
+**A rule is carried only when the result is exactly equivalent.** A definition holds one shape —
+*show this while that field has any of these answers* — so "show when X is A or B", "hide when X is
+not A" and "X contains A" on a choice field where only one option contains A all convert. Two
+fields, an "is not" that shows, "all of several answers", `>` and regex do not: **the field is kept,
+always shown, no longer required, and the rule is printed as *not carried***. That list is the
+owner's — ask whether the question still matters before rebuilding the logic by hand.
+
+What it will not do, by design: write notification recipients anywhere (printed, for
+`business.ts`), import file uploads, payment or page-break fields (printed as *not imported*), or
+keep a plugin field named `company` (renamed `companyName` — imported as-is it would be the honeypot
+and discard every enquiry that fills it in). Rule values are matched against the options' **labels**,
+which is what the rebuilt form posts; a plugin whose option *value* differs from its label is
+translated, not compared raw.
+
+⚠ **A rule that is not carried makes a formerly conditional required field optional**, not
+required of everybody. The other reading blocks every visitor who would never have seen the
+question, and it looks like a form that works for the person testing it — they pick the answer that
+shows it.
+
 **Spam, in order of preference:**
 1. **Honeypot** — always, free, catches most bots. Accept silently when it trips
-2. **Cloudflare Turnstile** ✅ — free, privacy-preserving, usually invisible, no puzzle
+2. **Cloudflare Turnstile** ✅ — free, privacy-preserving, usually invisible, no puzzle. In the
+   template: `PUBLIC_TURNSTILE_SITE_KEY` at build plus the `TURNSTILE_SECRET` secret, both or
+   nothing — a secret with no widget would refuse every lead, so it is ignored and logged. It costs
+   the no-JavaScript path for that form
 3. **Rate limiting** at the edge on the endpoint
 4. hCaptcha / reCAPTCHA — only if something above proved insufficient
 

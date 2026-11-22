@@ -25,6 +25,8 @@ npm run match -- --old https://old-site.com --new https://staging.example.com
 #                                            # faithful rebuild: per-section pixel diff + words
 #                                            # kept, exits 1 past 3% / 0.98. --text-only: no browser
 npm run extract                              # captured HTML → recon/extracted/*.md
+npm run forms:import -- export.json          # a Fluent / CF7 / Gravity form → src/data/forms.ts
+#   --print                                  # ...show the snippet, write nothing
 npm run deploy:staging                       # or deploy:production
 ```
 
@@ -92,6 +94,26 @@ happens *before* the email provider. A provider outage should cost a notificatio
 lead. Keep that ordering. The cross-origin refusal runs *before* validation, for the same
 reason: ordered after, it only ever fires on submissions that were being rejected anyway.
 
+**Forms are data: `src/data/forms.ts`.** One definition per form — fields, labels, options,
+`required`, `showWhen` — and `LeadForm.astro`, `api/contact.ts`, the notification email and the
+CSV export all read it. Add a field there and it appears in all four; never hand-write a field into
+the component. A submission names its form in a hidden `form` field; a submission without one is
+the default form, which is what keeps `verify`'s empty-body 422 meaningful.
+
+**Conditional fields hide on the client and are dropped on the server.** `showWhen` hides a field
+from script — never from CSS — so without JavaScript every field shows with a sentence saying when
+it applies. The API applies the same rule: a hidden field is never required and whatever was typed
+into it is not stored. Migrating a WordPress form? `npm run forms:import` reads the plugin's export,
+carries a rule only when the result is **exact**, and prints every rule it could not carry — the
+field is then always shown and no longer required. Read that output; it is the list of decisions
+the owner has to make.
+
+**Turnstile is off until both halves exist.** `PUBLIC_TURNSTILE_SITE_KEY` at build renders the
+widget; the `TURNSTILE_SECRET` secret makes the server check it. A secret without a built key is
+logged and ignored, because enforcing it would refuse every lead. ⚠ Turning it on gives up the
+no-JavaScript path for that form — no script, no token — and the form says so to a visitor with
+scripts off. Honeypot first; Turnstile when real spam arrives.
+
 **Stored leads expire.** `site.leadRetentionDays` becomes a KV `expirationTtl`, because KV
 keeps a value forever otherwise and "indefinitely" is not a retention period any regulator
 accepts. Keep the number and the privacy notice in step, and keep personal data out of KV
@@ -142,10 +164,12 @@ pointed at the output produces files with no variants, no width/height and no ma
 picker instead of asking the client to type a manifest key from memory.
 
 ⚠ **THE HONEYPOT IS CALLED `company`.** `api/contact.ts` discards any submission that fills it in,
-silently and with a 200, so a bot learns nothing. Add a real "Company" field to that form — an
-ordinary client request — and every enquiry from a company that types its name is thrown away, with
-a thank-you page and nothing stored. **Name the real field `companyName`** and leave the trap alone;
-`npm run check:form` fails the build if two controls share a name.
+silently and with a 200, so a bot learns nothing. Add a real "Company" field to a form in
+`src/data/forms.ts` — an ordinary client request, and a field most WordPress B2B forms already
+have — and every enquiry from a company that types its name is thrown away, with a thank-you page
+and nothing stored. **Name the real field `companyName`** and leave the trap alone (`forms:import`
+renames it for you). `npm run check:form` reads the definitions and fails the build on `company`,
+`form`, `page`, a name used twice in one form, and a `showWhen` that points at nothing.
 
 **Alt text is read as text.** `npm run check:alt` reads `dist/` and reports an alt that exists and
 says nothing — a filename, a manifest key, `image`, `Photo of a…`, or one description shared by two

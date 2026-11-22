@@ -224,10 +224,21 @@ does ship is the skeleton of the parts that take longest to get right:
   that no CMS entry points at (*"whole sections are missing"* is how a client reports that; one
   audited site had an entire services collection it could not edit) and about fields that look
   like technical configuration rather than content
-- **`npm run check:form`** — two form controls sharing a `name`. **The honeypot is called
-  `company`**, and `api/contact.ts` discards any submission that fills it in — silently, with a 200
-  and a thank-you page. Add a real Company field, as a B2B site eventually does, and every enquiry
-  from a company that types its name is thrown away. Runs before the build, in both environments
+- **`npm run check:form`** — two form controls sharing a `name`, in the markup or in the form
+  definitions in `src/data/forms.ts`. **The honeypot is called `company`**, and `api/contact.ts`
+  discards any submission that fills it in — silently, with a 200 and a thank-you page. Add a real
+  Company field, as a B2B site eventually does, and every enquiry from a company that types its name
+  is thrown away. It also refuses a conditional field whose `showWhen` points at a field or an
+  answer that does not exist — that field can never appear, so the API drops whatever it held. A
+  checkbox group sharing one name is not a duplicate. Runs before the build, in both environments
+- **`npm run forms:import -- <export>`** — a WordPress form, rebuilt as data. Reads a Fluent Forms
+  or Gravity Forms JSON export, or a Contact Form 7 export (with Conditional Fields groups), and
+  writes the definition into `src/data/forms.ts` between markers — `--print` to only show it.
+  **Conditional logic is carried only when the result is exact**; a rule it cannot express (two
+  fields, "is not" that shows, `>`) is printed as *not carried*, the field kept and always shown,
+  and no longer required. Notification recipients and the confirmation message are printed as
+  suggestions — recipients never reach the repo. A field the plugin called `company` is renamed,
+  because imported as-is it would be the honeypot
 - **`npm run check:copy`** — the markers you leave for yourself, found in the text a *reader*
   would see: `TODO`, `⚠ CONFIRM:`, `Lorem ipsum`, an unrendered `{{ placeholder }}`. Warns on
   staging, refuses on production. It reads rendered text rather than source, so a `TODO` in a code
@@ -409,7 +420,7 @@ The checks are the portable part:
 
 ```bash
 npm run check:cms      # a CMS config that deletes content on the client's first save
-npm run check:form     # a real field colliding with the honeypot
+npm run check:form     # a real field colliding with the honeypot, a condition pointing at nothing
 npm run check:copy     # notes to yourself, shipped as body copy
 npm run tells          # what is still undecided, and the generated-site tells
 ```
