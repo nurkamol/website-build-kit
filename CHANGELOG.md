@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
+
+- **`recon` reported vendors that were never loaded.** Detection was a substring match on the
+  vendor's NAME, and a name is a word: every WordPress block theme carries
+  `--wp--preset--shadow--crisp` in its inline `theme.json`, so the inventory listed Crisp chat
+  and the client was asked who owned an account they had never opened. Each vendor is now matched
+  by its signature — the host its script loads from, or a class only its widget uses. Paired
+  cases in `test:gates`: words and a style preset detect nothing; a loaded Crisp script is found.
+- **`toImageKey` turned a numbered SOURCE name into a different key.** With the CMS media input at
+  `media/source/` (the pipeline's input, as `check:cms` requires), a picker stores the source path
+  — `/img/photos/social-01.jpg` — and the width strip read `-01` as a width. Every numbered photo
+  resolved to `photos/social`. `<Img>` now passes the manifest and an exact key wins first.
+- **A photo uploaded through the CMS turned the next build red.** The upload lands in
+  `media/source/` and nobody runs `npm run media` after a CMS save. `build.mjs` now runs the
+  (incremental) media pipeline before the gates.
+
 ## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 
 `.github/workflows/audit.yml` shipped in 0.1.22 to separate the world moving from this repository

@@ -53,6 +53,8 @@ const KNOWN_FAULTS = [
   'allows-cross-origin', // a submission from another origin accepted instead of 403
   'coerces-malformed', // a non-string field coerced into a lead instead of refused
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
+  'vendor-words', // vendor NAMES as ordinary words and a WordPress style preset — no vendor loaded
+  'vendor-real', // a vendor actually loaded: Crisp chat's script
 
   /* ── Faults only a browser can see ───────────────────────────────────────
    * Everything above is visible to `fetch`. These five are not: the response
@@ -135,6 +137,8 @@ function page({ path, title, description, h1 = 'Heading', canonical = `${BASE}${
 <meta name="description" content="${description}">
 <link rel="canonical" href="${canonical}">
 ${FAULTS.has('no-stylesheet') ? '' : `<style>${STYLE}</style>`}
+${FAULTS.has('vendor-words') ? '<style id="global-styles-inline-css">:root{--wp--preset--shadow--crisp: 6px 6px 0 #000;}</style>' : ''}
+${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" async></script>' : ''}
 </head>
 <body>
 <main>
@@ -144,6 +148,7 @@ ${FAULTS.has('two-h1') && path === '/about/' ? '<h1>A second heading</h1>' : ''}
 by anything measuring content length. It links onward to <a href="/about/">about</a>
 and back to <a href="/">home</a>.</p>
 <img src="/hero.png" width="800" height="600" alt="A hero image">
+${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
 </main>

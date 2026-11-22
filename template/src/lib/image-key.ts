@@ -27,14 +27,22 @@
  *    social cards are `.jpg`, so the extension strip stays generic.
  */
 
-/** `/img/photos/hero-1200.webp` → `photos/hero`. Anything else is returned as-is. */
-export const toImageKey = (nameOrPath: string): string =>
-  isPickerPath(nameOrPath)
-    ? nameOrPath
-        .replace(/^\/img\//, '')
-        .replace(/-\d+(?=\.[a-z0-9]+$)/i, '')
-        .replace(/\.[a-z0-9]+$/i, '')
-    : nameOrPath;
+/**
+ * `/img/photos/hero-1200.webp` → `photos/hero`. Anything else is returned as-is.
+ *
+ * ⚠ A SOURCE NAME ENDING IN `-<number>` IS NOT A WIDTH. A CMS whose media input is
+ *   `media/source/` returns the SOURCE path — `/img/photos/social-01.jpg` — and the width strip
+ *   turned that into `photos/social`: a different photo, or a build failure, depending on what
+ *   else was uploaded. Pass the manifest as `known` and an exact key wins before anything is
+ *   stripped. (Found on a real Pages CMS build, where every numbered photo resolved wrong.)
+ */
+export const toImageKey = (nameOrPath: string, known?: Record<string, unknown>): string => {
+  if (!isPickerPath(nameOrPath)) return nameOrPath;
+  const path = nameOrPath.replace(/^\/img\//, '');
+  const exact = path.replace(/\.[a-z0-9]+$/i, '');
+  if (known && exact in known) return exact;
+  return path.replace(/-\d+(?=\.[a-z0-9]+$)/i, '').replace(/\.[a-z0-9]+$/i, '');
+};
 
 /**
  * Did this come from a media picker rather than being a manifest key?

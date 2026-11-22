@@ -99,6 +99,12 @@ if (env === 'production') {
 /* Before the build, not after: a duplicate field name is a source bug, and
    there is no reason to spend a build discovering it. Fails in BOTH
    environments — nobody ever meant two controls to share a name. */
+/* Photos an editor uploads through a git CMS land in media/source/ — the pipeline's INPUT — and
+   nobody runs `npm run media` after a CMS save. So the build does. It is incremental (only new or
+   changed sources are processed) and a no-op on a fresh template; without it, the editor's own
+   upload turns the next build red at <Img>. (Found on a real Pages CMS build.) */
+step(process.execPath, ['scripts/optimize-media.mjs']);
+
 step(process.execPath, ['scripts/check-form.mjs']);
 
 /* Same reasoning, and the same timing: a CMS config that does not declare every

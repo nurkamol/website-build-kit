@@ -544,15 +544,61 @@ const corpus = pages.map((p) => p.html).join('\n');
 
 const ids = [...new Set([...corpus.matchAll(/\b(G-[A-Z0-9]{8,}|GTM-[A-Z0-9]{6,}|AW-[0-9]{9,}|UA-[0-9]{4,}-[0-9]+)\b/g)].map((m) => m[1]))];
 
-const VENDORS = [
-  'calendly', 'cal.com', 'hubspot', 'klaviyo', 'mailchimp', 'intercom', 'crisp', 'tawk',
-  'drift', 'zendesk', 'trustpilot', 'birdeye', 'yotpo', 'stripe', 'paypal', 'recaptcha',
-  'turnstile', 'hotjar', 'clarity', 'typeform', 'jotform', 'acuity', 'housecallpro',
-  'jobber', 'servicetitan', 'momence', 'wellnessliving', 'glofox', 'pike13', 'cookieyes', 'cookiebot', 'complianz', 'algolia', 'mindbody',
-  'squarespace', 'wix', 'shopify', 'woocommerce', 'memberpress',
-];
+/*
+ * Each vendor by its SIGNATURE — the host its script or embed loads from, or a class only its
+ * widget uses — never by its bare name.
+ *
+ * ⚠ THIS USED TO BE A SUBSTRING MATCH ON THE NAME, and a name is a word. A WordPress site's
+ *   inline theme.json carries `--wp--preset--shadow--crisp`, so every block theme "had" Crisp
+ *   chat; `drift`, `clarity` and `stripe` are ordinary English in copy and CSS. The inventory
+ *   then asked the client who owned a chat account they had never opened, and a build kept a
+ *   widget nobody used. Found on a real WordPress rebuild.
+ */
+const VENDORS = {
+  calendly: /assets\.calendly\.com|calendly\.com\/[\w-]+/,
+  'cal.com': /app\.cal\.com|cal\.com\/embed|data-cal-link/,
+  hubspot: /js\.hs-scripts\.com|js\.hsforms\.net|js\.hs-analytics\.net/,
+  klaviyo: /static\.klaviyo\.com|klaviyo\.com\/onsite/,
+  mailchimp: /chimpstatic\.com|list-manage\.com/,
+  intercom: /widget\.intercom\.io|js\.intercomcdn\.com/,
+  crisp: /client\.crisp\.chat|\$crisp\b/,
+  tawk: /embed\.tawk\.to/,
+  drift: /js\.driftt\.com|drift\.com\/(?:include|core)/,
+  zendesk: /static\.zdassets\.com|zopim/,
+  trustpilot: /widget\.trustpilot\.com|trustpilot-widget/,
+  birdeye: /birdeye\.com\/(?:embed|widget)|birdeye-widget/,
+  yotpo: /staticw2\.yotpo\.com|cdn-widgetsrepository\.yotpo\.com/,
+  stripe: /js\.stripe\.com|buy\.stripe\.com|checkout\.stripe\.com/,
+  paypal: /paypal\.com\/sdk|paypalobjects\.com/,
+  recaptcha: /google\.com\/recaptcha|gstatic\.com\/recaptcha|g-recaptcha/,
+  turnstile: /challenges\.cloudflare\.com\/turnstile|cf-turnstile/,
+  hotjar: /static\.hotjar\.com|hotjar\.com\/c\//,
+  clarity: /clarity\.ms\/tag/,
+  typeform: /embed\.typeform\.com|form\.typeform\.com/,
+  jotform: /jotform\.com\/(?:jsform|\d)|jotfor\.ms/,
+  acuity: /acuityscheduling\.com|as\.me\//,
+  housecallpro: /housecallpro\.com/,
+  jobber: /getjobber\.com|clienthub\.getjobber/,
+  servicetitan: /servicetitan\.com/,
+  momence: /momence\.com/,
+  wellnessliving: /wellnessliving\.com/,
+  glofox: /glofox\.com/,
+  pike13: /pike13\.com/,
+  cookieyes: /cdn-cookieyes\.com/,
+  cookiebot: /consent\.cookiebot\.com/,
+  complianz: /complianz|cmplz-/,
+  algolia: /algolia(?:net)?\.(?:com|net)|algoliasearch/,
+  mindbody: /mindbodyonline\.com|healcode/,
+  squarespace: /static1\.squarespace\.com|squarespace-cdn/,
+  wix: /static\.wixstatic\.com|parastorage\.com/,
+  shopify: /cdn\.shopify\.com|myshopify\.com/,
+  woocommerce: /wp-content\/plugins\/woocommerce\//,
+  memberpress: /wp-content\/plugins\/memberpress\//,
+};
 const corpusLower = corpus.toLowerCase();
-const vendors = VENDORS.filter((v) => corpusLower.includes(v.toLowerCase()));
+const vendors = Object.entries(VENDORS)
+  .filter(([, signature]) => new RegExp(signature.source, 'i').test(corpusLower))
+  .map(([name]) => name);
 
 const origins = [...new Set([...corpus.matchAll(/(?:src|href)=["']https?:\/\/([^"'/]+)/g)].map((m) => m[1]))]
   .filter((h) => !h.endsWith(HOST.replace(/^www\./, '')))

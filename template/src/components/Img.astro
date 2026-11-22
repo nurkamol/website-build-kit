@@ -40,7 +40,7 @@ const {
 /* A CMS picker returns `/img/photos/hero-1200.webp`, never `photos/hero`.
    Normalising here is what lets an image field be a real picker instead of a
    free-text box asking the client to type a manifest key from memory. */
-const key = toImageKey(name);
+const key = toImageKey(name, manifest as Record<string, unknown>);
 const entry = (manifest as Record<string, { src: string; srcset: string; width: number; height: number; widths?: number[]; avifSrcset?: string | null }>)[key];
 
 if (!entry) {

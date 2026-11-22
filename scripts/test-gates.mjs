@@ -1527,6 +1527,37 @@ for (const [label, faults, wanted] of [
   }
 }
 
+/* Vendors are detected by SIGNATURE, not by name. The name match reported Crisp chat on every
+   WordPress block theme (`--wp--preset--shadow--crisp`) and Drift/Stripe/Clarity on ordinary
+   copy. Output assertions, paired: words alone detect nothing, a loaded widget is detected. */
+for (const [label, faults, check] of [
+  ['does not report a vendor from words or a style preset', 'vendor-words', (md) => (/crisp|drift|stripe|clarity/i.test(md.split('## Third-party origins')[0]) ? 'reported a vendor that is not loaded' : null)],
+  ['reports a vendor whose script is loaded', 'vendor-real', (md) => (/- \[ \] crisp/.test(md) ? null : 'did not report the loaded Crisp widget')],
+]) {
+  let fixture;
+  try {
+    fixture = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label: `recon ${label}`, ok: false, detail: String(err.message) });
+    continue;
+  }
+  try {
+    gate(`recon ${label}`, {
+      script: 'recon.mjs',
+      files: {},
+      args: [fixture.origin, '--no-wayback', '--allow-internal'],
+      expect: 0,
+      then: (dir) => {
+        const file = join(dir, 'recon/integrations.md');
+        if (!existsSync(file)) return 'wrote no recon/integrations.md';
+        return check(readFileSync(file, 'utf8'));
+      },
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
 /* Both reachable without a server at all. */
 gate('no origin argument is a usage error', {
   script: 'verify.mjs',
