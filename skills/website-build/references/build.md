@@ -397,6 +397,22 @@ be faithful to. A deliberate change (a section dropped on the client's instructi
 recorded in `BUILD-STATE.md` and the run is read with `--report-only`, never by raising the
 threshold until it passes.
 
+**Two causes that read as "everything is a little off", both from an event-venue rebuild:**
+
+- **Every text section fails by a few percent, at desktop only.** The bottom of the type scale is
+  fluid in the template — `--step-0` reaches 17px and `--step--1` 14.2px at 1440 — and a WordPress
+  theme usually sets body text at a fixed 16px and small type (labels, buttons, eyebrows) at a fixed
+  13px at every width. One pixel rewraps every paragraph, and a rewrapped paragraph is a different
+  section. Measure the original at 390, 768 and 1440; if it does not move, make `--step-0` and
+  `--step--1` plain `rem`. `npm run design -- --apply` already writes a fixed step when the
+  measured sizes do not change, so this bites a scale set or tuned by hand
+- **The first section under the header fails by a lot and looks identical.** The new block
+  reserves the fixed header with **padding** (`.under-header`), so its box starts at y=0 with the
+  bar's height inside it; the original's block started *below* the bar. Paired by position, one is
+  compared against the other shifted by the header's height. If the original's first block starts
+  below the bar, reserve the space with `margin-block-start: var(--header-h)` on that block
+  instead. Keep padding where a first section's own background runs up under the bar
+
 The scrolled header, the opened menu and each desktop dropdown are compared as `state: …`
 sections under the same threshold — those are what a client touches first. Motion is frozen
 identically on both sides (parallax layers, scroll-driven marquees, reveal-on-scroll, rotating

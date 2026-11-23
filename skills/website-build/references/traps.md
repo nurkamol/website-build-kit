@@ -409,6 +409,71 @@ the hamburger on any page after the first updated the previous page's **detached
 time (`const menuEl = () => document.querySelector('[data-menu-panel]')`) and delegate
 clicks from `document` rather than binding to the menu itself.
 
+It is not only the header. Any component script that does `const dialog =
+document.querySelector(…)` at module scope holds the **first** page's node: come back to a
+gallery from another page and the viewer drives a detached dialog nobody can see.
+
+---
+
+### The ClientRouter takes a link click before your handler does
+
+On an event-venue rebuild, gallery thumbnails were links to the large photo, with a
+document-level click listener opening a full-screen viewer instead. With `<ClientRouter />` on, a
+click navigated to **the bare `.webp` file** — a white page with one photo on it. No error.
+
+*Why:* the router also listens for clicks on `document`, and its listener was registered first —
+its script is in `<head>`. It checks `defaultPrevented`, finds nothing has claimed the click, calls
+`preventDefault()` itself and navigates. Whatever the viewer's listener does after that, the page
+is already leaving. Delegating from `document` is right (the photos are new nodes on every page);
+it is the order that loses.
+
+*Symptom:* the enhancement works wherever the router is off, and on the real site every click
+leaves the page. `test:gates` reproduces it: the same link without the attribute below is taken to
+the image file.
+
+*Fix:* `data-astro-reload` on every link a script intercepts. The router skips it, the script gets
+the click, and with JavaScript off it is still a working link. The template's `LightboxPhoto.astro`
+sets it; set it yourself on anything else you enhance. (A capture-phase listener would also win the
+race, but it is invisible at the link — the attribute documents itself.)
+
+---
+
+### `transitionend` from a child ends a close early
+
+A full-screen menu opened with a `clip-path` wipe. Closing it removed the open state and waited
+for `transitionend` on the panel before setting `hidden`, with `{ once: true }`. The links inside
+had their own staggered transitions — and **`transitionend` bubbles**, so the first child to finish
+ended the close and the panel vanished mid-wipe instead of wiping away.
+
+*Fix:* check `event.target === panel`, and remove the listener by hand rather than with
+`{ once: true }`, which removes it on the first event whoever sent it. Keep the timeout as the
+backstop for a transition that never fires. The template's `Header.astro` had the same
+`{ once: true }` shape and now filters.
+
+*And the open side of a wipe:* the fixed bar is hidden while the menu is open, so it cannot sit
+over the panel. With a wipe, hide it **once the wipe has covered it** — `transition: visibility 0s
+linear <wipe duration>` — not on the first frame, or the page under the bar shows for the length of
+the wipe. Under reduced motion there is no wipe and no delay.
+
+---
+
+### A parallax layer renders its photo wider than its slot, so `sizes` undersells it
+
+Parallax photo layers are taller than their window so the photo can drift through the spare
+height — 137% side by side and 151–157% stacked, on the event-venue rebuild. With `object-fit:
+cover` in a box that tall the photo is scaled to the **layer's** height, so a landscape photo
+renders up to ~1.5× wider than the slot. `sizes` describes the slot, the browser picks a rendition
+for the slot, and stretches it.
+
+*Symptom:* those photos, and only those, are soft on a 2× screen. Nothing reports it — the file is
+"appropriately sized" for what `sizes` claimed. Capping density there (a high-DPR `<source>` held
+to the 2× file, a sensible saving on a gallery) makes it worse: it is the one image whose real
+need is above the cap.
+
+*Fix:* write `sizes` for the rendered width, not the slot — `calc(45vw * 1.37)` for a 137% layer.
+Then check it in the browser rather than by arithmetic: the width in `img.currentSrc` should be at
+least `img.getBoundingClientRect().width * devicePixelRatio`. Never cap density on a parallax layer.
+
 ---
 
 ### A supplied `favicon.svg` was a different logo entirely

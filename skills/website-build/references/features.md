@@ -355,7 +355,59 @@ brief, not a bigger version of this one.
 
 ---
 
-## 8. Adjacent, and quickly
+## 8. A header that hides on scroll
+
+**Default: no.** ✅ The template's bar is fixed and stays. A bar that leaves on the way down and
+comes back on the way up buys a few dozen pixels of reading room, and costs five rules that each
+fail in silence when one is missed.
+
+**Say yes** when the original does it and the rebuild is faithful, or on long reading pages where
+the bar is tall enough to matter. Not because it feels modern.
+
+### If yes, the shape
+
+| Rule | What goes wrong without it |
+| --- | --- |
+| **Never hidden within its own height of the top** | Trackpad jitter at `scrollY` 3 hides the bar on a page that has not been scrolled |
+| **Never hidden with the menu open** | The close control lives in the bar on most designs. Hidden, the menu has no way out but Escape |
+| **Never hidden with focus inside it, and shown on `focusin`** | A keyboard user tabs into a bar that is off-screen — focus on a link nobody can see (WCAG 2.4.7), which reads as a broken page |
+| **A few pixels of slack each way** (~6px) | Without it the bar flickers on every small scroll correction |
+| **Reduced motion: no transition, same behaviour** | The bar still hides; it just does not slide |
+
+Two more, because the header is usually `transition:persist`: **clear the hidden state on
+`astro:page-load`**, or the next page opens with no header at `scrollY` 0, and keep the scroll
+listener in the same bind-once guard as the menu so it is not registered once per navigation.
+The template's header carries the hooks — `data-scrolled`, `data-menu-open` and the `bound`
+guard — so the yes is a dozen lines in `Header.astro`, not a rewrite:
+
+```ts
+let lastY = window.scrollY;
+const autoHide = () => {
+  const y = window.scrollY;
+  const dy = y - lastY;
+  if (Math.abs(dy) < 6) return;
+  lastY = y;
+  const keep = open || y <= header.offsetHeight || header.contains(document.activeElement);
+  header.toggleAttribute('data-hidden', !keep && dy > 0);
+};
+header.addEventListener('focusin', () => header.removeAttribute('data-hidden'));
+// call autoHide() from the existing rAF-throttled scroll handler
+```
+
+```css
+.header { transition: transform var(--dur-base) var(--ease-out); }
+.header[data-hidden] { transform: translateY(-100%); }
+@media (prefers-reduced-motion: reduce) { .header { transition: none; } }
+```
+
+From a faithful event-venue rebuild whose original hid its bar this way (0.3s ease). The rules
+are that build's header, not a reading of the spec.
+
+Not in the template — a bar that moves is a decision, and the next site should not inherit it.
+
+---
+
+## 9. Adjacent, and quickly
 
 | | Default |
 | --- | --- |
