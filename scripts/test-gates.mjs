@@ -1380,17 +1380,27 @@ const VERIFY_FILES = {
  * cannot fail the next with EADDRINUSE.
  */
 function startFixture(faults) {
-  const port = ++fixturePort;
-  const args = [FIXTURE_SITE, '--port', String(port), ...(faults ? ['--faults', faults] : [])];
-  const child = spawn(process.execPath, args, { stdio: 'ignore' });
-  const probe = `fetch('http://127.0.0.1:${port}/__ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`;
-  for (let i = 0; i < 60; i++) {
-    if (spawnSync(process.execPath, ['-e', probe], { stdio: 'ignore' }).status === 0) {
-      return { child, origin: `http://127.0.0.1:${port}` };
+  /*
+   * ⚠ A PORT THAT ANSWERS IS NOT PROOF IT IS OURS. Two clones of this repo ran
+   *   `test:gates` at once, both counting up from the same base port, and one
+   *   harness's probe got "ready" from the OTHER harness's fixture — carrying
+   *   different faults. Its own fixture had died on EADDRINUSE. So each fixture
+   *   echoes a token, and a port that answers with someone else's is skipped.
+   */
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const port = ++fixturePort;
+    const token = `kit-${process.pid}-${port}`;
+    const args = [FIXTURE_SITE, '--port', String(port), '--token', token, ...(faults ? ['--faults', faults] : [])];
+    const child = spawn(process.execPath, args, { stdio: 'ignore' });
+    const probe = `fetch('http://127.0.0.1:${port}/__ready').then((r) => r.text()).then((t) => process.exit(t === ${JSON.stringify(token)} ? 0 : 2)).catch(() => process.exit(1))`;
+    for (let i = 0; i < 60; i++) {
+      const status = spawnSync(process.execPath, ['-e', probe], { stdio: 'ignore' }).status;
+      if (status === 0) return { child, origin: `http://127.0.0.1:${port}` };
+      if (status === 2 || child.exitCode !== null) break; // someone else's port, or ours died on it
     }
+    child.kill('SIGKILL');
   }
-  child.kill('SIGKILL');
-  throw new Error(`fixture-site did not start on ${port}`);
+  throw new Error(`fixture-site did not start on any port up to ${fixturePort}`);
 }
 
 /** Strip the colour before looking for a mark, or nothing ever matches. */
@@ -1985,6 +1995,97 @@ againstTwoSites('refuses a page the new site no longer serves', {
   args: ['--text-only'],
   expect: 1,
   contains: '/about/ — missing: HTTP 404 on the new site',
+});
+
+/*
+ * ⚠ ONE HUNG PAGE MUST NOT FAIL EVERY ROUTE AFTER IT. On the first real pair
+ *   this ran against, a capture timed out, Chrome closed the target, and every
+ *   later capture failed on "Session closed" — routes that were fine, reported
+ *   as errors. The home page here locks its renderer after load; it must be
+ *   reported, and /about/ — next in line — must still be compared, by a
+ *   relaunched browser.
+ */
+againstTwoSites('a page that hangs the browser fails alone; the next route is still compared', {
+  newFaults: 'renderer-hang',
+  args: ['--viewports=mobile', '--timeout=5'],
+  expect: 1,
+  contains: '/ · mobile — error',
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    const about = json.routes.find((r) => r.route === '/about/');
+    if (!about?.viewports.length || about.viewports.some((v) => v.error)) return '/about/ was not compared after the hang';
+    if (!json.browser?.relaunches) return 'recorded no relaunch';
+    return null;
+  },
+});
+
+/*
+ * ⚠ VISUALLY HIDDEN TEXT IS CONTENT ON THE NEW SIDE, CHROME ON THE OLD. A
+ *   rebuild that carries a decorative marquee's words once for assistive tech
+ *   was reported as having lost them, on a real pair. And a WordPress
+ *   `.screen-reader-text` label is UI the new site has no reason to keep.
+ *   The refusal twin is `drop-paragraph` above: the same words, actually gone.
+ */
+againstTwoSites('words carried in a visually hidden copy on the new side are kept', {
+  newFaults: 'sr-copy',
+  args: ['--text-only'],
+  expect: 0,
+  then: (dir) => (matchJson(dir)?.routes.every((r) => r.text?.ratio === 1) ? null : 'counted hidden copy as missing'),
+});
+
+againstTwoSites("a WordPress screen-reader label on the old side is not content the new side lost", {
+  oldFaults: 'sr-ui-label',
+  args: ['--text-only'],
+  expect: 0,
+  then: (dir) => (matchJson(dir)?.routes.some((r) => r.text?.missing.includes('search')) ? 'reported a UI label as a lost word' : null),
+});
+
+/*
+ * ⚠ PAIRING BY POSITION FAILS EVERYTHING AFTER ONE INSERTED SECTION. Sections
+ *   are anchored by their headings first, so a section the rebuild added is
+ *   reported on its own and the two after it still pair with their originals.
+ */
+againstTwoSites('an added section is named, and the sections after it still pair with their originals', {
+  newFaults: 'insert-section',
+  args: ['--only=/about/', '--viewports=desktop'],
+  expect: 1,
+  contains: 'only on the new site',
+  then: (dir) => {
+    const v = matchJson(dir)?.routes[0]?.viewports[0];
+    if (!v) return 'compared nothing';
+    const later = v.sections.filter((s) => /Second section|Third section/.test(s.title));
+    if (later.length !== 2) return `found ${later.length} of the two later sections`;
+    return later.every((s) => s.percent <= 3) ? null : `paired by position: ${later.map((s) => `${s.label} ${s.percent}%`).join(', ')}`;
+  },
+});
+
+/* A wrapper of paragraphs is one section, not one per paragraph — a real legal
+   page came out as 73 "sections" against the rebuild's 4. */
+againstTwoSites('a page of running text is one section, not one per paragraph', {
+  oldFaults: 'flat-text',
+  args: ['--only=/about/', '--viewports=desktop', '--report-only'],
+  expect: 0,
+  then: (dir) => {
+    const v = matchJson(dir)?.routes[0]?.viewports[0];
+    if (!v) return 'compared nothing';
+    return v.oldSections === 1 ? null : `found ${v.oldSections} sections in one wrapper of paragraphs`;
+  },
+});
+
+/* Filename alt text is the defect a rebuild fixes, not copy it lost. */
+againstTwoSites('alt text written from a filename is not a word the new site lost', {
+  oldFaults: 'filename-alt',
+  args: ['--text-only'],
+  expect: 0,
+});
+
+gate('match refuses a timeout that is not a number of seconds', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--timeout=soon'],
+  expect: 1,
+  contains: '--timeout is seconds',
 });
 
 /* Usage — reachable with no server and no browser. */

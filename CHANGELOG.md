@@ -28,6 +28,27 @@
   method come from a sister migration kit that gates on them. Fixture faults and paired cases
   in `test:gates`: identical sites pass; a recoloured section, a dropped paragraph, a renamed
   heading and a page the new site no longer serves each refuse, named.
+  First real pair it ran against found two faults in it, both fixed before release:
+  - **One hung capture failed every route after it.** A screenshot timed out, Chrome closed the
+    target, and every later capture reported "Session closed". The cause was the full headless
+    Chrome: with the machine's display asleep it produces no frames, so `captureScreenshot`
+    never returns on any page — `data:text/html,<h1>hi</h1>` included. `match` now launches
+    `chrome-headless-shell` (installed by puppeteer alongside; 0.6s for the same capture),
+    opens a fresh page per capture, relaunches a browser that stops answering and retries once,
+    photographs each section by its own clip, caps a page at 30,000px and reports what lies
+    below, and skips a 200 that is not HTML (a `.kml` hung the settle step). `npm run shots`
+    had the same exposure — its gate case hung for the same reason — and launches the shell too.
+  - **Visually hidden text was stripped from the new side**, so a marquee's words carried once in
+    a `.visually-hidden` copy were reported lost. It now counts on the new side and is stripped on
+    the old, where WordPress's `.screen-reader-text` is UI ("Search for:"). Paired cases for both,
+    and a renderer-hang fixture proving the route after a hung one is still compared.
+  - **And four ways it reported noise as drift**, each with a fixture and a case: sections paired
+    by position, so one added section failed every one after it (now anchored by heading, by
+    position only between anchors); a legal page's 73 paragraphs read as 73 sections against the
+    rebuild's 4 (a wrapper of running text is now one section); filename alt text
+    ("gallery00001") counted as 52 lost words on a gallery whose rebuild described its photos;
+    and a progressive form's conditional options, `hidden` by script in the rendered DOM, read as
+    lost (the new side is now read rendered and as served, and a word in either counts).
 
 ## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 

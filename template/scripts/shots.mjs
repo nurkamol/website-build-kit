@@ -194,7 +194,17 @@ const SETTLE = async () => {
   };
 };
 
-const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+/*
+ * ⚠ chrome-headless-shell first. The full headless Chrome produces frames in
+ *   step with the machine's display, and with the display asleep
+ *   `page.screenshot()` never returns — on any page, a `data:` URL included —
+ *   so an unattended run hangs on its first capture. `page.pdf()` is unaffected,
+ *   which is why only the screenshot scripts carry this. match.mjs has the
+ *   measurement. Puppeteer installs both; fall back if the shell is absent.
+ */
+const browser = await puppeteer
+  .launch({ args: ['--no-sandbox'], headless: 'shell' })
+  .catch(() => puppeteer.launch({ args: ['--no-sandbox'] }));
 const captured = [];
 const failures = [];
 const skipped = [];

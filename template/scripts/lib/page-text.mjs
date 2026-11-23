@@ -176,7 +176,7 @@ export const OVERLAYS = [
 const CHROME = [
   /* generic, any CMS */
   '[role=banner]', '[role=navigation]', '[role=contentinfo]', 'nav', 'dialog',
-  '.skip-link', '.skip-to-content', '.screen-reader-text', '.sr-only', '.visually-hidden',
+  '.skip-link', '.skip-to-content', 'a[href^="#"].screen-reader-text',
   '#masthead', '#colophon', '.site-header', '.site-footer', '#site-navigation', '#wpadminbar', '.pum-overlay',
   /* Salient */
   '#header-outer', '#header-space', '#search-outer', '#slide-out-widget-area', '#slide-out-widget-area-bg',
@@ -189,11 +189,40 @@ const CHROME = [
   '#brx-header', '#brx-footer', '.brx-popup',
   /* Gutenberg block themes */
   'header.wp-block-template-part', 'footer.wp-block-template-part',
+  /* Date-picker widgets a form plugin injects: a month list and a grid of day
+     numbers, read as "january … montuewedthu…" lost from a rebuilt form. */
+  '.flatpickr-calendar', '.ui-datepicker', '#ui-datepicker-div', '.pika-single', '.daterangepicker',
   ...OVERLAYS,
 ];
 
 const isNever = compileSelector(NEVER);
 const isChrome = compileSelector(CHROME.join(', '));
+
+/*
+ * ── VISUALLY HIDDEN TEXT: CONTENT ON THE NEW SIDE, CHROME ON THE OLD ───────
+ *
+ * Text a screen reader reads and a sighted visitor does not. Which it is
+ * depends on who wrote it, so the two sides are treated differently:
+ *
+ *   NEW side — KEPT. A rebuild that does this properly puts a decorative
+ *     marquee in an `aria-hidden` track and its words once in a
+ *     `.visually-hidden` copy, or keeps a rotating headline's full phrase in a
+ *     hidden span. That IS the content, carried the accessible way. Stripping it
+ *     reported "More Than Moments" missing from a page that carried it, on the
+ *     first real pair this ran against.
+ *   OLD side — STRIPPED. On a WordPress theme `.screen-reader-text` is almost
+ *     always UI: "Search for:", "Open menu", "Close search", "(opens in a new
+ *     tab)". Counted, those become words the new site is accused of losing.
+ *
+ * The asymmetry is safe because only old → new missing words fail. Keeping
+ * hidden text on the new side can only ADD words there; stripping it on the old
+ * side can only take UI labels out of the denominator. What it cannot catch is
+ * a rebuild that moved visible copy into hidden text — that is what the visual
+ * half of `match` measures. Skip links are chrome on both sides.
+ */
+const SCREEN_READER_ONLY = compileSelector(
+  '.screen-reader-text, .sr-only, .visually-hidden, .screen-reader-only, .elementor-screen-only, .sr-only-focusable',
+);
 const isInContent = (node) => {
   for (let p = node.parent; p; p = p.parent) if (p.tag === 'main' || p.tag === 'article') return true;
   return false;
@@ -205,10 +234,11 @@ const isHiddenInline = (node) => /display\s*:\s*none|visibility\s*:\s*hidden/i.t
  * `<article>` is a post's title block or byline, not the site's — removing
  * every `<header>` would take a blog post's `<h1>` with it.
  */
-function stripChrome(root) {
+function stripChrome(root, { keepScreenReaderText = false } = {}) {
   walk(root, (node) => {
     const pageChrome = (node.tag === 'header' || node.tag === 'footer') && !isInContent(node);
-    if (isNever(node) || isChrome(node) || pageChrome || isHiddenInline(node)) {
+    const hiddenUi = !keepScreenReaderText && SCREEN_READER_ONLY(node);
+    if (isNever(node) || isChrome(node) || pageChrome || hiddenUi || isHiddenInline(node)) {
       remove(node);
       return false;
     }
@@ -228,11 +258,18 @@ const BLOCK = new Set([
   'fieldset', 'legend', 'label', 'option', 'select', 'button', 'a', 'hr', 'pre', 'address', 'details', 'summary',
 ]);
 
+/* No spaces and three or more digits, or a camera's own prefix. */
+const FILENAME_ALT = /^(?:[^\s]*\d[^\s]*\d[^\s]*\d[^\s]*|(?:img|dsc|dscn|pxl|vid|photo|image)[\s_-]*\d[\w\s-]*)$/i;
+
 function textOf(node) {
   if (node.text !== undefined) return decodeEntities(node.text);
   const inner = node.children.map(textOf).join('');
-  /* An image's alt text is content a visitor reads, and a rebuild must keep. */
-  const alt = node.tag === 'img' && node.attrs.alt ? ` ${node.attrs.alt} ` : '';
+  /* An image's alt text is content a visitor reads, and a rebuild must keep —
+     unless the CMS wrote it from the filename. "gallery00001" and
+     "IMG 20231028 133434" are the defect `extract` flags as alt-filename; a
+     rebuild that replaced them with descriptions fixed something, and on a
+     real gallery page they were 52 of the 57 words reported "lost". */
+  const alt = node.tag === 'img' && node.attrs.alt && !FILENAME_ALT.test(node.attrs.alt.trim()) ? ` ${node.attrs.alt} ` : '';
   return BLOCK.has(node.tag) ? ` ${inner}${alt} ` : inner + alt;
 }
 
@@ -243,7 +280,7 @@ const norm = (s) => s.replace(/\s+/g, ' ').trim();
  * chrome removed, and the number of `<h1>`s on the WHOLE page — a second h1 in
  * the header is a real second h1, even though its text is not content.
  */
-export function pageContent(html) {
+export function pageContent(html, { side = 'old' } = {}) {
   const doc = parseHtml(html);
   let h1Count = 0;
   walk(doc, (n) => {
@@ -251,7 +288,7 @@ export function pageContent(html) {
     if (n.tag === 'h1') h1Count++;
     return true;
   });
-  stripChrome(doc);
+  stripChrome(doc, { keepScreenReaderText: side === 'new' });
   const headings = [];
   walk(doc, (n) => {
     const level = /^h([1-6])$/.exec(n.tag)?.[1];
@@ -318,8 +355,12 @@ export function missingContext(oldText, missing, max = 8) {
 export function compareHeadings(oldPage, newPage) {
   const key = (s) => norm(s).toLowerCase().replace(/[’‘]/g, "'");
   const have = new Set(newPage.headings.map((h) => key(h.text)));
+  /* Contained counts too: an old heading split across two elements, or a new
+     one that carries a hidden full phrase after the visible words, is still the
+     same heading. */
+  const newTexts = [...have];
   const missing = [...new Set(oldPage.headings.filter((h) => h.level <= 3).map((h) => norm(h.text)))].filter(
-    (t) => !have.has(key(t)),
+    (t) => !have.has(key(t)) && !newTexts.some((n) => n.includes(key(t))),
   );
   return { missing, h1Count: newPage.h1Count, ok: missing.length === 0 && newPage.h1Count === 1 };
 }
