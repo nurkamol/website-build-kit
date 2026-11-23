@@ -2384,6 +2384,184 @@ gate('match refuses a threshold that is not a percentage', {
 });
 
 /* ────────────────────────────────────────────────────────────────────────
+ * design — the old site's design, measured, and written into tokens.css
+ *
+ * ⚠ THE CAPTURE IS ASSERTED BY VALUE, NOT BY EXIT CODE. A design capture
+ *   that measured nothing still writes four files and exits 0 — the report
+ *   just says "none found" in every row, which reads like a plain site. The
+ *   `branded` fixture carries known faces, a known palette, known sizes and a
+ *   known menu, and every case below names the value it expects back.
+ *
+ * ⚠ THE --apply CASE RUNS `tells` AFTERWARDS, and that is how it earned its
+ *   place: the first run of it found tells testing `--unset:` against the raw
+ *   file, where the header comment's own "then delete --unset:" matched — so
+ *   the marker could never clear, on any project, however it was removed.
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('design');
+
+const TEMPLATE_TOKENS = readFileSync(join(KIT, 'template', 'src', 'styles', 'tokens.css'), 'utf8');
+const DESIGN_SITE = {
+  'src/styles/tokens.css': TEMPLATE_TOKENS,
+  'src/pages/index.astro': '---\nconst unbuilt = true;\n---\n<p>scaffold</p>\n',
+  'recon/urls.txt': '# Inventory of https://old-site.example\n/\n/about/\n',
+};
+const readJson = (dir, rel) => JSON.parse(readFileSync(join(dir, rel), 'utf8'));
+const tokenOf = (proposal, name) => proposal.vars.find((v) => v.name === name)?.value;
+
+gate('no URL and no --apply is a usage error', {
+  script: 'design.mjs',
+  files: {},
+  args: [],
+  expect: 1,
+  contains: 'usage: npm run design',
+});
+
+gate('refuses an internal host without --allow-internal', {
+  script: 'design.mjs',
+  files: {},
+  args: ['http://127.0.0.1:9/'],
+  expect: 1,
+  contains: 'blocked internal host',
+});
+
+gate('--apply with nothing captured refuses rather than writing nothing', {
+  script: 'design.mjs',
+  files: { 'src/styles/tokens.css': TEMPLATE_TOKENS },
+  args: ['--apply'],
+  expect: 1,
+  contains: 'no proposal to apply',
+});
+
+/* The refusal that protects a project's decisions: a re-run must not quietly
+   overwrite a tokens.css somebody already decided. */
+gate('--apply refuses a tokens.css that is already decided', {
+  script: 'design.mjs',
+  files: {
+    'src/styles/tokens.css': TEMPLATE_TOKENS.replace(/^\s*--unset:[^\n]*\n/m, ''),
+    'recon/design.json': JSON.stringify({ origin: 'https://old-site.example', capturedAt: '2026-01-01', proposal: { vars: [{ name: '--brand-600', value: '#123456', why: 'test' }] } }),
+  },
+  args: ['--apply'],
+  expect: 1,
+  contains: 'already decided',
+  then: (dir) => (readFileSync(join(dir, 'src/styles/tokens.css'), 'utf8').includes('#123456') ? 'it overwrote the decided file anyway' : null),
+});
+
+gate('--apply alone writes the saved proposal and keeps the file\'s shape', {
+  script: 'design.mjs',
+  files: {
+    'src/styles/tokens.css': TEMPLATE_TOKENS,
+    'recon/design.json': JSON.stringify({ origin: 'https://old-site.example', capturedAt: '2026-01-01', proposal: { vars: [{ name: '--brand-600', value: '#123456', why: 'test' }, { name: '--text', value: 'var(--ink-900)', why: 'test' }] } }),
+  },
+  args: ['--apply'],
+  expect: 0,
+  then: (dir) => {
+    const css = readFileSync(join(dir, 'src/styles/tokens.css'), 'utf8');
+    if (!/--brand-600: #123456;/.test(css)) return 'the value was not written';
+    if (/^\s*--unset:/m.test(css)) return '--unset is still declared';
+    if (!css.includes('THIS FILE SHIPS UNDECIDED ON PURPOSE')) return 'the header comment was lost';
+    /* Only the :root declaration moves — .on-dark must keep inverting. */
+    if (!/\.on-dark \{[\s\S]*--text: var\(--white\);/.test(css)) return '.on-dark --text was overwritten too';
+    return null;
+  },
+});
+
+againstFixture('measures the faces, palette, sizes and layout it was given', {
+  script: 'design.mjs',
+  faults: 'branded',
+  args: ['--allow-internal'],
+  files: DESIGN_SITE,
+  expect: 0,
+  then: (dir) => {
+    const d = readJson(dir, 'recon/design.json');
+    const pr = d.proposal;
+    if (d.pages.length !== 2) return `measured ${d.pages.length} page(s), wanted the home page plus one family`;
+    if (pr.fonts.display?.family !== 'Fixture Display') return `display face ${pr.fonts.display?.family}`;
+    if (pr.fonts.body?.family !== 'Fixture Sans') return `body face ${pr.fonts.body?.family}`;
+    const want = { ground: '#faf8f4', ink: '#222222', brand: '#145a8c', accent: '#c85028' };
+    for (const [role, hex] of Object.entries(want)) if (pr.palette[role]?.hex !== hex) return `${role} ${pr.palette[role]?.hex}, wanted ${hex}`;
+    const t = d.aggregate.typography;
+    if (t.mobile.h1?.fontSize !== '40px' || t.desktop.h1?.fontSize !== '64px') return `h1 ${t.mobile.h1?.fontSize} → ${t.desktop.h1?.fontSize}`;
+    if (t.desktop.p?.fontSize !== '18px') return `p ${t.desktop.p?.fontSize}`;
+    const tokens = { '--width-max': '1152px', '--radius-unit': '0.75', '--header-h': '5rem', '--accent-500': '#c85028', '--brand-600': '#145a8c' };
+    for (const [name, value] of Object.entries(tokens)) if (tokenOf(pr, name) !== value) return `${name} ${tokenOf(pr, name)}, wanted ${value}`;
+    /* The restraint rule: 64px is past the 3.9rem cap, so it is capped and said. */
+    if (!/3\.9rem\)$/.test(tokenOf(pr, '--step-6') ?? '')) return `--step-6 ${tokenOf(pr, '--step-6')} is not capped at 3.9rem`;
+    if (!pr.warnings.some((w) => w.includes('--uncapped'))) return 'the cap was applied silently';
+    const proposed = readFileSync(join(dir, 'recon/tokens.proposed.css'), 'utf8');
+    if (!proposed.includes('--accent-500: #c85028;')) return 'tokens.proposed.css does not carry the accent';
+    if (!proposed.includes("font-family: 'Fixture Display';")) return 'no @font-face suggestion';
+    if (!/^\s*--unset:/m.test(readFileSync(join(dir, 'src/styles/tokens.css'), 'utf8'))) return 'it changed tokens.css without --apply';
+    if (!existsSync(join(dir, 'recon/design.md'))) return 'wrote no design.md';
+    return null;
+  },
+});
+
+againstFixture('finds the menu toggle, opens it, and reads the panel and its items', {
+  script: 'design.mjs',
+  faults: 'branded',
+  args: ['--allow-internal', '--limit=1'],
+  files: DESIGN_SITE,
+  expect: 0,
+  then: (dir) => {
+    const ix = readJson(dir, 'recon/interactions.json');
+    const mobile = ix.menu.find((m) => m.viewport === 'mobile');
+    if (!mobile?.found) return `no toggle found on mobile${mobile?.error ? ` (${mobile.error})` : ''}`;
+    if (mobile.toggle.selector !== '.menu-toggle') return `toggle ${mobile.toggle.selector}`;
+    if (mobile.panel?.type !== 'off-canvas-right') return `panel ${mobile.panel?.type}${mobile.error ? ` (${mobile.error})` : ''}`;
+    const texts = mobile.items.map((i) => i.text);
+    for (const want of ['About', 'Services', 'Service one', 'Work', 'Contact']) if (!texts.includes(want)) return `items ${JSON.stringify(texts)} miss ${want}`;
+    if (!mobile.animations.some((a) => a.name === 'transform' && a.durationMs === 300)) return 'did not record the 300ms transform';
+    if (mobile.behaviour?.escCloses !== true) return 'did not see Esc close the menu';
+    if (mobile.toggle.ariaExpandedAfter !== 'true') return `aria-expanded after ${mobile.toggle.ariaExpandedAfter}`;
+    const desktop = ix.menu.find((m) => m.viewport === 'desktop');
+    if (desktop?.found || !desktop?.inline?.dropdown?.opensOnHover) return 'desktop should be an inline nav whose dropdown opens on hover';
+    const header = ix.header.find((h) => h.viewport === 'desktop');
+    if (!header?.behaviour?.transparentOverHero || !header.behaviour.sticky) return `header behaviour ${JSON.stringify(header?.behaviour)}`;
+    const kinds = ix.moving.flatMap((m) => m.found.map((f) => `${f.kind}:${f.library}`));
+    if (!kinds.includes('carousel:swiper')) return `no carousel found (${kinds.join(', ')})`;
+    if (!kinds.some((k) => k.startsWith('marquee'))) return `no marquee found (${kinds.join(', ')})`;
+    for (const f of ['mobile-menu-open.png', 'mobile-menu-closed.png', 'desktop-header-scrolled.png']) {
+      if (!existsSync(join(dir, 'shots', 'design', f))) return `no screenshot ${f}`;
+    }
+    return null;
+  },
+});
+
+againstFixture('--apply writes the measured tokens, and tells stops reporting --unset', {
+  script: 'design.mjs',
+  faults: 'branded',
+  args: ['--allow-internal', '--limit=1', '--apply'],
+  files: DESIGN_SITE,
+  expect: 0,
+  then: (dir) => {
+    const css = readFileSync(join(dir, 'src/styles/tokens.css'), 'utf8');
+    if (/^\s*--unset:/m.test(css)) return '--unset is still declared';
+    if (!css.includes('--accent-500: #c85028;')) return 'the accent was not written';
+    if (!css.includes("--font-display: 'Fixture Display'")) return 'the display face was not written';
+    if (!css.includes('══ Decided')) return 'no note saying where the values came from';
+    const tells = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, 'tells.mjs'), '--undecided-only'], { cwd: dir, encoding: 'utf8' });
+    const out = plain(`${tells.stdout}${tells.stderr}`);
+    if (out.includes('--unset in tokens.css')) return 'tells still reports --unset after it was removed';
+    if (!out.includes('no @font-face anywhere')) return 'tells no longer reports the missing faces — it should, until they are self-hosted';
+    return null;
+  },
+});
+
+/* tells' own half of that: the REAL template tokens.css, with only the
+   declaration removed. Before the fix this read as half-decided forever. */
+gate('tells: --unset named in a comment is not the marker', {
+  script: 'tells.mjs',
+  args: ['--undecided-only'],
+  files: {
+    'src/styles/tokens.css': TEMPLATE_TOKENS.replace(/^\s*--unset:[^\n]*\n/m, ''),
+    'src/styles/fonts.css': "@font-face { font-family: 'Real'; src: url(a.woff2); }\n",
+    'src/pages/index.astro': '---\nconst title = "Real";\n---\n<h1>{title}</h1>\n',
+  },
+  expect: 0,
+  contains: 'all real',
+});
+
+/* ────────────────────────────────────────────────────────────────────────
  * md-to-pdf — which never needed a deployment at all
  *
  * Its ledger entry read "needs a deployed site (headless Chrome fetching the

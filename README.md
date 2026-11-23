@@ -144,6 +144,11 @@ does ship is the skeleton of the parts that take longest to get right:
 - **`npm run recon`** — inventory the OLD site before designing routes: URLs from the sitemap
   plus the ones only the Wayback Machine remembers, which sitemap filename is canonical,
   preserved paths, and the integrations in the markup
+- **`npm run design`** — measures the OLD site's design in a real browser at three widths: the
+  faces actually used, colours by use, computed type per heading level, buttons, container,
+  radii, header height, and the menu opened at each width. Writes a proposal as a filled-in
+  `tokens.css`, with the brand colour sampled into the ramp rather than approximated;
+  `--apply` writes it, and only over a file that is still undecided
 - **`npm run extract`** — turns the captured HTML into clean markdown, one file per page, with
   frontmatter and portable image paths. It uses a real HTML-to-markdown converter rather than
   stripping tags, because `html.replace(/<[^>]+>/g, '')` glues a heading to its paragraph

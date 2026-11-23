@@ -72,6 +72,20 @@ npm run dns   -- old-site.com             # the zone: MX, SPF/DKIM/DMARC, CAA, v
 npm run seo   -- https://old-site.com --json recon/seo-before.json --fail-on never
 ```
 
+**Then measure the design while it is still up** — after `recon`, because it reads
+`recon/urls.txt` to pick one page per template family:
+
+```bash
+npm run design -- https://old-site.com    # faces, palette, type, layout, menu, header, sliders
+```
+
+It works the same on Salient/WPBakery, Elementor, Divi, Bricks, Gutenberg and non-WordPress
+sites, because it reads computed styles, not the builder's settings — and it also lists the
+builder's own `:root` colour variables, which on Elementor, Bricks and block themes are the
+palette, exact. Run it on **every** migration, faithful or not: on a faithful rebuild
+`--apply` writes the tokens (`build.md` §3), and on a redesign it is the record of what the
+brand owned and what the old menu did — the thing a client asks about in week three.
+
 **The DNS one is the most consequential and the kit went months without it.** A rebuild moves
 the apex; every other record in that zone belongs to somebody else's service. Losing **MX**
 kills the client's email, and it fails silently — the bounces go to the sender, so the people
@@ -238,7 +252,7 @@ substitute for any of them.
 | Need | Why `curl` cannot | What the browser gives |
 | --- | --- | --- |
 | **JS-rendered sources** — Wix, Framer, some Squarespace and headless setups | The response is an empty shell; the content arrives from JavaScript | The rendered DOM, which is the only extractable copy that exists |
-| **Design extraction** | Stylesheets do not tell you which rule won | Computed styles — the actual hex, the actual font stack, the actual spacing |
+| **Design extraction** | Stylesheets do not tell you which rule won | Computed styles — the actual hex, the actual font stack, the actual spacing. `npm run design` does the measurable half headless; use Chrome for what it cannot see — hover states, a dark mode, anything behind a login |
 | **Visual verification** | A 200 says nothing about whether the page *looks* right | Screenshots at real viewports, plus console errors and failed network requests |
 
 It runs in the user's **existing Chrome session**, which is the underrated part: it can read

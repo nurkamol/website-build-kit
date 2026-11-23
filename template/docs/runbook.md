@@ -456,6 +456,11 @@ at. A path that 301s is followed and still filed under the old path, so the pair
 The sheet and its PNGs go **with the handover**, not into the repo — `shots/` is gitignored,
 and it is regenerable right up until the old site goes away.
 
+`npm run design -- https://old-site.com` belongs in the same window, for the same reason: it
+photographs the old **menu open** at each width and the header before and after a scroll into
+`shots/design/`, and records the timing in `recon/interactions.json`. Full-page shots are of a
+page at rest; nothing else keeps a record of what the old navigation *did*.
+
 ### Media and SEO
 
 | Check | Passing |
