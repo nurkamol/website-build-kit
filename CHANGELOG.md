@@ -2,6 +2,38 @@
 
 ## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **`npm run design` now writes a blueprint, so a faithful rebuild is built from numbers rather
+  than screenshots.** The capture measured tokens and opened the first dropdown; everything else
+  that makes an old site look like itself — the mega menu, the header turning solid, the hero's
+  overlay, a section's padding at each width, a reveal's 600ms — was eyeballed. New outputs:
+  `recon/blueprint.md` (per page: header, navigation, hero, every section, footer, as tables),
+  `recon/sections.json`, and `recon/blueprint.proposed.css` — one block per section, the 390 /
+  820 / 1440 measurements fitted to `clamp()`, an `@media` where the columns change, never
+  applied. On desktop every top-level item with children is hovered and then focused, and each
+  panel recorded: dropdown or mega, columns, geometry against the header, paint, headings,
+  images, animation, trigger, third-level flyout direction, and `shots/design/nav-<item>.png`. On
+  narrower widths the first closed submenu in the open menu is expanded: accordion or drill-down.
+  The header records heights, background, blur, border, shadow and logo variant at the top and
+  scrolled, element order, CTA, top bar, and sticky/shrink/hide behaviour. The page is scrolled
+  in steps to read parallax rates and reveal-on-scroll (effect, duration, delay, easing, stagger,
+  trigger offset, library — AOS, GSAP ScrollTrigger, Salient, Elementor, WOW, Divi, Bricks).
+  Carousels are watched for their autoplay interval (up to 12s, only where one exists), loop,
+  arrows and dots; marquees for speed in px/s and direction; hero headlines for rotating or
+  typed words. The footer lists its columns, bottom bar, social links, embeds and every
+  third-party script. ⚠ Two things that read wrong without error and are now handled: a CSS
+  transition's easing lives on its keyframes, so the effect's own easing reads `linear` for
+  every one; and a tab Chrome thinks is in the background throttles timers to once a second.
+- **`npm run design` is faster and cannot hang silently.** Page-widths run three at a time
+  (`--concurrency`), still pausing after each load; captures are cached in `recon/.cache` by URL,
+  width and probe version, so a re-run measures nothing it already has (`--refresh` ignores the
+  cache, `--only=/path/` re-measures one page). `--budget=<minutes>` (default 15) stops a run
+  cleanly with a partial report and exit 1; a page-width that stops answering is abandoned after
+  three minutes, and every 15s of silence prints what is still in flight. The time per phase is
+  printed. On the fixture: 30.6s → ~20s for twice the measurements. Fixture `branded` gained a
+  mega menu, a sticky header that turns solid, a hero with an overlay and rotating words, a
+  parallax layer, AOS-style reveals, a timed carousel and a three-column footer with a
+  third-party script; `test:gates` asserts each by value.
+
 - **`recon` reported vendors that were never loaded.** Detection was a substring match on the
   vendor's NAME, and a name is a word: every WordPress block theme carries
   `--wp--preset--shadow--crisp` in its inline `theme.json`, so the inventory listed Crisp chat

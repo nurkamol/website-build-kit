@@ -457,9 +457,13 @@ The sheet and its PNGs go **with the handover**, not into the repo — `shots/` 
 and it is regenerable right up until the old site goes away.
 
 `npm run design -- https://old-site.com` belongs in the same window, for the same reason: it
-photographs the old **menu open** at each width and the header before and after a scroll into
-`shots/design/`, and records the timing in `recon/interactions.json`. Full-page shots are of a
-page at rest; nothing else keeps a record of what the old navigation *did*.
+photographs the old **menu open** at each width, **every dropdown and mega menu** on desktop
+(`shots/design/nav-<item>.png`) and the header before and after a scroll into `shots/design/`,
+and records the timing in `recon/interactions.json` — along with the parallax rates,
+reveal-on-scroll timings and carousel intervals it watched. Full-page shots are of a page at
+rest; nothing else keeps a record of what the old navigation and motion *did*.
+`recon/blueprint.md` is the same capture as tables per page; re-measure one page with
+`--only=/path/` and the rest comes from `recon/.cache`.
 
 ### Media and SEO
 

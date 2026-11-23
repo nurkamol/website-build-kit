@@ -148,7 +148,13 @@ does ship is the skeleton of the parts that take longest to get right:
   faces actually used, colours by use, computed type per heading level, buttons, container,
   radii, header height, and the menu opened at each width. Writes a proposal as a filled-in
   `tokens.css`, with the brand colour sampled into the ramp rather than approximated;
-  `--apply` writes it, and only over a file that is still undecided
+  `--apply` writes it, and only over a file that is still undecided. Also writes the
+  **blueprint** — `recon/blueprint.md`, `sections.json` and `blueprint.proposed.css`: every
+  dropdown and mega menu hovered and measured, the header before and after scroll, the hero,
+  each section's padding, background, columns and media at each width as fluid `clamp()`,
+  the footer and its third-party widgets, parallax rates, reveal-on-scroll timings and carousel
+  intervals — so a faithful rebuild is built from numbers instead of screenshots. Three pages
+  at a time, cached, inside a `--budget`
 - **`npm run extract`** — turns the captured HTML into clean markdown, one file per page, with
   frontmatter and portable image paths. It uses a real HTML-to-markdown converter rather than
   stripping tags, because `html.replace(/<[^>]+>/g, '')` glues a heading to its paragraph

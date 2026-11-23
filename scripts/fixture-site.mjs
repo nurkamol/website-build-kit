@@ -88,9 +88,14 @@ const KNOWN_FAULTS = [
    * The default fixture is deliberately unstyled, which gives a design capture
    * nothing to find — and a capture that finds nothing on a site with nothing
    * passes for the wrong reason. This one has known faces, a known palette,
-   * known sizes at known breakpoints, a menu toggle with an off-canvas panel,
-   * a header that changes on scroll, a carousel and a marquee, so the cases
-   * can assert the capture found each one by value. */
+   * known sizes at known breakpoints, a menu toggle with an off-canvas panel
+   * (one submenu shown, one an accordion), a desktop nav with a dropdown, a
+   * third-level flyout and a three-column mega menu, a transparent fixed
+   * header that turns solid, shrinks and swaps its logo on scroll, a hero
+   * with an overlay and rotating words, section padding that steps at 768
+   * and 1200, a parallax layer, AOS-style reveals, a timed carousel with
+   * arrows and dots, a marquee at a known speed, and a three-column footer
+   * with a third-party script — so the cases can assert each one by value. */
   'branded',
 ];
 for (const f of FAULTS) {
@@ -248,19 +253,37 @@ a { color: rgb(20, 90, 140); }
 .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .site-header { position: fixed; top: 0; left: 0; right: 0; height: 80px; z-index: 10;
   display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
-  background: rgba(0, 0, 0, 0); transition: background-color 200ms ease-out; }
-.site-header.scrolled { background: rgb(255, 255, 255); }
+  background: rgba(0, 0, 0, 0); transition: background-color 200ms ease-out, height 200ms ease-out, box-shadow 200ms ease-out; }
+.site-header.scrolled { background: rgb(255, 255, 255); height: 64px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12); }
 .site-header a { color: rgb(255, 255, 255); }
 .site-header.scrolled a { color: rgb(34, 34, 34); }
-.menu-toggle { display: none; }
+.logo img { display: block; width: 120px; height: 32px; }
+.logo .logo-dark, .scrolled .logo .logo-light { display: none; }
+.scrolled .logo .logo-dark { display: block; }
+.menu-toggle, .submenu-toggle { display: none; }
 #site-menu ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 24px; }
 #site-menu li { position: relative; }
 #site-menu .sub-menu { position: absolute; top: 100%; left: 0; display: block; background: rgb(255, 255, 255);
   padding: 12px; opacity: 0; visibility: hidden; transition: opacity 150ms ease-in; }
+#site-menu .sub-menu .sub-menu { top: 0; left: 100%; }
 #site-menu .sub-menu a { color: rgb(34, 34, 34); }
-#site-menu li:hover > .sub-menu { opacity: 1; visibility: visible; }
+#site-menu li:hover > .sub-menu, #site-menu li:focus-within > .sub-menu { opacity: 1; visibility: visible; }
+#site-menu li.has-mega { position: static; }
+#site-menu .mega-panel { position: absolute; top: 100%; left: calc(50% - 480px); width: 960px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 32px 40px;
+  background: rgb(255, 255, 255); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15); border-radius: 0 0 8px 8px;
+  opacity: 0; visibility: hidden; transform: translateY(8px);
+  transition: opacity 200ms ease 50ms, transform 200ms ease 50ms, visibility 0s linear 250ms; }
+#site-menu li.has-mega:hover > .mega-panel, #site-menu li.has-mega:focus-within > .mega-panel {
+  opacity: 1; visibility: visible; transform: none; transition: opacity 200ms ease 50ms, transform 200ms ease 50ms; }
+#site-menu .mega-panel ul { display: block; }
+#site-menu .mega-panel a { color: rgb(34, 34, 34); }
+#site-menu .mega-panel h4 { margin: 0 0 8px; font-size: 20px; text-transform: uppercase; letter-spacing: 0.08em; }
+#site-menu .mega-panel img { display: block; width: 240px; height: 140px; }
+.header-cta { padding: 10px 20px; }
 @media (max-width: 899px) {
   .menu-toggle { display: block; font: inherit; padding: 8px 12px; }
+  .site-header .header-cta { display: none; }
   #site-menu { position: fixed; top: 0; right: 0; height: 100vh; width: 80vw; background: rgb(255, 255, 255);
     padding: 96px 24px 24px; transform: translateX(100%); visibility: hidden;
     transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 300ms; }
@@ -268,26 +291,68 @@ a { color: rgb(20, 90, 140); }
   #site-menu ul { display: block; }
   #site-menu a { color: rgb(34, 34, 34); }
   #site-menu .sub-menu { position: static; opacity: 1; visibility: inherit; padding: 0 0 0 16px; }
+  #site-menu .submenu-toggle { display: inline-block; font: inherit; margin-left: 8px; }
+  #site-menu .mega-panel { position: static; display: none; width: auto; padding: 0 0 0 16px; box-shadow: none;
+    opacity: 1; visibility: inherit; transform: none; transition: none; }
+  #site-menu li.has-mega.is-expanded > .mega-panel { display: block; }
 }
-.hero { min-height: 70vh; background: rgb(20, 90, 140); color: rgb(255, 255, 255); padding: 140px 0 64px; }
+.hero { position: relative; isolation: isolate; min-height: 70vh; color: rgb(255, 255, 255); padding: 140px 0 64px;
+  background: rgb(20, 90, 140) url(/hero.png) center / cover no-repeat; }
+.hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(0, 0, 0, 0.4); }
 .hero h1 { color: rgb(255, 255, 255); }
+.hero .eyebrow { font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 12px; }
+.scroll-down { position: absolute; left: calc(50% - 20px); bottom: 24px; width: 40px; height: 40px; color: rgb(255, 255, 255); text-decoration: none; text-align: center; }
 .btn { display: inline-block; background: rgb(200, 80, 40); color: rgb(255, 255, 255); border-radius: 6px;
   padding: 14px 28px; text-decoration: none; font-weight: 600; }
-section { padding: 64px 0; }
+.site-header .btn { color: rgb(255, 255, 255); }
+section { padding: 48px 0; }
+@media (min-width: 768px) { section { padding: 72px 0; } }
+@media (min-width: 1200px) { section { padding: 96px 0; } }
 .band { background: rgb(20, 90, 140); color: rgb(255, 255, 255); }
 .band a { color: rgb(255, 255, 255); }
 .media { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 599px) { .media { grid-template-columns: 1fr; } }
 .media img { width: 100%; height: 240px; border-radius: 12px; display: block; object-fit: cover; }
-.swiper { overflow: hidden; }
+.swiper { overflow: hidden; position: relative; }
 .swiper-wrapper { display: flex; transition: transform 400ms ease; }
 .swiper-slide { flex: 0 0 100%; height: 160px; background: rgb(230, 230, 230); }
+.swiper-button-prev, .swiper-button-next { position: absolute; top: 60px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgb(255, 255, 255); }
+.swiper-button-prev { left: 8px; }
+.swiper-button-next { right: 8px; }
+.swiper-pagination { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; }
+.swiper-pagination-bullet { display: block; width: 10px; height: 10px; border-radius: 50%; background: rgb(200, 200, 200); }
+.swiper-pagination-bullet-active { background: rgb(34, 34, 34); }
 .marquee { overflow: hidden; white-space: nowrap; }
-.marquee-track { display: inline-block; animation: marquee 8s linear infinite; }
+.marquee-track { display: inline-block; width: 2000px; animation: marquee 8s linear infinite; }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.parallax { position: relative; isolation: isolate; overflow: hidden; min-height: 320px; color: rgb(255, 255, 255); }
+.parallax-bg { position: absolute; left: 0; right: 0; top: -120px; height: 560px; z-index: -1;
+  background: rgb(60, 60, 60) url(/hero.png) center / cover; }
+.card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+@media (max-width: 599px) { .card-row { grid-template-columns: 1fr; } }
+[data-aos] { opacity: 0; transform: translateY(40px);
+  transition: opacity 600ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 600ms cubic-bezier(0.25, 0.1, 0.25, 1); }
+[data-aos-delay="100"] { transition-delay: 100ms; }
+[data-aos-delay="200"] { transition-delay: 200ms; }
+[data-aos].aos-animate { opacity: 1; transform: none; }
 footer { background: rgb(24, 24, 24); color: rgb(240, 240, 240); padding: 48px 0; }
 footer a { color: rgb(240, 240, 240); }
+footer h4 { margin: 0 0 12px; font-size: 20px; text-transform: uppercase; letter-spacing: 0.08em; }
+footer ul { list-style: none; margin: 0; padding: 0; }
+.footer-cols { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; }
+@media (max-width: 599px) { .footer-cols { grid-template-columns: 1fr; } }
+.footer-bottom { margin-top: 32px; padding-top: 16px; border-top: 1px solid rgb(80, 80, 80); display: flex; justify-content: space-between; font-size: 14px; }
+.footer-bottom p { margin: 0; }
 `;
 
+/*
+ * Behaviour the capture has to find by WATCHING, each with a known value:
+ * the header turns solid and shrinks past 10px of scroll, the hero's word
+ * changes every 1000ms, the carousel advances every 1000ms (short, so the
+ * case stays fast) and rewinds to the first slide, the parallax layer moves
+ * at 0.3 of the scroll, and the cards reveal 120px into the viewport — fade
+ * and 40px up over 600ms, 100ms apart — the way AOS does it.
+ */
 const BRANDED_SCRIPT = `
 const header = document.querySelector('.site-header');
 addEventListener('scroll', () => header.classList.toggle('scrolled', scrollY > 10), { passive: true });
@@ -296,13 +361,49 @@ const menu = document.getElementById('site-menu');
 const set = (open) => { menu.classList.toggle('is-open', open); toggle.setAttribute('aria-expanded', String(open)); };
 toggle.addEventListener('click', () => set(toggle.getAttribute('aria-expanded') !== 'true'));
 addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
+for (const b of document.querySelectorAll('.submenu-toggle')) {
+  b.addEventListener('click', () => {
+    const li = b.closest('li');
+    const open = !li.classList.contains('is-expanded');
+    li.classList.toggle('is-expanded', open);
+    b.setAttribute('aria-expanded', String(open));
+  });
+}
 const track = document.querySelector('.swiper-wrapper');
-let slide = 0;
-setInterval(() => { slide = (slide + 1) % 3; track.style.transform = 'translateX(' + (-100 * slide) + '%)'; }, 700);
+if (track) {
+  const slides = document.querySelectorAll('.swiper-slide');
+  const bullets = document.querySelectorAll('.swiper-pagination-bullet');
+  let slide = 0;
+  setInterval(() => {
+    slide = (slide + 1) % slides.length;
+    track.style.transform = 'translateX(' + (-100 * slide) + '%)';
+    slides.forEach((s, i) => s.classList.toggle('swiper-slide-active', i === slide));
+    bullets.forEach((b, i) => b.classList.toggle('swiper-pagination-bullet-active', i === slide));
+  }, 1000);
+}
+const rotate = document.querySelector('.rotate');
+if (rotate) {
+  const words = ['fixture', 'sample', 'example'];
+  let w = 0;
+  setInterval(() => { w = (w + 1) % words.length; rotate.textContent = words[w]; }, 1000);
+}
+const layer = document.querySelector('.parallax-bg');
+if (layer) {
+  const move = () => { layer.style.transform = 'translateY(' + (scrollY * 0.3) + 'px)'; };
+  addEventListener('scroll', move, { passive: true });
+  move();
+}
+const reveal = document.querySelectorAll('[data-aos]');
+reveal.forEach((el) => el.classList.add('aos-init'));
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) e.target.classList.add('aos-animate');
+}, { rootMargin: '0px 0px -120px 0px' });
+reveal.forEach((el) => io.observe(el));
 `;
 
 function brandedPage({ path, title, description }) {
   const para = 'Body copy long enough to be measured as a paragraph, set in the body face at the body size, with a link to <a href="/about/">about</a> in the brand colour.';
+  const short = 'A card with a short paragraph, revealed as it scrolls into view.';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -315,26 +416,40 @@ function brandedPage({ path, title, description }) {
 </head>
 <body>
 <header class="site-header">
-  <a href="/" class="logo">Fixture</a>
+  <a href="/" class="logo"><img class="logo-light" src="/logo-light.png" width="120" height="32" alt="Fixture"><img class="logo-dark" src="/logo-dark.png" width="120" height="32" alt="Fixture"></a>
   <button class="menu-toggle" aria-controls="site-menu" aria-expanded="false" aria-label="Menu">Menu</button>
   <nav id="site-menu" aria-label="Primary">
     <ul>
       <li><a href="/about/">About</a></li>
       <li><a href="/services/">Services</a>
-        <ul class="sub-menu"><li><a href="/services/one/">Service one</a></li><li><a href="/services/two/">Service two</a></li></ul>
+        <ul class="sub-menu">
+          <li><a href="/services/one/">Service one</a></li>
+          <li><a href="/services/two/">Service two</a>
+            <ul class="sub-menu"><li><a href="/services/two/detail/">Service two detail</a></li></ul>
+          </li>
+        </ul>
+      </li>
+      <li class="has-mega"><a href="/programs/">Programs</a><button class="submenu-toggle" aria-expanded="false" aria-label="Open the Programs menu">+</button>
+        <div class="mega-panel">
+          <div class="mega-col"><h4>Column one</h4><ul><li><a href="/programs/a/">Program A</a></li><li><a href="/programs/b/">Program B</a></li></ul></div>
+          <div class="mega-col"><h4>Column two</h4><ul><li><a href="/programs/c/">Program C</a></li><li><a href="/programs/d/">Program D</a></li></ul></div>
+          <div class="mega-col"><h4>Featured</h4><img src="/hero.png" width="240" height="140" alt="A featured program"><a href="/programs/featured/">Featured program</a></div>
+        </div>
       </li>
       <li><a href="/work/">Work</a></li>
       <li><a href="/contact/">Contact</a></li>
     </ul>
   </nav>
+  <a class="btn header-cta" href="/contact/">Book now</a>
 </header>
 <main>
 <section class="hero"><div class="wrap">
-  <h1>A branded fixture page</h1>
+  <p class="eyebrow">Fixture studio</p>
+  <h1>A branded <span class="rotate">fixture</span> page</h1>
   <p>${para}</p>
   <a class="btn" href="/contact/">Get in touch</a>
-</div></section>
-<section><div class="wrap">
+</div><a class="scroll-down" href="#first" aria-label="Scroll to the content">↓</a></section>
+<section id="first"><div class="wrap">
   <h2>Section heading</h2>
   <p>${para}</p>
   <p>${para}</p>
@@ -350,8 +465,11 @@ function brandedPage({ path, title, description }) {
   <h2>A band in the brand colour</h2>
   <p>${para}</p>
   <div class="swiper"><div class="swiper-wrapper">
-    <div class="swiper-slide">Slide one</div><div class="swiper-slide">Slide two</div><div class="swiper-slide">Slide three</div>
-  </div></div>
+    <div class="swiper-slide swiper-slide-active">Slide one</div><div class="swiper-slide">Slide two</div><div class="swiper-slide">Slide three</div>
+  </div>
+  <button class="swiper-button-prev" aria-label="Previous slide"></button><button class="swiper-button-next" aria-label="Next slide"></button>
+  <div class="swiper-pagination"><span class="swiper-pagination-bullet swiper-pagination-bullet-active"></span><span class="swiper-pagination-bullet"></span><span class="swiper-pagination-bullet"></span></div>
+  </div>
 </div></section>
 <section><div class="wrap">
   <div class="marquee"><span class="marquee-track">Moving fixture text · Moving fixture text · Moving fixture text · Moving fixture text · </span></div>
@@ -359,9 +477,28 @@ function brandedPage({ path, title, description }) {
   <p>${para}</p>
   <p>${para}</p>
 </div></section>
+<section class="parallax"><div class="parallax-bg"></div><div class="wrap">
+  <h2>A parallax band</h2>
+</div></section>
+<section class="cards"><div class="wrap">
+  <h2>Three cards</h2>
+  <div class="card-row">
+    <div class="card" data-aos="fade-up" data-aos-delay="0"><h3>Card one</h3><p>${short}</p></div>
+    <div class="card" data-aos="fade-up" data-aos-delay="100"><h3>Card two</h3><p>${short}</p></div>
+    <div class="card" data-aos="fade-up" data-aos-delay="200"><h3>Card three</h3><p>${short}</p></div>
+  </div>
+</div></section>
 <div style="height: 1200px"></div>
 </main>
-<footer><div class="wrap"><p>Fixture footer, with a link to <a href="/">home</a>.</p></div></footer>
+<footer><div class="wrap">
+  <div class="footer-cols">
+    <div><h4>About</h4><p>Fixture footer, with a link to <a href="/">home</a>.</p></div>
+    <div><h4>Links</h4><ul><li><a href="/about/">About</a></li><li><a href="/work/">Work</a></li><li><a href="/contact/">Contact</a></li></ul></div>
+    <div><h4>Follow</h4><ul><li><a href="https://www.instagram.com/example">Instagram</a></li><li><a href="https://www.facebook.com/example">Facebook</a></li></ul>
+      <div id="fixture-widget"></div><script src="https://widget.example.invalid/embed.js" async></script></div>
+  </div>
+  <div class="footer-bottom"><p>© 2026 Fixture. All rights reserved.</p><a href="/about/">About this site</a></div>
+</div></footer>
 <script>${BRANDED_SCRIPT}</script>
 </body>
 </html>`;
@@ -498,7 +635,7 @@ const server = createServer((req, res) => {
 
 
   /* A 1x1 PNG, so the internal-link check has a real asset to resolve. */
-  if (path === '/hero.png') {
+  if (path === '/hero.png' || path === '/logo-light.png' || path === '/logo-dark.png') {
     res.writeHead(200, { 'content-type': 'image/png' });
     return res.end(PIXEL);
   }

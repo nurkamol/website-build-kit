@@ -6,14 +6,22 @@
  *   npm run design -- --apply                          # write the proposal already in recon/
  *   npm run design -- https://old-site.com --uncapped  # keep a hero size past the restraint cap
  *   npm run design -- https://old-site.com --limit=3   # pages to measure (default 6)
+ *   npm run design -- https://old-site.com --only=/about/   # re-measure one page; the rest from cache
+ *   npm run design -- https://old-site.com --refresh   # ignore recon/.cache, measure everything
+ *   npm run design -- https://old-site.com --concurrency=3 --budget=15   # pages at once; minutes
  *   npm run design -- http://10.0.0.5 --allow-internal # an old site on a VPN
  *
  * Writes:
  *   recon/design.json         every measurement, per page and viewport
- *   recon/design.md           the human summary — read this one
+ *   recon/design.md           the human summary of the tokens — read this one first
  *   recon/tokens.proposed.css tokens.css with the proposal written in. Diff it
- *   recon/interactions.json   the menu, the header on scroll, sliders, marquees
- *   shots/design/*.png        the menu open, the header before and after scroll
+ *   recon/interactions.json   the menu (every dropdown and mega panel), the header
+ *                             on scroll, carousels, marquees, scroll-driven motion
+ *   recon/sections.json       the blueprint: header, hero, every section, footer
+ *   recon/blueprint.md        the blueprint as tables, per page — build from this
+ *   recon/blueprint.proposed.css  one clamp() CSS block per section. Proposes only
+ *   recon/.cache/             per page-and-width captures; --refresh ignores them
+ *   shots/design/*.png        the menu open, each nav panel, the header before and after scroll
  *
  * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
  * build.md §3 says "source real values from the original brand rather than
@@ -39,27 +47,60 @@
  * custom properties — Elementor, Bricks and block themes publish the palette
  * there, exact.
  *
- * Then, on the home page at each width: the menu toggle, opened — panel type,
- * items, timing — and the header before and after a scroll. On every page:
- * carousels and moving text, found by library signature AND by watching what
- * moves, because a hand-rolled marquee has no signature.
+ * The blueprint, on every measured page at every width (lib/design-probes.mjs):
+ * each top-level section — cut the way match.mjs cuts them — with its height,
+ * padding in px and vw, background (colour, image, gradient, video, slider,
+ * and the overlay over it), columns with fractions, gap and order, media boxes
+ * (aspect, share of column, fit), heading/body type and decoration. The first
+ * section as a hero: min-height in vh, content box position, eyebrow, headline,
+ * buttons, scroll indicator, and words that rotate or type (watched and timed).
+ * The footer's columns, type, bottom bar, social links, embeds and third-party
+ * scripts. Scroll-driven motion, by scrolling in steps: parallax (rate per px
+ * scrolled) and reveal-on-scroll (effect, duration, delay, easing, stagger,
+ * trigger offset, library). Carousels' autoplay interval, loop, arrows and
+ * dots, watched for up to 12s and only where there is one; marquee speed in
+ * px/s and direction.
+ *
+ * On the home page at each width: the header at the top and after a scroll —
+ * height, background, blur, border, shadow, logo variant and size, element
+ * order, CTA, top bar, sticky/hide/shrink and timing. On desktop, EVERY
+ * top-level menu item with children is hovered and then focused, and each
+ * panel recorded — dropdown, mega or full-width, geometry against the header,
+ * paint, columns, headings, images, animation, trigger, third-level flyout
+ * direction — with a screenshot each. On narrower widths the toggle is opened
+ * and the first closed submenu inside it expanded: accordion or drill-down.
+ *
+ * ── SPEED ──────────────────────────────────────────────────────────────────
+ * Page-widths run three at a time (--concurrency), each its own tab, each
+ * pausing after its load. A whole run has a budget (--budget, 15 minutes):
+ * when it is spent the run stops, writes what it has marked partial, and exits
+ * 1. Captures are cached per URL, width and probe version, so a re-run after a
+ * fix measures nothing it already has. A page-width that stops answering is
+ * abandoned after three minutes, and a silent spell prints what is in flight.
  *
  * ── READ-ONLY, AND POLITE ──────────────────────────────────────────────────
- * One browser, one page at a time, a pause between loads, and a user agent
- * that says what it is. Every request that is not a GET is aborted before it
+ * One browser, a few tabs, a pause after each load, and a user agent that
+ * says what it is. Every request that is not a GET is aborted before it
  * leaves — opening a menu can fire a form or an admin-ajax POST, and this
  * never writes to a site that is not ours. Analytics collectors are aborted
  * too, so a capture is not counted as twenty-odd visits in the client's GA.
- * Consent banners are hidden, never accepted.
+ * Consent banners are hidden, never accepted. Menu links are hovered and
+ * focused, never followed; a submenu is opened only by a separate toggle or a
+ * link that goes nowhere.
  *
  * ── WHAT IT CANNOT SEE ─────────────────────────────────────────────────────
- * Printed at the end: anything behind a login, hover states other than the
- * first dropdown, a dark mode, motion triggered by scroll position (parallax,
- * reveal-on-scroll), and the licence a face was bought under. And it proposes;
- * it does not design. On a redesign it is the before, not the brief.
+ * Printed at the end: anything behind a login, a dark mode, hover states other
+ * than the menu's (card lifts, image zooms), a click-to-open mega menu whose
+ * trigger is a real link, motion slower than the watch (a carousel past 12s,
+ * a word rotating past 8s), scroll motion that only fires on a real wheel or
+ * touch event, the exact breakpoint between two measured widths (it names the
+ * site's own breakpoints in that range), JS-driven easing curves (it reports
+ * the timing CSS exposes), and the licence a face was bought under. And it
+ * proposes; it does not design. On a redesign it is the before, not the brief.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 
 import puppeteer from 'puppeteer';
 
@@ -74,6 +115,20 @@ import {
   whereToGet,
   writeTokens,
 } from './lib/design-tokens.mjs';
+import { blueprintCss, blueprintMd, mergeSections, motionFor, pageSlug, slugOf } from './lib/design-blueprint.mjs';
+import {
+  BLUEPRINT,
+  HEADER_STATE,
+  HELPERS,
+  NAV_NESTED,
+  NAV_NESTED_DIR,
+  NAV_PANEL,
+  NAV_TREE,
+  SCROLL_MOTION,
+  SUBMENU_FIND,
+  SUBMENU_READ,
+  WATCH,
+} from './lib/design-probes.mjs';
 import { blockedReason } from './lib/hosts.mjs';
 import { readInventory } from './lib/inventory.mjs';
 
@@ -95,6 +150,12 @@ const SHOTS = 'shots/design';
 const TOKENS = 'src/styles/tokens.css';
 const DEFAULT_LIMIT = 6;
 const PAUSE_MS = 400;
+const CACHE = `${RECON}/.cache`;
+/* Bump when a probe changes what it returns: a cached capture from an older
+   probe would otherwise be read as a measurement it never made. */
+const PROBE_VERSION = 2;
+const CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+const TASK_TIMEOUT_MS = 180000;
 
 const NOT_A_PAGE = /\.(pdf|xml|txt|json|zip|gz|csv|ico|png|jpe?g|gif|webp|avif|svg|mp4|webm|woff2?)$/i;
 
@@ -118,13 +179,33 @@ const target = argv.find((a) => !a.startsWith('--'));
 const apply = argv.includes('--apply');
 const uncapped = argv.includes('--uncapped');
 const allowInternal = argv.includes('--allow-internal');
-const limit = Number((argv.find((a) => a.startsWith('--limit=')) ?? '').replace('--limit=', '')) || DEFAULT_LIMIT;
+const refresh = argv.includes('--refresh');
+const valueOf = (name) => argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const limit = Number(valueOf('limit') ?? '') || DEFAULT_LIMIT;
+const USAGE =
+  'usage: npm run design -- https://old-site.com [--apply] [--uncapped] [--limit=6] [--only=/path/] [--refresh]\n' +
+  '                         [--concurrency=3] [--budget=15] [--allow-internal]\n' +
+  '       npm run design -- --apply      # write the proposal already in recon/design.json';
+
+const concurrency = valueOf('concurrency') === undefined ? 3 : Number(valueOf('concurrency'));
+const budgetMin = valueOf('budget') === undefined ? 15 : Number(valueOf('budget'));
+const onlyRaw = valueOf('only');
+if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) {
+  console.error(`${RED}✗${RESET} --concurrency is a whole number of pages at once, 1–8 (got ${valueOf('concurrency')})\n${USAGE}`);
+  process.exit(1);
+}
+if (!Number.isFinite(budgetMin) || budgetMin <= 0) {
+  console.error(`${RED}✗${RESET} --budget is minutes for the whole run, more than 0 (got ${valueOf('budget')})\n${USAGE}`);
+  process.exit(1);
+}
+if (onlyRaw !== undefined && !onlyRaw.trim()) {
+  console.error(`${RED}✗${RESET} --only needs a path, e.g. --only=/about/\n${USAGE}`);
+  process.exit(1);
+}
+const only = onlyRaw === undefined ? null : `/${onlyRaw.trim().replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '')}`;
 
 if (!target && !apply) {
-  console.error(
-    'usage: npm run design -- https://old-site.com [--apply] [--uncapped] [--limit=6] [--allow-internal]\n' +
-      '       npm run design -- --apply      # write the proposal already in recon/design.json',
-  );
+  console.error(USAGE);
   process.exit(1);
 }
 
@@ -179,8 +260,10 @@ function choosePages() {
     if (!families.has(family)) families.set(family, p);
   }
   const all = [...families.entries()].map(([family, path]) => ({ family, path }));
+  const pages = all.slice(0, limit);
+  if (only && !pages.some((p) => p.path === only)) pages.push({ family: all.find((p) => p.path === only)?.family ?? 'only', path: only });
   return {
-    pages: all.slice(0, limit),
+    pages,
     dropped: Math.max(0, all.length - limit),
     source: inventory ? `recon/urls.txt — one page per template family` : 'no recon/urls.txt, so the home page only',
   };
@@ -190,7 +273,7 @@ const { pages: PAGES, dropped, source } = choosePages();
 
 console.log(`${BOLD}── Design capture ${'─'.repeat(42)}${RESET}`);
 console.log(`  ${DIM}${ORIGIN} — ${PAGES.length} page(s) from ${source}${RESET}`);
-console.log(`  ${DIM}at ${VIEWPORTS.map((v) => `${v.width}px`).join(', ')}; read-only, one page at a time${RESET}`);
+console.log(`  ${DIM}at ${VIEWPORTS.map((v) => `${v.width}px`).join(', ')}; read-only, ${concurrency} at a time, budget ${budgetMin} min${only ? `; measuring only ${only}` : ''}${RESET}`);
 if (dropped) console.log(`  ${YELLOW}!${RESET} ${dropped} more famil(ies) beyond --limit=${limit} not measured`);
 console.log('');
 
@@ -466,111 +549,6 @@ function CAPTURE() {
   };
 }
 
-/*
- * Carousels and moving text. Two ways to find one, because each misses what
- * the other sees: a library signature finds a stopped slider, and watching for
- * movement finds the hand-rolled marquee no library named.
- */
-function MOTION() {
-  const SIGNATURES = [
-    ['swiper', '.swiper, .swiper-container'],
-    ['slick', '.slick-slider'],
-    ['splide', '.splide'],
-    ['flickity', '.flickity-enabled'],
-    ['owl', '.owl-carousel'],
-    ['glide', '.glide'],
-    ['slider-revolution', 'rs-module, .rev_slider'],
-    ['smart-slider', '.n2-section-smartslider'],
-    ['elementor', '.elementor-slides, .elementor-image-carousel, .elementor-widget-image-carousel'],
-    ['divi', '.et_pb_slider'],
-    ['bricks', '.brxe-slider, .brxe-carousel, .brxe-slider-nested'],
-    ['salient', '.nectar-slider-wrap, .nectar-flickity, .nectar-carousel'],
-    ['wpbakery', '.vc_images_carousel, .wpb_gallery_slides'],
-    ['jetpack', '.wp-block-jetpack-slideshow'],
-    ['bootstrap', '.carousel'],
-    ['generic', '[aria-roledescription="carousel"], [data-carousel], [class*="carousel"], [class*="slider"]'],
-  ];
-  const MARQUEE = 'marquee, [class*="marquee"], [class*="ticker"], .nectar-scrolling-text, [class*="scrolling-text"]';
-  const SLIDE = '.swiper-slide, .slick-slide:not(.slick-cloned), .splide__slide, .carousel-item, .owl-item:not(.cloned), .glide__slide, .flickity-cell, [aria-roledescription="slide"], [class*="slide"]:not([class*="slider"])';
-  const describe = (el) => {
-    const id = el.id ? `#${el.id}` : '';
-    const cls = (el.getAttribute('class') ?? '').split(/\s+/).filter(Boolean).slice(0, 3).map((c) => `.${c}`).join('');
-    return `${el.tagName.toLowerCase()}${id}${cls}`;
-  };
-  const rectOf = (el) => {
-    const r = el.getBoundingClientRect();
-    return { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), width: Math.round(r.width), height: Math.round(r.height) };
-  };
-
-  const watch = Array.from(document.querySelectorAll('body *'))
-    .filter((e) => e.offsetWidth > 0 && e.offsetHeight > 0)
-    .slice(0, 5000);
-  const before = new Map(watch.map((e) => [e, e.getBoundingClientRect()]));
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const moved = new Set();
-      for (const [el, a] of before) {
-        const b = el.getBoundingClientRect();
-        if (Math.abs(b.left - a.left) > 2 && Math.abs(b.top - a.top) < 2) moved.add(el);
-      }
-      /* Keep the outermost mover: the track moves, and so does every child. */
-      const movers = [...moved].filter((el) => !moved.has(el.parentElement));
-
-      const found = [];
-      const claimed = new Set();
-      const infinite = document
-        .getAnimations()
-        .filter((a) => a.effect?.getComputedTiming().iterations === Infinity && a.effect?.target);
-
-      for (const [library, sel] of SIGNATURES) {
-        for (const el of Array.from(document.querySelectorAll(sel))) {
-          if (!el.offsetWidth || [...claimed].some((c) => c.contains(el) || el.contains(c))) continue;
-          const slides = el.querySelectorAll(SLIDE).length;
-          const isMoving = movers.some((m) => el.contains(m));
-          if (library === 'generic' && slides < 2 && !isMoving) continue;
-          if (el.matches(MARQUEE)) continue;
-          claimed.add(el);
-          const track = el.querySelector('.swiper-wrapper, .slick-track, .splide__list, .flickity-slider, .owl-stage, .glide__slides, .carousel-inner') ?? el;
-          const t = getComputedStyle(track);
-          found.push({
-            kind: 'carousel',
-            library,
-            selector: describe(el),
-            slides,
-            autoplay: isMoving,
-            transition: t.transitionDuration !== '0s' ? `${t.transitionProperty} ${t.transitionDuration} ${t.transitionTimingFunction}` : null,
-            rect: rectOf(el),
-          });
-        }
-      }
-
-      const keyframesOf = (t) => infinite.filter((a) => a.effect.target === t).flatMap((a) => a.effect.getKeyframes());
-      const marquees = new Set([
-        ...Array.from(document.querySelectorAll(MARQUEE)).filter((e) => e.offsetWidth > 0),
-        ...infinite.map((a) => a.effect.target).filter((t) => t.textContent.trim() && /translate|matrix/.test(JSON.stringify(keyframesOf(t)))),
-        ...movers.filter((m) => ![...claimed].some((c) => c.contains(m)) && m.textContent.trim()),
-      ]);
-      const kept = [...marquees].filter((el) => ![...marquees].some((o) => o !== el && o.contains(el)) && ![...claimed].some((c) => c.contains(el)));
-      for (const el of kept) {
-        const anim = infinite.find((a) => el === a.effect.target || el.contains(a.effect.target));
-        const timing = anim?.effect.getComputedTiming();
-        found.push({
-          kind: 'marquee',
-          library: el.tagName === 'MARQUEE' ? '<marquee>' : anim ? 'css-animation' : moved.has(el) ? 'script' : 'class-name',
-          selector: describe(el),
-          text: el.textContent.trim().replace(/\s+/g, ' ').slice(0, 60),
-          moving: movers.some((m) => m === el || el.contains(m) || m.contains(el)),
-          durationMs: timing ? Math.round(timing.duration) : null,
-          easing: anim ? anim.effect.getTiming().easing : null,
-          rect: rectOf(el),
-        });
-      }
-      resolve(found.slice(0, 20));
-    }, 1500);
-  });
-}
-
 const TOGGLES = [
   '.slide-out-widget-area-toggle a',
   '.slide-out-widget-area-toggle',
@@ -619,54 +597,51 @@ async function shot(page, path, options = {}) {
   }
 }
 
-async function settle(page) {
-  await page.addStyleTag({ content: `${CONSENT} { display: none !important; }` }).catch(() => {});
-  /* Walk the page so lazy images and reveal-on-scroll content arrive, then come back. */
+/* The old settle() walk, kept for when the scroll-motion probe fails: lazy
+   images and reveal-on-scroll content still have to arrive before measuring. */
+async function walk(page) {
   await page
     .evaluate(async () => {
       const step = Math.max(200, Math.floor(innerHeight * 0.8));
       for (let y = 0; y < document.documentElement.scrollHeight && y < 30000; y += step) {
-        scrollTo(0, y);
+        window.scrollTo({ top: y, behavior: 'instant' });
         await new Promise((r) => setTimeout(r, 100));
       }
-      scrollTo(0, 0);
+      window.scrollTo({ top: 0, behavior: 'instant' });
       await document.fonts?.ready;
     })
     .catch(() => {});
   await sleep(300);
 }
 
+/* Wait for every finite animation on the page to finish, or `ms`. */
+const animationsDone = (page, ms = 1200) =>
+  page
+    .evaluate(
+      (limit) =>
+        Promise.race([
+          Promise.all(
+            document
+              .getAnimations()
+              .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+              .map((a) => a.finished.catch(() => null)),
+          ).then(() => true),
+          new Promise((r) => setTimeout(() => r(false), limit)),
+        ]),
+      ms,
+    )
+    .catch(() => false);
+
 /** The header at the top, after a scroll down, and after a scroll back up. */
 async function captureHeader(page, vp) {
-  const state = () =>
-    page.evaluate((sel) => {
-      const header = Array.from(document.querySelectorAll(sel)).find((e) => e.offsetHeight > 0);
-      if (!header) return null;
-      const cs = getComputedStyle(header);
-      const r = header.getBoundingClientRect();
-      const logo = Array.from(header.querySelectorAll('img, svg')).find((i) => i.getBoundingClientRect().width > 0 && getComputedStyle(i).opacity !== '0');
-      const next = header.nextElementSibling;
-      return {
-        top: Math.round(r.top),
-        bottom: Math.round(r.bottom),
-        height: Math.round(r.height),
-        position: cs.position,
-        background: cs.backgroundColor,
-        backdrop: cs.backdropFilter && cs.backdropFilter !== 'none' ? cs.backdropFilter : null,
-        boxShadow: cs.boxShadow,
-        transform: cs.transform,
-        transition: cs.transitionDuration !== '0s' ? `${cs.transitionProperty} ${cs.transitionDuration} ${cs.transitionTimingFunction}` : null,
-        color: getComputedStyle(header.querySelector('a') ?? header).color,
-        logoHeight: logo ? Math.round(logo.getBoundingClientRect().height) : null,
-        contentStartsUnder: next ? Math.round(next.getBoundingClientRect().top + scrollY) < Math.round(r.height) - 4 : false,
-      };
-    }, HEADER_SEL);
+  const state = () => page.evaluate(HEADER_STATE, HEADER_SEL).catch(() => null);
+  await animationsDone(page, 1500);
 
   const at = await state();
   if (!at) return { viewport: vp.name, found: false };
   const clip = (h) => ({ x: 0, y: 0, width: vp.width, height: Math.min(vp.height, Math.max(120, h + 40)) });
   const files = { top: `${SHOTS}/${vp.name}-header-top.png`, scrolled: `${SHOTS}/${vp.name}-header-scrolled.png` };
-  files.top = await shot(page, files.top, { clip: clip(at.height) });
+  files.top = await shot(page, files.top, { clip: clip(at.height + (at.topBar?.height ?? 0)) });
   await page.mouse.move(vp.width / 2, vp.height / 2);
   await page.mouse.wheel({ deltaY: 900 });
   await sleep(1000);
@@ -675,12 +650,13 @@ async function captureHeader(page, vp) {
   await page.mouse.wheel({ deltaY: -300 });
   await sleep(1000);
   const up = (await state()) ?? down;
-  await page.evaluate(() => scrollTo(0, 0));
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await sleep(500);
 
   const transparent = (c) => !c || c === 'transparent' || /rgba\([^)]*,\s*0(\.0\d*)?\)$/.test(c);
-  const keys = ['height', 'position', 'background', 'boxShadow', 'transform', 'color', 'logoHeight', 'backdrop'];
+  const keys = ['height', 'position', 'background', 'boxShadow', 'transform', 'color', 'logoHeight', 'backdrop', 'borderBottom'];
   const changes = keys.filter((k) => at[k] !== down[k]).map((k) => `${k}: ${at[k]} → ${down[k]}`);
+  if (at.logo?.src !== down.logo?.src) changes.push(`logo: ${at.logo?.src ?? at.logo?.kind} → ${down.logo?.src ?? down.logo?.kind}`);
   const hidden = down.bottom <= 0;
   return {
     viewport: vp.name,
@@ -694,6 +670,9 @@ async function captureHeader(page, vp) {
       revealsOnScrollUp: hidden && up.bottom > 0,
       scrollsAway: hidden && !['fixed', 'sticky'].includes(down.position),
       transparentOverHero: transparent(at.background) && (['absolute', 'fixed'].includes(at.position) || at.contentStartsUnder),
+      turnsSolid: transparent(at.background) && !transparent(down.background),
+      shrinks: !hidden && down.height < at.height - 3,
+      swapsLogo: !!(at.logo?.src && down.logo?.src && at.logo.src !== down.logo.src),
       changesOnScroll: changes.length > 0,
     },
     changes,
@@ -787,7 +766,7 @@ async function captureMenu(page, vp) {
           name: a.transitionProperty ?? a.animationName ?? '',
           durationMs: Math.round(Number(timing?.duration ?? 0)),
           delayMs: Math.round(Number(timing?.delay ?? 0)),
-          easing: String(a.effect?.getTiming().easing ?? 'linear'),
+          easing: window.__wbk?.easing ? window.__wbk.easing(a) : String(a.effect?.getTiming().easing ?? 'linear'),
         };
       })
       .filter((a) => a.durationMs > 0)
@@ -838,6 +817,7 @@ async function captureMenu(page, vp) {
       return el !== panel && cs.position === 'fixed' && r.width >= vw * 0.95 && r.height >= vh * 0.95 && !el.querySelector('a') && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
     });
     if (!panel) return { panel: null, items: [] };
+    panel.setAttribute('data-wbk-panel', '1');
     const r = panel.getBoundingClientRect();
     const cs = getComputedStyle(panel);
     const type =
@@ -896,6 +876,27 @@ async function captureMenu(page, vp) {
     return (el?.closest('button, a, [role=button]') ?? el)?.getAttribute('aria-expanded') ?? null;
   });
 
+  /* How a submenu opens inside the panel: the first closed one, by its own toggle. */
+  if (open.panel) {
+    await page.evaluate(HELPERS).catch(() => {});
+    const found = await page.evaluate(SUBMENU_FIND).catch((e) => ({ found: false, reason: e.message.split('\n')[0] }));
+    if (found.found) {
+      try {
+        await page.click('[data-wbk-subtoggle]');
+      } catch {
+        await page.evaluate(() => document.querySelector('[data-wbk-subtoggle]')?.click()).catch(() => {});
+      }
+      await sleep(60);
+      const anims = await page.evaluate(() => window.__wbk.anims(document.querySelector('[data-wbk-panel]'))).catch(() => []);
+      await animationsDone(page, 1200);
+      const read = await page.evaluate(SUBMENU_READ, found).catch(() => ({ behaviour: 'unknown' }));
+      const file = await shot(page, `${SHOTS}/${vp.name}-submenu-open.png`);
+      result.submenu = { viewport: vp.name, ...found, ...read, animations: read.animations?.length ? read.animations : anims, file };
+    } else {
+      result.submenu = { viewport: vp.name, ...found };
+    }
+  }
+
   const panelVisible = () =>
     page.evaluate(() => {
       const items = Array.from(document.querySelectorAll('body *')).filter((el) => !el.hasAttribute('data-wbk-before'));
@@ -940,43 +941,156 @@ async function captureInlineNav(page, vp) {
     };
   }, HEADER_SEL);
   if (!nav?.items.length) return { inline: null };
-  let dropdown = null;
-  if (nav.hasDropdown) {
-    await page.hover('[data-wbk-hover]').catch(() => {});
+
+  /* Every top-level item with children: hover, then focus, then (only for a
+     toggle or a link to nowhere) click. Each open panel measured and shot. */
+  await page.evaluate(HELPERS).catch(() => {});
+  const tree = await page.evaluate(NAV_TREE, HEADER_SEL).catch(() => null);
+  const panels = [];
+  const slugs = new Set();
+  const away = async () => {
+    await page.evaluate(() => document.activeElement?.blur?.()).catch(() => {});
+    await page.mouse.move(vp.width - 2, vp.height - 2);
     await sleep(60);
-    const anims = await page.evaluate(() =>
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
-        .map((a) => ({ name: a.transitionProperty ?? a.animationName ?? '', durationMs: Math.round(Number(a.effect?.getComputedTiming().duration ?? 0)), easing: String(a.effect?.getTiming().easing ?? '') }))
-        .filter((a) => a.durationMs > 0)
-        .slice(0, 12),
-    );
-    await sleep(700);
-    const file = await shot(page, `${SHOTS}/${vp.name}-dropdown-open.png`);
-    const opened = await page.evaluate(() => {
-      const li = document.querySelector('[data-wbk-hover]')?.closest('li');
-      const sub = li?.querySelector('ul, .sub-menu, [class*="dropdown"]');
-      return sub ? sub.offsetHeight > 0 && getComputedStyle(sub).visibility !== 'hidden' && Number(getComputedStyle(sub).opacity) > 0.05 : false;
-    });
-    dropdown = { opensOnHover: opened, animations: anims, file };
-    await page.mouse.move(1, vp.height - 1);
+    await animationsDone(page, 1000);
+  };
+  for (const parent of (tree?.parents ?? []).slice(0, 12)) {
+    let slug = slugOf(parent.text);
+    while (slugs.has(slug)) slug += '-2';
+    slugs.add(slug);
+    const probe = { index: parent.index, sel: HEADER_SEL };
+    const readPanel = () => page.evaluate(NAV_PANEL, probe).catch((e) => ({ open: false, error: e.message.split('\n')[0] }));
+    const shootPanel = async (panel) => {
+      const u = panel.unionWithHeader;
+      if (!u) return null;
+      const x = Math.max(0, u.x);
+      const y = Math.max(0, u.y);
+      const width = Math.min(vp.width, u.right) - x;
+      const height = Math.min(vp.height, u.bottom + 16) - y;
+      return width > 0 && height > 0 ? shot(page, `${SHOTS}/nav-${slug}.png`, { clip: { x, y, width, height } }) : null;
+    };
+    await away();
+    let trigger = null;
+    let animations = [];
+    let file = null;
+    let nested = null;
+    await page.hover(`[data-wbk-nav="${parent.index}"]`).catch(() => {});
+    await sleep(50);
+    animations = await page.evaluate((i) => window.__wbk.anims(document.querySelector(`[data-wbk-nav-li="${i}"]`)), parent.index).catch(() => []);
+    await animationsDone(page, 1200);
+    let panel = await readPanel();
+    if (panel.open) {
+      trigger = 'hover';
+      file = await shootPanel(panel);
+      const n = await page.evaluate(NAV_NESTED, parent.index).catch(() => null);
+      if (n?.alwaysShown) nested = { item: n.text, direction: 'inline (always shown)' };
+      else if (n) {
+        await page.hover('[data-wbk-nested]').catch(() => {});
+        await sleep(80);
+        await animationsDone(page, 1000);
+        nested = { item: n.text, ...((await page.evaluate(NAV_NESTED_DIR).catch(() => null)) ?? { opens: false }) };
+      }
+    }
+    /* Focus, separately: a panel that opens on hover only is unreachable by keyboard. */
+    await away();
+    await page.evaluate((i) => document.querySelector(`[data-wbk-nav="${i}"]`)?.focus(), parent.index).catch(() => {});
+    await sleep(80);
+    const focusAnims = await page.evaluate((i) => window.__wbk.anims(document.querySelector(`[data-wbk-nav-li="${i}"]`)), parent.index).catch(() => []);
+    await animationsDone(page, 1000);
+    const focused = await readPanel();
+    if (!panel.open && focused.open) {
+      panel = focused;
+      trigger = 'focus';
+      animations = focusAnims;
+      file = await shootPanel(panel);
+    }
+    if (!panel.open && (parent.hasToggle || ['#', ''].includes(parent.href))) {
+      await away();
+      const sel = parent.hasToggle ? `[data-wbk-nav-li="${parent.index}"] > button, [data-wbk-nav-li="${parent.index}"] > [aria-expanded]:not(a)` : `[data-wbk-nav="${parent.index}"]`;
+      await page.click(sel).catch(() => {});
+      await sleep(50);
+      animations = await page.evaluate((i) => window.__wbk.anims(document.querySelector(`[data-wbk-nav-li="${i}"]`)), parent.index).catch(() => []);
+      await animationsDone(page, 1200);
+      panel = await readPanel();
+      if (panel.open) {
+        trigger = 'click';
+        file = await shootPanel(panel);
+      }
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    const { unionWithHeader, ...measured } = panel;
+    panels.push({ item: parent.text, slug, trigger: trigger ?? 'did not open', opensOnHover: trigger === 'hover', opensOnFocus: !!focused.open, animations, ...measured, nested, file });
   }
-  return { inline: { items: nav.items, itemStyle: nav.itemStyle, dropdown } };
+  await away();
+
+  /* The first dropdown, in the shape earlier captures recorded it. */
+  const first = panels[0];
+  const dropdown = first
+    ? { opensOnHover: first.opensOnHover, animations: first.animations.map((x) => ({ name: x.property, durationMs: x.durationMs, easing: x.easing })), file: first.file }
+    : null;
+  return { inline: { items: nav.items, itemStyle: nav.itemStyle, dropdown, tree: tree?.tree ?? [], panels } };
 }
 
 /* ── Capture ───────────────────────────────────────────────────────────── */
 
 mkdirSync(RECON, { recursive: true });
 mkdirSync(SHOTS, { recursive: true });
+mkdirSync(CACHE, { recursive: true });
 
-const captures = [];
+const runStart = Date.now();
+const phases = [];
+const phase = (name, since) => phases.push(`${name} ${secs(Date.now() - since)}`);
+function secs(ms) {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 const failures = [];
-const menus = [];
-const headers = [];
-const moving = [];
 const refused = new Set();
 let abortedWrites = 0;
+const results = [];
+const unfinished = [];
+const fromCache = [];
+const notMeasured = [];
+
+/* ── The cache: one file per URL, width and probe version ── */
+const cacheFile = (url, vp) => `${CACHE}/${createHash('sha1').update(`${PROBE_VERSION}|${url}|${vp.name}|${vp.width}x${vp.height}`).digest('hex').slice(0, 20)}.json`;
+function readCache(url, vp) {
+  const file = cacheFile(url, vp);
+  try {
+    if (Date.now() - statSync(file).mtimeMs > CACHE_MAX_AGE_MS) return null;
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    return saved.version === PROBE_VERSION && saved.url === url ? saved.result : null;
+  } catch {
+    return null;
+  }
+}
+const writeCache = (url, vp, result) => {
+  try {
+    writeFileSync(cacheFile(url, vp), JSON.stringify({ version: PROBE_VERSION, url, viewport: vp.name, savedAt: new Date().toISOString(), result }));
+  } catch {
+    /* a cache that cannot be written costs a re-measure next time, nothing more */
+  }
+};
+
+const tasks = [];
+for (const { path, family } of PAGES) {
+  for (const vp of VIEWPORTS) {
+    const url = ORIGIN + path;
+    const label = `${vp.name.padEnd(7)} ${path}`;
+    const measureThis = only ? path === only : true;
+    const cached = (only ? path !== only : !refresh) ? readCache(url, vp) : null;
+    if (cached) {
+      results.push(cached);
+      fromCache.push(label.trim());
+      console.log(`  ${GREEN}✓${RESET} ${label}  ${DIM}${family} · from recon/.cache${RESET}`);
+    } else if (measureThis) {
+      tasks.push({ path, family, vp, url, label });
+    } else {
+      notMeasured.push(label.trim());
+    }
+  }
+}
+if (notMeasured.length) console.log(`  ${YELLOW}!${RESET} not in the cache and not --only, so not measured: ${notMeasured.join(', ')}`);
 
 /*
  * ⚠ chrome-headless-shell FIRST, and the reason is not speed. Full headless
@@ -986,9 +1100,17 @@ let abortedWrites = 0;
  *   screenshot that way. Puppeteer installs both; fall back if the shell is
  *   absent. The protocol timeout turns any remaining stall into an error that
  *   shot() survives, instead of a hang.
+ *
+ * ⚠ AND THE BACKGROUNDING FLAGS, because tabs run side by side. A tab Chrome
+ *   thinks is in the background has its timers throttled to once a second,
+ *   which turns a 1s carousel into a "4s" one and a 600ms reveal into nothing
+ *   at all — wrong numbers, not an error.
  */
 async function launch() {
-  const opts = { args: ['--no-sandbox'], protocolTimeout: 60000 };
+  const opts = {
+    args: ['--no-sandbox', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+    protocolTimeout: 60000,
+  };
   try {
     return { browser: await puppeteer.launch({ ...opts, headless: 'shell' }), engine: 'chrome-headless-shell' };
   } catch {
@@ -996,76 +1118,167 @@ async function launch() {
   }
 }
 
-const { browser, engine } = await launch();
-console.log(`  ${DIM}browser: ${engine}${RESET}\n`);
-try {
-  /* Says what it is. A real browser's string plus a name and a purpose, so an
-     operator reading their logs can tell this was a read-only capture. */
-  const UA = `${await browser.userAgent()} website-build-kit-design/1 (read-only design capture)`;
+let browser = null;
+let UA = '';
 
-  for (const vp of VIEWPORTS) {
-    const page = await browser.newPage();
-    await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: vp.scale, isMobile: vp.mobile, hasTouch: vp.mobile });
-    await page.setUserAgent(UA);
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (req.isInterceptResolutionHandled()) return;
-      const url = req.url();
-      if (/^(data|blob):/.test(url)) return req.continue();
-      /* ⚠ READ-ONLY IS ENFORCED HERE, NOT HOPED FOR. Opening a menu, hovering
-         a dropdown or a script on load can POST — a form, admin-ajax, a
-         tracking endpoint. None of it leaves this browser. */
-      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method())) {
-        abortedWrites++;
+async function openPage(vp) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: vp.scale, isMobile: vp.mobile, hasTouch: vp.mobile });
+  await page.setUserAgent(UA);
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    if (req.isInterceptResolutionHandled()) return;
+    const url = req.url();
+    if (/^(data|blob):/.test(url)) return req.continue();
+    /* ⚠ READ-ONLY IS ENFORCED HERE, NOT HOPED FOR. Opening a menu, hovering
+       a dropdown or a script on load can POST — a form, admin-ajax, a
+       tracking endpoint. None of it leaves this browser. */
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method())) {
+      abortedWrites++;
+      return req.abort('blockedbyclient');
+    }
+    if (COLLECTORS.test(url)) return req.abort('blockedbyclient');
+    if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
+      const why = blockedReason(url, { allowInternal });
+      if (why) {
+        refused.add(`${why.reason} — the old site redirected there`);
         return req.abort('blockedbyclient');
       }
-      if (COLLECTORS.test(url)) return req.abort('blockedbyclient');
-      if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
-        const why = blockedReason(url, { allowInternal });
-        if (why) {
-          refused.add(`${why.reason} — the old site redirected there`);
-          return req.abort('blockedbyclient');
-        }
-      }
-      return req.continue();
-    });
-
-    for (const { path, family } of PAGES) {
-      const url = ORIGIN + path;
-      try {
-        const res = await page.goto(url, { waitUntil: 'load', timeout: 45000 });
-        const status = res?.status() ?? 0;
-        if (status >= 400) throw new Error(`HTTP ${status}`);
-        await page.waitForNetworkIdle({ idleTime: 500, timeout: 8000 }).catch(() => {});
-
-        /* Movement first, before settle() scrolls: a scroll moves everything. */
-        if (vp.name === 'desktop' || path === '/') {
-          const found = await page.evaluate(MOTION).catch(() => []);
-          if (found.length) moving.push({ path, viewport: vp.name, found });
-        }
-
-        await settle(page);
-        const data = await page.evaluate(CAPTURE);
-        captures.push({ path, family, viewport: vp.name, width: vp.width, data });
-
-        if (path === '/') {
-          headers.push(await captureHeader(page, vp).catch((e) => ({ viewport: vp.name, found: false, error: e.message.split('\n')[0] })));
-          menus.push(await captureMenu(page, vp).catch((e) => ({ viewport: vp.name, found: false, error: e.message.split('\n')[0] })));
-        }
-        console.log(`  ${GREEN}✓${RESET} ${vp.name.padEnd(7)} ${path}  ${DIM}${family}${RESET}`);
-      } catch (err) {
-        failures.push({ path, viewport: vp.name, reason: err.message.split('\n')[0] });
-        console.log(`  ${RED}✗${RESET} ${vp.name.padEnd(7)} ${path}  ${DIM}${err.message.split('\n')[0]}${RESET}`);
-      }
-      await sleep(PAUSE_MS);
     }
-    await page.close();
-  }
-} finally {
-  await browser.close();
+    return req.continue();
+  });
+  return page;
 }
 
+const firstLine = (e) => String(e?.message ?? e).split('\n')[0];
+
+/** One page at one width: everything this script knows how to measure. */
+async function measure({ path, family, vp, url }) {
+  const page = await openPage(vp);
+  const started = Date.now();
+  try {
+    const res = await page.goto(url, { waitUntil: 'load', timeout: 45000 });
+    const status = res?.status() ?? 0;
+    if (status >= 400) throw new Error(`HTTP ${status}`);
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 8000 }).catch(() => {});
+    await page.addStyleTag({ content: `${CONSENT} { display: none !important; }` }).catch(() => {});
+    await page.evaluate(HELPERS);
+    const out = { path, family, viewport: vp.name, width: vp.width, url };
+
+    /* Movement first, at rest: a scroll moves everything. */
+    if (vp.name === 'desktop' || path === '/') {
+      out.watch = await page.evaluate(WATCH, { baseMs: 1500, maxMs: 12000 }).catch((e) => ({ found: [], rotating: [], error: firstLine(e) }));
+    }
+    /* Then scroll in steps — which is also the walk that loads lazy content. */
+    out.scroll = await page.evaluate(SCROLL_MOTION, {}).catch((e) => ({ error: firstLine(e), libraries: [], reveals: [], parallax: [] }));
+    if (out.scroll.error) await walk(page);
+    /* Back at the top, a header that changes on scroll is still transitioning back. */
+    await animationsDone(page, 1500);
+    await page.evaluate(() => document.fonts?.ready).catch(() => {});
+    await sleep(150);
+    out.data = await page.evaluate(CAPTURE);
+    out.blueprint = await page.evaluate(BLUEPRINT).catch((e) => ({ error: firstLine(e), sections: [] }));
+
+    if (path === '/') {
+      out.header = await captureHeader(page, vp).catch((e) => ({ viewport: vp.name, found: false, error: firstLine(e) }));
+      out.menu = await captureMenu(page, vp).catch((e) => ({ viewport: vp.name, found: false, error: firstLine(e) }));
+    }
+    out.elapsedMs = Date.now() - started;
+    out.measuredAt = new Date().toISOString();
+    /* Polite: a pause after each load, per tab. */
+    await sleep(PAUSE_MS);
+    return out;
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+let budgetHit = false;
+let lastLine = Date.now();
+const say = (line) => {
+  console.log(line);
+  lastLine = Date.now();
+};
+
+if (tasks.length) {
+  const t = Date.now();
+  const launched = await launch();
+  browser = launched.browser;
+  say(`  ${DIM}browser: ${launched.engine}${RESET}\n`);
+  /* Says what it is. A real browser's string plus a name and a purpose, so an
+     operator reading their logs can tell this was a read-only capture. */
+  UA = `${await browser.userAgent()} website-build-kit-design/1 (read-only design capture)`;
+  phase('launch', t);
+
+  const t1 = Date.now();
+  const deadline = runStart + budgetMin * 60000;
+  let budgetTimer;
+  const budgetGate = new Promise((resolve) => {
+    budgetTimer = setTimeout(() => {
+      budgetHit = true;
+      resolve();
+    }, Math.max(0, deadline - Date.now()));
+  });
+  const inflight = new Map();
+  /* A run must never go quiet: every 15s of silence names what is still running. */
+  const heartbeat = setInterval(() => {
+    if (inflight.size && Date.now() - lastLine > 15000) {
+      say(`  ${DIM}… still measuring ${[...inflight.entries()].map(([k, at]) => `${k.trim()} (${secs(Date.now() - at)})`).join(', ')}${RESET}`);
+    }
+  }, 5000);
+
+  const queue = [...tasks];
+  const worker = async () => {
+    while (queue.length && !budgetHit) {
+      const task = queue.shift();
+      inflight.set(task.label, Date.now());
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`no answer in ${TASK_TIMEOUT_MS / 1000}s — abandoned`)), TASK_TIMEOUT_MS);
+      });
+      const outOfBudget = budgetGate.then(() => {
+        throw new Error('budget');
+      });
+      try {
+        const out = await Promise.race([measure(task), timeout, outOfBudget]);
+        results.push(out);
+        writeCache(task.url, task.vp, out);
+        say(`  ${GREEN}✓${RESET} ${task.label}  ${DIM}${task.family} · ${secs(out.elapsedMs)}${RESET}`);
+      } catch (err) {
+        if (budgetHit) unfinished.push(task.label.trim());
+        else {
+          failures.push({ path: task.path, viewport: task.vp.name, reason: firstLine(err) });
+          say(`  ${RED}✗${RESET} ${task.label}  ${DIM}${firstLine(err)}${RESET}`);
+        }
+      } finally {
+        clearTimeout(timer);
+        inflight.delete(task.label);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
+  clearInterval(heartbeat);
+  clearTimeout(budgetTimer);
+  for (const task of queue) unfinished.push(task.label.trim());
+  phase(`capture (${tasks.length} page-width(s), ${Math.min(concurrency, tasks.length)} at a time)`, t1);
+  /* A browser stuck mid-evaluate can make close() wait for ever too. */
+  await Promise.race([browser.close().catch(() => {}), sleep(5000)]);
+}
+
+const order = (r) => PAGES.findIndex((p) => p.path === r.path) * 10 + VIEWPORTS.findIndex((v) => v.name === r.viewport);
+results.sort((x, y) => order(x) - order(y));
+const captures = results.filter((r) => r.data).map((r) => ({ path: r.path, family: r.family, viewport: r.viewport, width: r.width, data: r.data }));
+const headers = results.filter((r) => r.header).map((r) => r.header);
+const menus = results.filter((r) => r.menu).map((r) => r.menu);
+const moving = results.filter((r) => r.watch?.found?.length).map((r) => ({ path: r.path, viewport: r.viewport, found: r.watch.found }));
+const partial = budgetHit ? `the ${budgetMin}-minute budget ran out with ${unfinished.length} page-width(s) unmeasured: ${unfinished.join(', ')}` : null;
+
 if (!captures.length) {
+  if (budgetHit) {
+    writeFileSync(`${RECON}/design.json`, JSON.stringify({ origin: ORIGIN, capturedAt: new Date().toISOString(), partial, run: { budgetMinutes: budgetMin, unfinished } }, null, 2) + '\n');
+    console.error(`\n${RED}✗ budget spent${RESET} — ${partial}. Nothing finished; raise --budget or measure fewer pages (--limit, --only).`);
+    process.exit(1);
+  }
   console.error(`\n${RED}✗ nothing captured${RESET} — ${failures[0]?.reason ?? 'no page loaded'}. Is ${ORIGIN} reachable?`);
   process.exit(1);
 }
@@ -1194,15 +1407,91 @@ const capturedAt = new Date().toISOString();
 
 /* ── Write ─────────────────────────────────────────────────────────────── */
 
+const tWrite = Date.now();
+const run = {
+  measured: results.filter((r) => !fromCache.includes(`${r.viewport.padEnd(7)} ${r.path}`.trim())).map((r) => `${r.viewport} ${r.path}`),
+  fromCache,
+  notMeasured,
+  unfinished,
+  concurrency,
+  budgetMinutes: budgetMin,
+  only,
+  probeVersion: PROBE_VERSION,
+};
+
 writeFileSync(
   `${RECON}/design.json`,
-  JSON.stringify({ origin: ORIGIN, capturedAt, pages: PAGES, viewports: VIEWPORTS, failures, aggregate: agg, proposal, captures }, null, 2) + '\n',
+  JSON.stringify({ origin: ORIGIN, capturedAt, ...(partial ? { partial } : {}), run, pages: PAGES, viewports: VIEWPORTS, failures, aggregate: agg, proposal, captures }, null, 2) + '\n',
 );
+
+/* ── The blueprint ── */
+const vpList = VIEWPORTS.map((v) => ({ name: v.name, width: v.width }));
+const siteBreakpoints = [...new Set(captures.flatMap((c) => c.data.breakpoints))].sort((a, b) => a - b);
+const desktopMenu = menus.find((m) => m.viewport === 'desktop');
+const nav = {
+  desktop: desktopMenu?.inline ? { tree: desktopMenu.inline.tree ?? [], panels: desktopMenu.inline.panels ?? [] } : null,
+  submenus: menus.filter((m) => m.submenu).map((m) => m.submenu),
+};
+const bpPages = PAGES.map(({ path, family }) => {
+  const at = (vp) => results.find((r) => r.path === path && r.viewport === vp);
+  const byVp = Object.fromEntries(VIEWPORTS.map((v) => [v.name, at(v.name)?.blueprint]).filter(([, b]) => b && !b.error));
+  if (!Object.keys(byVp).length) return null;
+  const sections = mergeSections(byVp);
+  const heroOf = Object.fromEntries(Object.entries(byVp).filter(([, b]) => b.hero).map(([v, b]) => [v, b.hero]));
+  const scroll = Object.fromEntries(VIEWPORTS.map((v) => [v.name, at(v.name)?.scroll]).filter(([, x]) => x));
+  for (const row of sections) {
+    row.motion = Object.fromEntries(Object.entries(row.vp).map(([v, sec]) => [v, motionFor(sec, scroll[v])]));
+  }
+  return {
+    path,
+    family,
+    slug: pageSlug(path),
+    method: Object.values(byVp)[0].method,
+    hero: Object.keys(heroOf).length ? heroOf : null,
+    rotating: Object.fromEntries(VIEWPORTS.map((v) => [v.name, at(v.name)?.watch?.rotating]).filter(([, x]) => x?.length)),
+    sections,
+    footer: Object.fromEntries(Object.entries(byVp).filter(([, b]) => b.footer).map(([v, b]) => [v, b.footer])),
+    scroll,
+    thirdPartyScripts: [...new Set(Object.values(byVp).flatMap((b) => b.thirdPartyScripts ?? []))],
+  };
+}).filter(Boolean);
+const bp = { origin: ORIGIN, capturedAt, partial, viewports: vpList, siteBreakpoints, header: headers, nav, pages: bpPages };
 
 writeFileSync(
   `${RECON}/interactions.json`,
-  JSON.stringify({ origin: ORIGIN, capturedAt, menu: menus, header: headers, moving }, null, 2) + '\n',
+  JSON.stringify(
+    {
+      origin: ORIGIN,
+      capturedAt,
+      menu: menus,
+      nav,
+      header: headers,
+      moving,
+      rotating: results.filter((r) => r.watch?.rotating?.length).map((r) => ({ path: r.path, viewport: r.viewport, rotating: r.watch.rotating })),
+      scroll: results.filter((r) => r.scroll).map((r) => ({ path: r.path, viewport: r.viewport, ...r.scroll })),
+    },
+    null,
+    2,
+  ) + '\n',
 );
+writeFileSync(
+  `${RECON}/sections.json`,
+  JSON.stringify(
+    {
+      origin: ORIGIN,
+      capturedAt,
+      ...(partial ? { partial } : {}),
+      note: 'Per page: hero, every top-level section (merged across widths), footer. Sizes in px at each viewport; recon/blueprint.proposed.css has them as clamp() CSS.',
+      viewports: vpList,
+      siteBreakpoints,
+      pages: bpPages.map(({ scroll, ...rest }) => ({ ...rest, scroll: Object.fromEntries(Object.entries(scroll).map(([v, x]) => [v, { libraries: x.libraries, reveals: x.reveals, parallax: x.parallax }])) })),
+    },
+    null,
+    2,
+  ) + '\n',
+);
+writeFileSync(`${RECON}/blueprint.md`, blueprintMd(bp));
+writeFileSync(`${RECON}/blueprint.proposed.css`, blueprintCss(bp));
 
 const note = `Sampled from ${ORIGIN} by \`npm run design\` on ${capturedAt.slice(0, 10)}.`;
 const base = existsSync(TOKENS) ? readFileSync(TOKENS, 'utf8') : `:root {\n${proposal.vars.map((v) => `  ${v.name}: initial;`).join('\n')}\n}\n`;
@@ -1223,6 +1512,7 @@ writeFileSync(
 );
 
 writeFileSync(`${RECON}/design.md`, report());
+phase('reports', tWrite);
 
 /* ── Print ─────────────────────────────────────────────────────────────── */
 
@@ -1234,18 +1524,28 @@ console.log(`  ${proposal.vars.length} token(s) decided, ${proposal.kept.length}
 for (const w of proposal.warnings) console.log(`  ${YELLOW}!${RESET} ${w}`);
 const menuLine = menus.map((m) => `${m.viewport}: ${m.found ? m.panel?.type ?? 'toggle, no panel found' : m.inline ? 'inline nav' : 'none'}`).join('  ');
 console.log(`  menu    ${menuLine}`);
+if (nav.desktop?.panels.length) console.log(`  nav     ${nav.desktop.panels.map((x) => `${x.item}: ${x.open ? `${x.type}${x.columns > 1 ? ` ×${x.columns}` : ''} on ${x.trigger}` : 'did not open'}`).join(' · ')}`);
 const movingCount = moving.reduce((n, m) => n + m.found.length, 0);
 if (movingCount) console.log(`  motion  ${movingCount} carousel/marquee instance(s) — recon/interactions.json`);
+const reveals = results.reduce((n, r) => n + (r.scroll?.reveals?.length ?? 0), 0);
+const layers = results.reduce((n, r) => n + (r.scroll?.parallax?.length ?? 0), 0);
+if (reveals || layers) console.log(`  scroll  ${reveals} reveal group(s), ${layers} parallax layer(s)`);
+console.log(`  blocks  ${bpPages.reduce((n, pg) => n + pg.sections.length, 0)} section(s) on ${bpPages.length} page(s) — recon/blueprint.md`);
 if (failures.length) console.log(`  ${YELLOW}!${RESET} ${failures.length} capture(s) failed: ${failures.map((f) => `${f.path} @${f.viewport}`).join(', ')}`);
 for (const r of refused) console.log(`  ${YELLOW}refused${RESET} ${r}`);
 if (shotErrors.length) console.log(`  ${YELLOW}!${RESET} ${shotErrors.length} screenshot(s) not taken (measurements kept): ${shotErrors[0]}`);
 if (abortedWrites) console.log(`  ${DIM}${abortedWrites} non-GET request(s) aborted before they left — read-only${RESET}`);
-console.log(`\n  ${GREEN}✓${RESET} ${RECON}/design.md · design.json · interactions.json · tokens.proposed.css · ${SHOTS}/`);
+console.log(`  ${DIM}time    ${[...phases, `total ${secs(Date.now() - runStart)}`].join(' · ')}${fromCache.length ? ` · ${fromCache.length} from cache (--refresh to re-measure)` : ''}${RESET}`);
+console.log(`\n  ${GREEN}✓${RESET} ${RECON}/design.md · design.json · interactions.json · tokens.proposed.css · sections.json · blueprint.md · blueprint.proposed.css · ${SHOTS}/`);
 
+if (partial) {
+  console.error(`\n${RED}✗ budget spent${RESET} — ${partial}.\n  The reports above are PARTIAL. Re-run: what finished is cached, so the next run starts where this stopped.`);
+  process.exit(1);
+}
 if (apply) {
   process.exit(applyProposal(proposal, ORIGIN, capturedAt) ? 0 : 1);
 }
-console.log(`  ${DIM}Read recon/design.md, then: npm run design -- --apply${RESET}\n`);
+console.log(`  ${DIM}Read recon/design.md and recon/blueprint.md, then: npm run design -- --apply${RESET}\n`);
 process.exit(0);
 
 /* ── --apply ───────────────────────────────────────────────────────────── */
@@ -1405,10 +1705,12 @@ function report() {
       if (timing.length) L(`  Motion: ${timing.map((a) => `${a.name || a.kind} ${a.durationMs}ms${a.delayMs ? ` +${a.delayMs}ms` : ''} ${a.easing}`).join('; ')}.`);
       if (m.behaviour) L(`  Esc closes: ${m.behaviour.escCloses === null ? 'n/a' : m.behaviour.escCloses ? 'yes' : '**no**'} · focus moves in: ${m.behaviour.focusMovedIntoPanel ? 'yes' : 'no'} · scroll locked: ${m.behaviour.bodyScrollLocked ? 'yes' : 'no'} · close button: ${m.behaviour.hasCloseButton ? 'yes' : 'no'}`);
       if (m.items.length) L(`  Items (${m.items.length}): ${m.items.map((i) => `${'  '.repeat(i.depth)}${i.text}`).join(' · ')}`);
+      if (m.submenu) L(`  Submenus inside it: **${m.submenu.behaviour ?? 'unknown'}**${m.submenu.item ? ` ("${m.submenu.item}")` : ''}${m.submenu.reason ? ` — ${m.submenu.reason}` : ''}.`);
       if (m.files.open || m.files.closed) L(`  Screenshots: ${[m.files.closed, m.files.open].filter(Boolean).map((f) => `\`${f}\``).join(', ')}`);
     } else if (m.inline) {
       L(`- **${m.viewport}** — inline nav, ${m.inline.items.length} links: ${m.inline.items.map((i) => `${i.depth ? '↳ ' : ''}${i.text}`).join(' · ')}.`);
       if (m.inline.dropdown) L(`  First dropdown ${m.inline.dropdown.opensOnHover ? 'opens on hover' : 'did not open on hover'}${m.inline.dropdown.animations.length ? ` — ${m.inline.dropdown.animations.map((a) => `${a.name} ${a.durationMs}ms ${a.easing}`).join('; ')}` : ''}.`);
+      for (const pn of m.inline.panels ?? []) L(`  - ${pn.item}: ${pn.open ? `${pn.type}${pn.columns > 1 ? `, ${pn.columns} columns` : ''}, ${pn.geometry.width}×${pn.geometry.height} at ${pn.geometry.x},${pn.geometry.y} from the header, on ${pn.trigger}${pn.opensOnFocus ? '' : ' (⚠ not on keyboard focus)'}` : 'did not open on hover, focus or click'}${pn.file ? ` — \`${pn.file}\`` : ''}`);
     } else {
       L(`- **${m.viewport}** — no menu toggle and no inline nav found${m.error ? ` (${m.error})` : ''}.`);
     }
@@ -1437,8 +1739,8 @@ function report() {
       for (const f of m.found) {
         L(
           f.kind === 'carousel'
-            ? `- \`${m.path}\` @${m.viewport} — carousel (${f.library}), ${f.slides} slide(s), ${f.autoplay ? 'autoplays' : 'did not move in 1.5s'}${f.transition ? `, ${f.transition}` : ''} — \`${f.selector}\``
-            : `- \`${m.path}\` @${m.viewport} — moving text (${f.library})${f.durationMs ? `, ${f.durationMs}ms per loop` : ''}: "${f.text}" — \`${f.selector}\``,
+            ? `- \`${m.path}\` @${m.viewport} — carousel (${f.library}), ${f.slides} slide(s), ${f.autoplay ? `autoplays${f.intervalMs ? ` every ${f.intervalMs}ms` : ''}` : 'did not move while watched'}${f.loop === true ? ', loops' : f.loop === false ? ', does not loop' : ''}${f.transition ? `, ${f.transition}` : ''}${f.arrows?.length ? `, ${f.arrows.length} arrow(s)` : ''}${f.dots ? `, ${f.dots.count} dots` : ''} — \`${f.selector}\``
+            : `- \`${m.path}\` @${m.viewport} — moving text (${f.library})${f.speedPxPerS ? `, ${f.speedPxPerS}px/s ${f.direction}` : ''}${f.durationMs ? `, ${f.durationMs}ms per loop` : ''}: "${f.text}" — \`${f.selector}\``,
         );
       }
     }
@@ -1447,6 +1749,19 @@ function report() {
   } else {
     L('No carousels or moving text found.');
   }
+  L();
+
+  const scrolls = results.filter((r) => r.viewport === 'desktop' && (r.scroll?.reveals?.length || r.scroll?.parallax?.length));
+  if (scrolls.length) {
+    L('Scroll-driven motion (desktop):');
+    L();
+    for (const r of scrolls) {
+      for (const g of r.scroll.reveals) L(`- \`${r.path}\` — reveal ${g.effect}, ${g.durationMs ?? '?'}ms${g.delayMs ? ` +${g.delayMs}ms` : ''} ${g.easing ?? ''}${g.staggerMs ? `, stagger ${g.staggerMs}ms` : ''}, ×${g.count} (${g.library})`);
+      for (const x of r.scroll.parallax) L(`- \`${r.path}\` — parallax ${x.kind}, rate ${x.rate} — \`${x.selector}\``);
+    }
+    L();
+  }
+  L('The full blueprint — header, every nav panel, hero, each section and the footer at each width — is in `recon/blueprint.md`, with clamp() CSS in `recon/blueprint.proposed.css`.');
   L();
 
   L('## Proposed tokens');
@@ -1472,8 +1787,10 @@ function report() {
 
   L('## What this cannot see');
   L();
-  L('- Anything behind a login, a dark mode, and hover/focus states beyond the first dropdown');
-  L('- Motion driven by scroll position — parallax, reveal-on-scroll — and anything slower than the 1.5s watch');
+  L('- Anything behind a login, a dark mode, and hover states outside the menu (card lifts, image zooms)');
+  L('- A mega menu opened by clicking a real link (it is never followed), and motion slower than the watch — a carousel past 12s, a word past 8s');
+  L('- Scroll motion that only fires on a real wheel or touch event, and JS easing curves CSS does not expose');
+  L('- The exact breakpoint between two measured widths: the blueprint names the site\'s own breakpoints in that range');
   L('- The licence a face was bought under. "Self-hosted" means the old site serves the file, not that you may');
   L('- Whether the old design was any good. It is measured, not endorsed: contrast failures above are the old site\'s');
   L();
