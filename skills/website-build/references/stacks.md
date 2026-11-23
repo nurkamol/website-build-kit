@@ -887,8 +887,8 @@ shows it.
 **Spam, in order of preference:**
 1. **Honeypot** — always, free, catches most bots. Accept silently when it trips
 2. **Cloudflare Turnstile** ✅ — free, privacy-preserving, usually invisible, no puzzle. In the
-   template: `PUBLIC_TURNSTILE_SITE_KEY` at build plus the `TURNSTILE_SECRET` secret, both or
-   nothing — a secret with no widget would refuse every lead, so it is ignored and logged. It costs
+   template: `TURNSTILE_SITE_KEY` declared in `src/data/site.ts` (public, so in the repo — not a
+   `.env` a fresh clone lacks) plus the `TURNSTILE_SECRET` secret, both or nothing — a secret with no widget would refuse every lead, so it is ignored and logged. It costs
    the no-JavaScript path for that form
 3. **Rate limiting** at the edge on the endpoint
 4. hCaptcha / reCAPTCHA — only if something above proved insufficient

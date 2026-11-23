@@ -150,7 +150,29 @@ function deployedSecrets() {
   return parsed.map((entry) => entry?.name).filter(Boolean);
 }
 
-const declared = declaredSecrets();
+/*
+ * ⚠ TURNSTILE IS DECLARED IN site.ts, NOT IN .dev.vars.example, so the example cannot say whether
+ *   TURNSTILE_SECRET is needed: only on a site with a key. Read the key's literal out of site.ts (it
+ *   is TypeScript importing import.meta.env, so node cannot import it — the same reasoning as
+ *   check-env). A key with no secret: the widget renders, the visitor solves it, and nothing ever
+ *   verifies the token — a spam check that checks nothing, which looks exactly like one that works.
+ *   A secret with no key: the endpoint ignores it (it would otherwise refuse every enquiry — a site
+ *   built from an older copy of this template did, for the minutes between setting the secret and
+ *   deploying the widget), so it is said here rather than failed.
+ */
+function turnstileKeyDeclared() {
+  if (process.env.PUBLIC_TURNSTILE_SITE_KEY) return true;
+  let src = '';
+  try {
+    src = readFileSync('src/data/site.ts', 'utf8');
+  } catch {
+    return false;
+  }
+  return /export const TURNSTILE_SITE_KEY[^\n]*['"]0x[A-Za-z0-9_-]+['"]/.test(src);
+}
+const turnstile = turnstileKeyDeclared();
+
+const declared = [...new Set([...declaredSecrets(), ...(turnstile ? ['TURNSTILE_SECRET'] : [])])];
 if (!declared.length) {
   console.log(`${DIM}· .dev.vars.example declares no secrets — nothing to check${RESET}`);
   process.exit(0);
@@ -164,6 +186,14 @@ if (deployed === null) {
       `${DIM}  ${declared.length} secret(s) will be required once it is: ${declared.join(', ')}${RESET}`,
   );
   process.exit(0);
+}
+
+if (!turnstile && deployed.includes('TURNSTILE_SECRET')) {
+  console.log(
+    `${YELLOW}!${RESET} TURNSTILE_SECRET is on the worker but no Turnstile site key is declared — the spam\n` +
+      `${DIM}  check is NOT enforced (the endpoint ignores a secret it has no widget for). Declare\n` +
+      `  TURNSTILE_SITE_KEY in src/data/site.ts, or delete the secret.${RESET}`,
+  );
 }
 
 const missing = declared.filter((name) => !deployed.includes(name));

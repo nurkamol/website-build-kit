@@ -115,8 +115,8 @@ carries a rule only when the result is **exact**, and prints every rule it could
 field is then always shown and no longer required. Read that output; it is the list of decisions
 the owner has to make.
 
-**Turnstile is off until both halves exist.** `PUBLIC_TURNSTILE_SITE_KEY` at build renders the
-widget; the `TURNSTILE_SECRET` secret makes the server check it. A secret without a built key is
+**Turnstile is off until both halves exist.** `TURNSTILE_SITE_KEY` in `src/data/site.ts` (the
+site key is public — never only in a gitignored `.env`) renders the widget; the `TURNSTILE_SECRET` secret makes the server check it. A secret without a built key is
 logged and ignored, because enforcing it would refuse every lead. ⚠ Turning it on gives up the
 no-JavaScript path for that form — no script, no token — and the form says so to a visitor with
 scripts off. Honeypot first; Turnstile when real spam arrives.

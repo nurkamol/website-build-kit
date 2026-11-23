@@ -51,6 +51,19 @@ const ANALYTICS = {
  */
 const CF_BEACON_TOKEN = ''; // 32-char hex
 
+/**
+ * Cloudflare Turnstile on the contact form. Empty = no widget, nothing loaded from Cloudflare.
+ *
+ * The SITE key is public by design — it is in every page's HTML — so it is declared here, where a
+ * fresh clone and a Git-connected build both have it. It used to be read only from a build
+ * variable, which a `.env` kept and a new machine or a dashboard build did not. The SECRET is the
+ * Wrangler secret TURNSTILE_SECRET and nothing else: with it set, the endpoint verifies every token
+ * and refuses a missing one. `npm run check:secrets` requires the secret once a key is here, and
+ * refuses the reverse (a secret with no key: every enquiry refused, silently).
+ * PUBLIC_TURNSTILE_SITE_KEY overrides it — e.g. Cloudflare's always-pass test key locally.
+ */
+export const TURNSTILE_SITE_KEY: string = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? ''; // 0x4AAAAAAA…
+
 /** True only on a real production host. Used by the worker as a runtime guard. */
 export function isProductionHost(hostname: string): boolean {
   return (PRODUCTION_HOSTS as readonly string[]).includes(hostname.toLowerCase());

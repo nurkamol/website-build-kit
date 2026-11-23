@@ -17,8 +17,8 @@ type Bindings = {
   LEADS_STAGING?: KVNamespace;
   BREVO_API_KEY?: string;
   LEADS_EXPORT_TOKEN?: string;
-  /** Cloudflare Turnstile secret. The form checks a token only when this is set AND the build had
-      PUBLIC_TURNSTILE_SITE_KEY — see src/pages/api/contact.ts. */
+  /** Cloudflare Turnstile secret. The form checks a token only when this is set AND a site key is
+      declared (TURNSTILE_SITE_KEY in src/data/site.ts) — see src/pages/api/contact.ts. */
   TURNSTILE_SECRET?: string;
 };
 

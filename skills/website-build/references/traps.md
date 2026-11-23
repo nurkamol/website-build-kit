@@ -233,6 +233,44 @@ for(const f of walk('src').filter(f=>f.endsWith('.astro'))){
 
 ---
 
+### `_headers` never reaches a page the Worker renders
+
+⚠ **`public/_headers` is applied to static assets only.** A page with `prerender = false` (the
+contact page, so it can read `?sent=1`) and every `/api/*` response are built by the Worker, and
+went out with **none** of the security headers — and on staging without the `X-Robots-Tag:
+noindex` every prerendered page carried.
+
+*Symptom:* nothing, until an SEO audit or `curl -sI` of the form page: the homepage shows the
+CSP, Referrer-Policy and staging noindex; `/contact/` shows none of them. Found on a real launch.
+
+*Rule:* the list lives in `src/lib/security-headers.ts`; `src/middleware.ts` adds it (and the
+staging noindex) to every response that is not prerendered, and `public/_headers` carries the same
+list for files. `test:gates` compares the two.
+
+### A cover photo on a portrait screen is drawn far wider than `100vw`
+
+⚠ **`sizes="100vw"` is wrong for a full-screen hero on a phone.** The photo is cropped to the
+screen's *height* (`object-fit: cover`), so a 1.32:1 photo on an 844px-tall phone is drawn about
+1,170px wide — and the browser, told 100vw = 390px, picks the 480 file and stretches it. The hero
+is visibly soft on exactly the device most visitors use, and every lab test on a desktop passes.
+
+*Rule:* on portrait screens give the drawn width, not the viewport's:
+`sizes="(max-aspect-ratio: <photo ratio>) calc(100svh * <photo ratio>), 100vw"`. The same applies
+to any layer taller than its window (a parallax photo at 150% height) — and those must not take
+`maxDensity`, which caps a slot that is already undersold.
+
+### A Turnstile site key kept in `.env` is gone on the next machine
+
+⚠ **The widget renders only when the build knows the site key, and `.env` is gitignored.** A key
+set there works on the machine that set it; a fresh clone, a teammate, or a Git-connected
+dashboard build has none, so the form ships with no widget — and if `TURNSTILE_SECRET` is on the
+worker, a template older than 2026-11 then refuses every enquiry, because the endpoint demands a
+token no page renders.
+
+*Rule:* the site key is public (it is in the HTML), so it is declared in `src/data/site.ts`
+(`TURNSTILE_SITE_KEY`); only the secret is a secret. `check:secrets` requires `TURNSTILE_SECRET`
+once a key is declared, and warns about a secret with no key.
+
 ### `Astro.locals.runtime.env` was removed in Astro v6
 
 Reading it throws at request time while the build, the types and the deploy all stay green.
