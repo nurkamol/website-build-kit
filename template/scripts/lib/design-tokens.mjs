@@ -467,7 +467,10 @@ export function writeTokens(css, vars, { decide = false, note = '' } = {}) {
     applied.push(name);
   }
   if (decide) {
-    const block = /([ \t]*)\/\* ══ Undecided[\s\S]*?\*\/[ \t]*\n[ \t]*--unset:[^;\n]*;[^\n]*\n/;
+    /* \r?\n, not \n: a tokens.css checked out on Windows (or saved by an editor set to CRLF) never
+       matched, so --apply removed the --unset line but wrote no note saying where the values came
+       from. Caught by the Windows CI job. */
+    const block = /([ \t]*)\/\* ══ Undecided[\s\S]*?\*\/[ \t]*\r?\n[ \t]*--unset:[^;\r\n]*;[^\r\n]*\r?\n/;
     const replacement = (indent) =>
       `${indent}/* ══ Decided ═════════════════════════════════════════════════════════════\n` +
       `${indent}   ${note}\n` +

@@ -421,12 +421,14 @@ if (process.platform === 'win32') {
 describe('security headers');
 
 {
-  const ts = readFileSync(join(KIT, 'template', 'src', 'lib', 'security-headers.ts'), 'utf8');
+  /* Line endings normalised: a Windows checkout has CRLF, and '/*\n' never matched there. */
+  const lf = (path) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+  const ts = lf(join(KIT, 'template', 'src', 'lib', 'security-headers.ts'));
   const block = /export const SECURITY_HEADERS[^{]*\{([\s\S]*?)\n\};/.exec(ts)?.[1] ?? '';
   /* Each value is read as the string literal it is — double-quoted when it contains single quotes
      (the CSP), single-quoted otherwise — so its last character is compared too. */
   const fromTs = [...block.matchAll(/'([^']+)':\s*(?:"([^"]*)"|'([^']*)')/g)].map((m) => [m[1], m[2] ?? m[3]]);
-  const headersFile = readFileSync(join(KIT, 'template', 'public', '_headers'), 'utf8');
+  const headersFile = lf(join(KIT, 'template', 'public', '_headers'));
   const star = headersFile.split(/\n(?=\S)/).find((b) => b.startsWith('/*\n')) ?? '';
   const missing = fromTs.filter(([name, value]) => !star.includes(`${name}: ${value}`)).map(([n]) => n);
   results.push({
@@ -435,7 +437,7 @@ describe('security headers');
     ok: fromTs.length >= 5 && missing.length === 0,
     detail: fromTs.length < 5 ? `read only ${fromTs.length} header(s) from security-headers.ts` : `missing or different in _headers: ${missing.join(', ')}`,
   });
-  const mw = readFileSync(join(KIT, 'template', 'src', 'middleware.ts'), 'utf8');
+  const mw = lf(join(KIT, 'template', 'src', 'middleware.ts'));
   results.push({
     gate: currentGate,
     label: 'the middleware applies the list and the staging noindex to every non-prerendered response',
