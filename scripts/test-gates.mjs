@@ -2745,6 +2745,235 @@ againstFixture('--apply writes the measured tokens, and tells stops reporting --
   },
 });
 
+/* ── The blueprint: one capture, many values ───────────────────────────────
+ *
+ * ⚠ ONE RUN, MANY CASES, AND THAT IS FOR SPEED, NOT CONVENIENCE. A design run
+ *   against the fixture costs ~20s; a separate run per assertion would cost
+ *   minutes and assert nothing more. Each case still names ONE value it
+ *   expects back, so a failure says which measurement broke. The same
+ *   directory then takes the --only and cache runs, because a cache can only
+ *   be proved against a capture made a moment earlier.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Start the fixture, give `fn` a project directory and a way to run design against it. */
+function designSession(label, faults, fn) {
+  let fx;
+  try {
+    fx = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    return;
+  }
+  const dir = fixture(DESIGN_SITE);
+  try {
+    fn({
+      dir,
+      run: (args) => {
+        const t = Date.now();
+        const r = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, 'design.mjs'), ...args, fx.origin], { cwd: dir, encoding: 'utf8', timeout: 300000 });
+        return { status: r.status, out: plain(`${r.stdout ?? ''}${r.stderr ?? ''}`), ms: Date.now() - t };
+      },
+    });
+  } finally {
+    fx.child.kill('SIGKILL');
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+/** A case over output already written. `fn` returns null when satisfied, else why not. */
+function check(label, fn) {
+  let detail;
+  try {
+    detail = fn();
+  } catch (err) {
+    detail = `threw ${err.message.split('\n')[0]}`;
+  }
+  results.push({ gate: currentGate, label, ok: !detail, detail: detail ?? 'as measured' });
+}
+const near = (a, b, tol) => typeof a === 'number' && Math.abs(a - b) <= tol;
+
+gate('--concurrency that is not 1–8 is a usage error', {
+  script: 'design.mjs',
+  files: {},
+  args: ['--concurrency=0', 'https://old-site.example'],
+  expect: 1,
+  contains: '--concurrency is a whole number',
+});
+
+gate('--budget that is not minutes is a usage error', {
+  script: 'design.mjs',
+  files: {},
+  args: ['--budget=soon', 'https://old-site.example'],
+  expect: 1,
+  contains: '--budget is minutes',
+});
+
+designSession('the blueprint capture runs', 'branded', ({ dir, run }) => {
+  const first = run(['--allow-internal']);
+  check('a full capture exits 0 and prints the time per phase', () =>
+    first.status !== 0 ? `exit ${first.status}: ${first.out.slice(-400)}` : !/time\s+launch [\d.]+s · capture \(6 page-width\(s\), 3 at a time\)/.test(first.out) ? 'no per-phase timing line' : null,
+  );
+  if (first.status !== 0) return;
+  const ix = readJson(dir, 'recon/interactions.json');
+  const sj = readJson(dir, 'recon/sections.json');
+  const home = sj.pages.find((pg) => pg.path === '/');
+  const panels = ix.nav?.desktop?.panels ?? [];
+  const panel = (item) => panels.find((pn) => pn.item === item);
+
+  check('desktop nav: the plain dropdown opens on hover and on focus, and its third level flies out right', () => {
+    const s = panel('Services');
+    if (!s?.open || s.type !== 'dropdown') return `Services ${JSON.stringify(s && { open: s.open, type: s.type })}`;
+    if (s.trigger !== 'hover' || !s.opensOnFocus) return `trigger ${s.trigger}, focus ${s.opensOnFocus}`;
+    if (s.nested?.direction !== 'right') return `third level ${JSON.stringify(s.nested)}`;
+    return s.animations.some((a) => a.property === 'opacity' && a.durationMs === 150 && a.easing === 'ease-in') ? null : `animations ${JSON.stringify(s.animations)}`;
+  });
+  check('desktop nav: the mega menu is three columns, placed, painted and timed as built', () => {
+    const m = panel('Programs');
+    if (!m?.open || m.type !== 'mega' || m.columns !== 3) return `Programs ${JSON.stringify(m && { open: m.open, type: m.type, columns: m.columns })}`;
+    const g = m.geometry;
+    if (!near(g.x, 240, 4) || !near(g.y, 80, 4) || !near(g.width, 960, 4)) return `geometry ${JSON.stringify(g)}, wanted 240,80 960 wide`;
+    if (m.background !== 'rgb(255, 255, 255)' || !/0px 12px 24px/.test(m.shadow) || m.radius !== '0px 0px 8px 8px' || m.padding !== '32px 40px 32px 40px') return `look ${m.background} / ${m.shadow} / ${m.radius} / ${m.padding}`;
+    if (!near(m.columnGap, 32, 2) || m.columnWidths.some((w) => !near(w, 272, 3))) return `columns ${m.columnWidths} gap ${m.columnGap}`;
+    for (const h of ['Column one', 'Column two', 'Featured']) if (!m.headings.includes(h)) return `headings ${m.headings}`;
+    if (m.images.length !== 1) return `${m.images.length} image(s)`;
+    if (!m.animations.some((a) => a.property === 'transform' && a.durationMs === 200 && a.delayMs === 50)) return `animations ${JSON.stringify(m.animations)}`;
+    return existsSync(join(dir, 'shots/design/nav-programs.png')) && existsSync(join(dir, 'shots/design/nav-services.png')) ? null : 'no nav-<item>.png screenshot';
+  });
+  check('mobile and tablet: a submenu inside the open menu is an accordion', () => {
+    const subs = ix.nav.submenus ?? [];
+    for (const vp of ['mobile', 'tablet']) {
+      const s = subs.find((x) => x.viewport === vp);
+      if (s?.behaviour !== 'accordion' || s.item !== 'Programs') return `${vp}: ${JSON.stringify(s && { behaviour: s.behaviour, item: s.item, reason: s.reason })}`;
+    }
+    return null;
+  });
+  check('header: transparent → solid, 80 → 64px, shadow and logo swap on scroll', () => {
+    const h = ix.header.find((x) => x.viewport === 'desktop');
+    const b = h?.behaviour ?? {};
+    if (!b.sticky || !b.transparentOverHero || !b.turnsSolid || !b.shrinks || !b.swapsLogo) return `behaviour ${JSON.stringify(b)}`;
+    if (h.top.height !== 80 || h.scrolledDown.height !== 64) return `heights ${h.top.height} → ${h.scrolledDown.height}`;
+    if (h.scrolledDown.background !== 'rgb(255, 255, 255)' || !/0px 2px 12px/.test(h.scrolledDown.boxShadow)) return `scrolled ${h.scrolledDown.background} / ${h.scrolledDown.boxShadow}`;
+    if (h.top.logo?.src !== '/logo-light.png' || h.scrolledDown.logo?.src !== '/logo-dark.png' || h.top.logo.width !== 120) return `logo ${JSON.stringify(h.top.logo)} → ${JSON.stringify(h.scrolledDown.logo)}`;
+    if (h.top.order !== 'logo · nav · cta' || h.top.ctas[0]?.text !== 'Book now') return `order "${h.top.order}", cta ${h.top.ctas[0]?.text}`;
+    if (!/height 0\.2s ease-out/.test(h.top.transition ?? '')) return `transition ${h.top.transition}`;
+    const mob = ix.header.find((x) => x.viewport === 'mobile');
+    return mob?.top.ctas.length ? `mobile reports a CTA it hides: ${mob.top.ctas[0].text}` : null;
+  });
+  check('hero: image under a 0.4 black overlay, 70vh, eyebrow and headline type', () => {
+    const h = home?.hero?.desktop;
+    if (h?.background.kind !== 'image' || h.background.colour !== 'rgb(20, 90, 140)') return `background ${JSON.stringify(h?.background)}`;
+    if (h.background.overlay?.colour !== 'rgba(0, 0, 0, 0.4)' || h.background.overlay.opacity !== 0.4) return `overlay ${JSON.stringify(h.background.overlay)}`;
+    if (h.minHeightVh !== 70 || !h.underHeader) return `min-height ${h.minHeightVh}vh, under header ${h.underHeader}`;
+    if (h.headline?.fontSize !== '64px' || home.hero.mobile?.headline?.fontSize !== '40px') return `headline ${home.hero.mobile?.headline?.fontSize} → ${h.headline?.fontSize}`;
+    if (h.eyebrow?.fontSize !== '14px' || h.eyebrow.textTransform !== 'uppercase') return `eyebrow ${JSON.stringify(h.eyebrow)}`;
+    if (h.content?.horizontal !== 'left' || h.buttons[0]?.text !== 'Get in touch') return `content ${JSON.stringify(h.content)} buttons ${h.buttons.map((x) => x.text)}`;
+    return h.scrollIndicator ? null : 'no scroll indicator';
+  });
+  check('hero: the rotating words, and how often they change', () => {
+    const r = home?.rotating?.desktop?.[0];
+    if (!r) return 'no rotating text found';
+    if (r.effect !== 'swap' || !r.inHeading) return `effect ${r.effect}, in heading ${r.inHeading}`;
+    if (['fixture', 'sample', 'example'].some((w) => !r.words.includes(w))) return `words ${r.words}`;
+    return near(r.intervalMs, 1000, 100) ? null : `interval ${r.intervalMs}ms, wanted 1000`;
+  });
+  check('scroll: the parallax layer at rate 0.3, in its own section', () => {
+    const pl = ix.scroll.find((s) => s.path === '/' && s.viewport === 'desktop')?.parallax ?? [];
+    const layer = pl.find((x) => x.selector.includes('parallax-bg'));
+    if (!layer || layer.kind !== 'transform' || !near(layer.rate, 0.3, 0.05)) return `parallax ${JSON.stringify(pl)}`;
+    if (pl.length !== 1) return `${pl.length} layers, wanted only the one that moves`;
+    const row = home.sections.find((s) => s.title === 'A parallax band');
+    return row?.motion?.desktop?.parallax?.length === 1 ? null : 'not attached to "A parallax band"';
+  });
+  check('scroll: the AOS reveal — fade + 40px up, 600ms, 100ms stagger', () => {
+    const groups = ix.scroll.find((s) => s.path === '/' && s.viewport === 'desktop')?.reveals ?? [];
+    if (groups.length !== 1) return `${groups.length} reveal group(s): ${JSON.stringify(groups.map((g) => g.effect))}`;
+    const g = groups[0];
+    if (g.library !== 'AOS' || g.effect !== 'fade + slide-up 40px' || g.count !== 3) return `${g.library} "${g.effect}" ×${g.count}`;
+    if (g.durationMs !== 600 || g.easing !== 'cubic-bezier(0.25, 0.1, 0.25, 1)') return `${g.durationMs}ms ${g.easing}`;
+    if (g.staggerMs !== 100 || JSON.stringify(g.delays) !== '[0,100,200]') return `stagger ${g.staggerMs}, delays ${g.delays}`;
+    return ix.scroll.find((s) => s.path === '/' && s.viewport === 'desktop').libraries.includes('AOS') ? null : 'AOS not named as a library';
+  });
+  check('motion: marquee speed and direction, carousel interval, loop, arrows and dots', () => {
+    const found = ix.moving.find((m) => m.path === '/' && m.viewport === 'desktop')?.found ?? [];
+    const mq = found.find((f) => f.kind === 'marquee');
+    if (!mq || !near(mq.speedPxPerS, 125, 12) || mq.direction !== 'left') return `marquee ${JSON.stringify(mq && { speed: mq.speedPxPerS, direction: mq.direction })}, wanted 125px/s left`;
+    const c = found.find((f) => f.kind === 'carousel');
+    if (!c?.autoplay || !near(c.intervalMs, 1000, 100)) return `carousel interval ${c?.intervalMs}`;
+    if (c.loop !== true) return `loop ${c.loop}`;
+    if (c.arrows.length !== 2 || c.dots?.count !== 3 || c.dots.active?.background !== 'rgb(34, 34, 34)') return `arrows ${c.arrows.length}, dots ${JSON.stringify(c.dots)}`;
+    return null;
+  });
+  check('sections: padding per width and columns that stack on a phone', () => {
+    const s2 = home?.sections.find((s) => s.title === 'Section heading');
+    if (!s2) return `no "Section heading" in ${home?.sections.map((s) => s.title)}`;
+    const pads = ['mobile', 'tablet', 'desktop'].map((v) => s2.vp[v]?.padding.top);
+    if (JSON.stringify(pads) !== '[48,72,96]') return `padding-top ${pads}`;
+    const cols = ['mobile', 'tablet', 'desktop'].map((v) => s2.vp[v]?.layout.columns);
+    if (JSON.stringify(cols) !== '[1,2,2]') return `columns ${cols}`;
+    const band = home.sections.find((s) => s.title === 'A band in the brand colour');
+    return band?.vp.desktop.layout.columns === 1 ? null : `carousel slides read as ${band?.vp.desktop.layout.columns} columns`;
+  });
+  check('footer: three columns 2:1:1, stacked on a phone, and the third-party script named', () => {
+    const f = home?.footer?.desktop;
+    if (f?.layout.columns !== 3 || JSON.stringify(f.layout.fractions) !== '[0.5,0.25,0.25]') return `desktop ${JSON.stringify(f?.layout && { columns: f.layout.columns, fractions: f.layout.fractions })}`;
+    if (home.footer.mobile?.layout.columns !== 1) return `mobile ${home.footer.mobile?.layout.columns} columns`;
+    if (!f.widgets.scripts.some((x) => x.includes('widget.example.invalid/embed.js'))) return `scripts ${f.widgets.scripts}`;
+    if (!/©/.test(f.bottomBar?.text ?? '') || !f.widgets.social.includes('instagram')) return `bottom bar ${f.bottomBar?.text}, social ${f.widgets.social}`;
+    return readFileSync(join(dir, 'recon/blueprint.md'), 'utf8').includes('widget.example.invalid/embed.js') ? null : 'blueprint.md does not name the widget script';
+  });
+  check('blueprint.proposed.css: clamp() for the hero heading and the section paddings', () => {
+    const css = readFileSync(join(dir, 'recon/blueprint.proposed.css'), 'utf8');
+    const block = (cls) => css.slice(css.indexOf(`${cls} {`), css.indexOf('}', css.indexOf(`${cls} {`)));
+    if (!css.includes('.bp-home-hero {')) return 'no hero block';
+    if (!/--bp-heading-size: clamp\(2\.5rem, [\d.]+vw [+-] [\d.]+rem, 4rem\)/.test(block('.bp-home-hero'))) return `hero heading: ${block('.bp-home-hero').match(/--bp-heading-size[^;]*/)?.[0]}`;
+    if (!/--bp-pad-top: clamp\(3rem, [\d.]+vw [+-] [\d.]+rem, 6rem\)/.test(block('.bp-home-s2'))) return `s2 padding: ${block('.bp-home-s2').match(/--bp-pad-top[^;]*/)?.[0]}`;
+    if (!/@media \(min-width: \d+px\) \{ \.bp-home-s2 \{ --bp-cols: 1fr 1fr; \} \}/.test(css)) return 'no @media where s2 goes to two columns';
+    if (!css.includes('.bp-header.is-scrolled')) return 'no scrolled header state';
+    if (/^\s*--[a-z-]+: (undefined|null|NaN)/m.test(css) || css.includes('NaN')) return 'an undefined value reached the CSS';
+    return null;
+  });
+  check('blueprint.md: header, navigation, hero, sections and footer per page', () => {
+    const md = readFileSync(join(dir, 'recon/blueprint.md'), 'utf8');
+    for (const h of ['## Header', '## Navigation', '## `/` — home', '### Hero', '### s2 "Section heading"', '### Footer', '## `/about/`']) if (!md.includes(h)) return `no "${h}"`;
+    return /\| undefined|\| null|NaN/.test(md) ? 'an undefined value reached the report' : null;
+  });
+
+  /* --only: one page re-measured; the other comes from the cache the first run wrote. */
+  const second = run(['--allow-internal', '--only=/about/']);
+  const css2 = existsSync(join(dir, 'recon/blueprint.proposed.css')) ? readFileSync(join(dir, 'recon/blueprint.proposed.css'), 'utf8') : '';
+  check('--only measures that one page and takes the rest from the cache', () => {
+    if (second.status !== 0) return `exit ${second.status}: ${second.out.slice(-300)}`;
+    const r = readJson(dir, 'recon/design.json').run;
+    if (r.measured.length !== 3 || r.measured.some((m) => !m.endsWith(' /about/'))) return `measured ${JSON.stringify(r.measured)}`;
+    if (r.fromCache.length !== 3 || r.fromCache.some((m) => !m.endsWith(' /'))) return `from cache ${JSON.stringify(r.fromCache)}`;
+    return second.out.includes('capture (3 page-width(s)') ? null : 'the timing line does not say 3 page-widths';
+  });
+  const third = run(['--allow-internal']);
+  check('a re-run reuses the cache: no browser, same blueprint', () => {
+    if (third.status !== 0) return `exit ${third.status}`;
+    const r = readJson(dir, 'recon/design.json').run;
+    if (r.measured.length !== 0 || r.fromCache.length !== 6) return `measured ${r.measured.length}, cached ${r.fromCache.length}`;
+    if (third.out.includes('browser:')) return 'it launched a browser with everything cached';
+    return readFileSync(join(dir, 'recon/blueprint.proposed.css'), 'utf8') === css2 ? null : 'the blueprint from cache differs from the one just measured';
+  });
+  const fourth = run(['--allow-internal', '--refresh', '--limit=1', '--concurrency=1']);
+  check('--refresh ignores the cache', () => {
+    if (fourth.status !== 0) return `exit ${fourth.status}`;
+    const r = readJson(dir, 'recon/design.json').run;
+    return r.measured.length === 3 && r.fromCache.length === 0 ? null : `measured ${r.measured.length}, cached ${r.fromCache.length}`;
+  });
+});
+
+designSession('a spent budget', 'branded', ({ dir, run }) => {
+  const r = run(['--allow-internal', '--budget=0.1']);
+  check('a spent --budget stops, writes a partial report, and exits 1', () => {
+    if (r.status !== 1) return `exit ${r.status}`;
+    if (!r.out.includes('budget spent')) return `did not say the budget was spent: ${r.out.slice(-300)}`;
+    if (r.ms > 30000) return `took ${Math.round(r.ms / 1000)}s against a 6s budget`;
+    const d = readJson(dir, 'recon/design.json');
+    return d.partial && d.run.unfinished.length ? null : `design.json not marked partial: ${JSON.stringify(d.run)}`;
+  });
+});
+
 /* tells' own half of that: the REAL template tokens.css, with only the
    declaration removed. Before the fix this read as half-decided forever. */
 gate('tells: --unset named in a comment is not the marker', {

@@ -76,7 +76,7 @@ npm run seo   -- https://old-site.com --json recon/seo-before.json --fail-on nev
 `recon/urls.txt` to pick one page per template family:
 
 ```bash
-npm run design -- https://old-site.com    # faces, palette, type, layout, menu, header, sliders
+npm run design -- https://old-site.com    # faces, palette, type, menus, header, hero, sections, motion
 ```
 
 It works the same on Salient/WPBakery, Elementor, Divi, Bricks, Gutenberg and non-WordPress

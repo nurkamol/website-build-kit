@@ -243,7 +243,7 @@ re-read of the whole repo.
 npm run recon -- https://old-site.com     # → recon/urls.txt, preserved.md, integrations.md
 npm run dns   -- old-site.com             # → recon/dns.md + dns.json. THE ROLLBACK ARTEFACT
 npm run seo   -- https://old-site.com --json recon/seo-before.json --fail-on never
-npm run design -- https://old-site.com    # → recon/design.md + tokens.proposed.css. Phase 3 reads it
+npm run design -- https://old-site.com    # → recon/design.md, tokens.proposed.css, blueprint.md. Phase 3 reads them
 ```
 
 Commit all three. `dns.json` is what tells you after cutover whether the launch took the
@@ -308,6 +308,19 @@ in — diff it) and `recon/interactions.json`: the menu toggle opened at each wi
 dropdown or fullscreen, its items and its timing — the header before and after a scroll, and any
 carousel or moving text. Screenshots of the open menu land in `shots/design/`. It never writes to
 the old site: every non-GET request is aborted in the browser, and analytics beacons with them.
+
+**Then build each section from the blueprint, not from a screenshot.** The same run writes
+`recon/blueprint.md` — per page: the header (heights at the top and scrolled, transparent or
+solid, logo variant, element order, sticky/shrink timing), every desktop dropdown and mega menu
+(type, columns, geometry against the header, paint, animation, hover/focus trigger, a screenshot
+each), the hero (background and overlay, min-height in vh, content position, rotating words and
+their interval), each section (padding in px and vw, background, columns and gap, media aspect,
+type, reveal and parallax), and the footer with any third-party widget script. `recon/
+blueprint.proposed.css` has one block per section with the three measurements fitted to
+`clamp()` and an `@media` where the columns change — a proposal to copy from, never applied.
+`--only=/path/` re-measures one page; everything else comes from `recon/.cache` (`--refresh`
+ignores it). A run is capped by `--budget` (15 minutes) and exits 1 with a partial report when
+it runs out.
 
 | Fidelity | What to do with the capture |
 | --- | --- |
