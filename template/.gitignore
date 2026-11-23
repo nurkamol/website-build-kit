@@ -29,3 +29,7 @@ shots/
 # Written by `npm run recon` — the old site's inventory. Commit it deliberately
 # if you want the migration's starting state in history; it is not build output.
 # recon/
+
+# `npm run design`'s per-page-and-width capture cache. Never history, even
+# when recon/ is: it is a cache, re-measured with --refresh.
+recon/.cache/
