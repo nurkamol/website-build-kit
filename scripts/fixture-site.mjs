@@ -55,6 +55,10 @@ const KNOWN_FAULTS = [
   'accepts-empty', // an empty submission accepted instead of 422
   'allows-cross-origin', // a submission from another origin accepted instead of 403
   'coerces-malformed', // a non-string field coerced into a lead instead of refused
+  'turnstile-widget', // /about/ carries a Cloudflare Turnstile widget (markup only — no script is loaded)
+  'turnstile-enforced', // the endpoint refuses a submission without a Turnstile token, 403, BEFORE field validation
+  'lastmod-same', // every sitemap URL carries the same lastmod — a build stamp, no signal
+  'lastmod-partial', // the first two sitemap URLs share a lastmod and the rest carry none (pair with orphan-route for a third)
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
   'vendor-words', // vendor NAMES as ordinary words and a WordPress style preset — no vendor loaded
   'vendor-real', // a vendor actually loaded: Crisp chat's script
@@ -93,6 +97,13 @@ const KNOWN_FAULTS = [
      must still measure ~0%, or the freeze is not doing its job. */
   'motion',
   'motion-phase',
+  /* With `motion`, on the NEW side: the tall parallax layer (taller than the
+     band that clips it, like a Salient `.row-bg`) rebuilt another way.
+     `parallax-split` centres it in CSS and transforms only the offset — the
+     same picture at every scroll position, a different transform at rest.
+     `parallax-misplaced` really is 60px off wherever the band is. */
+  'parallax-split',
+  'parallax-misplaced',
   'no-menu', // with `branded`: no menu toggle and no submenu — the rebuild lost both interactions
   /* ── Not a fault: a site WITH a design, for `npm run design` ─────────────
    * The default fixture is deliberately unstyled, which gives a design capture
@@ -181,7 +192,11 @@ ${
 .fade-band { position: relative; height: 200px; background: rgb(70, 70, 70); }
 .fade-centre { position: absolute; left: 0; top: 50%; transform: translateY(-50%); opacity: 0; transition: opacity 600ms;
   font-size: 60px; line-height: 1; color: rgb(255, 255, 255); }
-.fade-centre.in { opacity: 1; }`
+.fade-centre.in { opacity: 1; }
+/* A parallax layer taller than the band that clips it, striped so any shift shows. */
+.tall-band { position: relative; height: 300px; overflow: hidden; }
+.tall-layer { position: absolute; left: 0; right: 0; top: ${FAULTS.has('parallax-split') ? -90 : 0}px; height: 480px;
+  background: repeating-linear-gradient(rgb(40, 40, 40) 0 60px, rgb(200, 200, 200) 60px 120px); }`
     : ''
 }`;
 
@@ -195,6 +210,7 @@ const MOTION_SECTION = `<section>
 <div data-aos="fade-up">Revealed on scroll</div>
 <div class="pulse"></div>
 <div class="fade-band"><div class="fade-centre">Centred and faded in</div></div>
+<div class="tall-band"><div class="tall-layer" data-parallax="0.6"></div></div>
 </section>`;
 const MOTION_SCRIPT = `<script>
 (() => {
@@ -203,6 +219,17 @@ const MOTION_SCRIPT = `<script>
   const move = () => { layer.style.transform = 'translate3d(0px, ' + ((scrollY * 0.4 + offset + Date.now() / 20) % 80).toFixed(1) + 'px, 0px)'; };
   addEventListener('scroll', move, { passive: true });
   setInterval(move, 50);
+  /* The tall layer slides 180px as its band crosses the viewport: -90px, its centre, when the
+     band is centred. The old side does it all in the transform; parallax-split moves 90px of it
+     into CSS, so its transform differs at every scroll position and the picture at none. */
+  const tall = document.querySelector('.tall-layer');
+  const place = () => {
+    const r = tall.parentElement.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight + r.height)));
+    tall.style.transform = 'translate3d(0px, ' + (-180 * p + ${FAULTS.has('parallax-split') ? 90 : 0} + ${FAULTS.has('parallax-misplaced') ? 60 : 0}).toFixed(1) + 'px, 0px)';
+  };
+  addEventListener('scroll', place, { passive: true });
+  place();
   ${PHASE ? '/* the reveals have not fired yet */' : "document.querySelector('[data-aos]').classList.add('aos-animate'); document.querySelector('.fade-centre').classList.add('in');"}
   const a = document.querySelector('.pulse').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(240px)' }], { duration: 2000, iterations: Infinity });
   a.currentTime = ${PHASE ? 1300 : 0};
@@ -247,6 +274,7 @@ and back to <a href="/">home</a>.</p>
 ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
+${FAULTS.has('turnstile-widget') && path === '/about/' ? '<form method="post" action="/api/contact/"><div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div></form>' : ''}
 </section>
 ${FAULTS.has('insert-section') ? '<section><h2>A section the rebuild added</h2><p>Opening hours are posted by the door.</p></section>' : ''}
 <section${FAULTS.has('section-drift') ? ' style="background: rgb(200, 200, 200); padding: 6rem 0"' : ''}>
@@ -617,7 +645,11 @@ const sitemapIndex = () =>
 const sitemap = () =>
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
   [...Object.keys(ROUTES), ...([])]
-    .map((p, i) => `<url><loc>${BASE}${p}</loc><lastmod>2026-0${i + 1}-15</lastmod></url>`)
+    .map((p, i) => {
+      const date = FAULTS.has('lastmod-same') || FAULTS.has('lastmod-partial') ? '2026-01-15' : `2026-0${i + 1}-15`;
+      const dated = !FAULTS.has('lastmod-partial') || i < 2;
+      return `<url><loc>${BASE}${p}</loc>${dated ? `<lastmod>${date}</lastmod>` : ''}</url>`;
+    })
     .join('') +
   `</urlset>`;
 
@@ -744,6 +776,11 @@ const server = createServer((req, res) => {
           location: FAULTS.has('spam-converts') ? `${BASE}/?sent=1` : `${BASE}/contact/`,
         });
         return res.end();
+      }
+      /* Turnstile verified before the fields, the order a site may choose: no token, no validation. */
+      if (FAULTS.has('turnstile-enforced') && !fields['cf-turnstile-response']) {
+        res.writeHead(403, { 'content-type': 'application/json' });
+        return res.end('{"ok":false,"error":"The spam check did not pass. Please try again."}');
       }
       /*
        * ⚠ THE FAULT HERE IS ACCEPTANCE, NOT A CRASH. The template's own bug was

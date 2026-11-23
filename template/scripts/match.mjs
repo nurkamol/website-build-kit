@@ -4,6 +4,8 @@
  *
  *   npm run match -- --old https://old-site.com --new https://new.example.com
  *   npm run match -- --old … --new … --only=/pricing/       # substring match, as shots; `--only /pricing/` and `--only=/a/,/b/` too
+ *   npm run match -- --old … --new … --only=/                # the home page alone — `/` is exact, never a substring
+ *   npm run match -- --old … --new … --only='^/about/$'      # anchored: ^ start, $ end; both = exactly that route
  *   npm run match -- --old … --new … --threshold=5          # % of a section's pixels, default 3
  *   npm run match -- --old … --new … --text-threshold=0.95  # share of words kept, default 0.98
  *   npm run match -- --old … --new … --viewports=mobile,desktop
@@ -124,7 +126,7 @@ const VIEWPORTS = [
 const OUT = 'shots/match';
 const CACHE = join(OUT, '.cache', 'old');
 /* Part of every cache key. Bump it when capture() would photograph the same page differently. */
-const HARNESS_VERSION = 'match-4';
+const HARNESS_VERSION = 'match-5';
 const CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const DEFAULT_LIMIT = 40;
 const DEFAULT_THRESHOLD = 3; // % of a section's pixels
@@ -139,6 +141,7 @@ const DEFAULT_BUDGET = 20; // minutes for the whole run
 const HEIGHT_WARN = 0.1; // page height ratio outside 0.9–1.1 is called out
 const SCROLLED_BY = 600; // px — the header state after scrolling
 const MAX_DROPDOWNS = 8; // top-level nav items hovered per side
+const MAX_PINS = 24; // parallax layers pinned at their centred position per page — each costs a scroll and two frames
 
 /* Not pages — same list as shots. */
 const NOT_A_PAGE = /\.(pdf|xml|kml|kmz|rss|atom|txt|json|zip|gz|csv|ico|png|jpe?g|gif|webp|avif|svg|mp4|webm|woff2?)$/i;
@@ -157,7 +160,10 @@ const USAGE =
   'usage: npm run match -- --old https://old-site.com --new https://new.example.com\n' +
   '         [--only=/path/[,/other/]] [--threshold=3] [--text-threshold=0.98] [--viewports=mobile,tablet,desktop]\n' +
   '         [--text-only] [--report-only] [--json] [--limit=40] [--timeout=90]\n' +
-  '         [--concurrency=3] [--budget=20] [--refresh-old] [--no-states] [--watch]';
+  '         [--concurrency=3] [--budget=20] [--refresh-old] [--no-states] [--watch]\n' +
+  '  --only is a substring match (/blog/ selects every route containing it), except:\n' +
+  '         --only=/           the home page alone — as a substring it would select every route\n' +
+  "         --only='^/about/$' anchored: ^ matches the start, $ the end; with both, exactly that route";
 
 function usage(problem) {
   console.error(`${RED}✗${RESET} ${problem}\n\n${USAGE}`);
@@ -297,7 +303,25 @@ if (!routes.length) {
   usage(`no routes to compare — no recon/urls.txt and no sitemap on ${OLD}.\n  Run \`npm run recon -- ${OLD}\` first.`);
 }
 
-const matched = routes.filter((r) => !onlyList.length || onlyList.some((f) => r.includes(f)));
+/*
+ * ⚠ `--only=/` USED TO SELECT EVERY ROUTE. A substring match is right for
+ *   `/blog/` and useless for `/`, which is a substring of every path — so
+ *   "only the home page" could not be asked for at all, and the run that tried
+ *   compared the whole site. `/` alone is therefore exact, and `^` / `$` anchor
+ *   any other value. Everything else keeps its substring meaning.
+ */
+const onlyFilter = (f) => {
+  if (f === '/') return { mode: 'exact', test: (r) => r === '/' };
+  const start = f.length > 1 && f.startsWith('^');
+  const end = f.length > 1 && f.endsWith('$');
+  const core = f.slice(start ? 1 : 0, end ? -1 : undefined);
+  if (start && end) return { mode: 'exact', test: (r) => r === core };
+  if (start) return { mode: 'prefix', test: (r) => r.startsWith(core) };
+  if (end) return { mode: 'suffix', test: (r) => r.endsWith(core) };
+  return { mode: 'substring', test: (r) => r.includes(core) };
+};
+const onlyFilters = onlyList.map((f) => ({ raw: f, ...onlyFilter(f) }));
+const matched = routes.filter((r) => !onlyFilters.length || onlyFilters.some((f) => f.test(r)));
 if (!matched.length) usage(`no route matches --only=${onlyRaw}. ${routes.length} known from ${routeSource}.`);
 const ROUTES = matched.slice(0, limit);
 const notCompared = matched.length - ROUTES.length;
@@ -310,7 +334,7 @@ log(`  ${DIM}${OLD} → ${NEW}${RESET}`);
 log(`  ${DIM}${ROUTES.length} route(s) from ${routeSource}${RESET}`);
 log(
   onlyList.length
-    ? `  ${DIM}--only ${onlyList.join(', ')} → ${matched.length} of ${routes.length} route(s): ${ROUTES.slice(0, 6).join(' ')}${ROUTES.length > 6 ? ' …' : ''}${RESET}`
+    ? `  ${DIM}--only ${onlyFilters.map((f) => `${f.raw} (${f.mode})`).join(', ')} → ${matched.length} of ${routes.length} route(s): ${ROUTES.slice(0, 6).join(' ')}${ROUTES.length > 6 ? ' …' : ''}${RESET}`
     : `  ${DIM}no --only: all ${routes.length} route(s)${RESET}`,
 );
 log(
@@ -411,6 +435,11 @@ function compareText(oldHtml, newHtmls, source) {
  *               and kept cleared by a stylesheet rule that outranks the
  *               attribute (and a MutationObserver marking elements that get
  *               one later)
+ *   centre      a parallax layer TALLER than the box that clips it is pinned
+ *               where it sits when that box is centred in the viewport —
+ *               not cleared. See pinParallaxInPage for why `none` is not a
+ *               neutral position for those (rules marked `parallax: true`;
+ *               a layer no taller than its box is still just `still`)
  *   reveal      reveal-on-scroll content is forced to its final, visible
  *               state — the library's own "animated" class added where it has
  *               one, opacity/visibility/transform forced either way
@@ -426,11 +455,12 @@ function compareText(oldHtml, newHtmls, source) {
 const FREEZE_LIST = [
   /* JS-driven motion — only elements that carry an INLINE transform are touched. */
   { what: 'Salient scrolling text (scroll-driven marquee)', selector: '.nectar-scrolling-text, .nectar-scrolling-text *', action: 'still' },
-  { what: 'Salient / WPBakery row background parallax', selector: '.row-bg.using-image, .row-bg-wrap, .row-bg-wrap *, [data-parallax], [data-parallax] > *', action: 'still' },
-  { what: 'Elementor motion effects', selector: '.elementor-motion-effects-element, .elementor-motion-effects-container, .elementor-motion-effects-layer', action: 'still' },
-  { what: 'Rellax', selector: '[data-rellax], .rellax, [data-rellax-speed]', action: 'still' },
-  { what: 'jarallax / parallax.js / Stellar', selector: '[data-jarallax], .jarallax, .jarallax-container, .jarallax-container *, [data-parallax-speed], [data-stellar-ratio]', action: 'still' },
-  { what: 'anything named parallax, marquee, ticker or scrolling text', selector: '[class*="parallax"], [class*="parallax"] > *, [class*="marquee"], [class*="marquee"] > *, [class*="ticker"], [class*="scrolling-text"]', action: 'still' },
+  { what: 'Salient / WPBakery row background parallax', selector: '.row-bg.using-image, .row-bg-wrap, .row-bg-wrap *, [data-parallax], [data-parallax] > *', action: 'still', parallax: true },
+  { what: 'Elementor motion effects', selector: '.elementor-motion-effects-element, .elementor-motion-effects-container, .elementor-motion-effects-layer', action: 'still', parallax: true },
+  { what: 'Rellax', selector: '[data-rellax], .rellax, [data-rellax-speed]', action: 'still', parallax: true },
+  { what: 'jarallax / parallax.js / Stellar', selector: '[data-jarallax], .jarallax, .jarallax-container, .jarallax-container *, [data-parallax-speed], [data-stellar-ratio]', action: 'still', parallax: true },
+  { what: 'anything named parallax', selector: '[class*="parallax"], [class*="parallax"] > *', action: 'still', parallax: true },
+  { what: 'anything named marquee, ticker or scrolling text', selector: '[class*="marquee"], [class*="marquee"] > *, [class*="ticker"], [class*="scrolling-text"]', action: 'still' },
 
   /* Reveal-on-scroll — forced to the final, visible state. */
   { what: 'AOS', selector: '[data-aos]', action: 'reveal', addClass: 'aos-animate' },
@@ -491,7 +521,7 @@ function freezeInPage(list, notAReveal, when) {
   };
   const apply = (el, rule) => {
     if (rule.action === 'still') {
-      if (inlineMotion(el)) el.setAttribute('data-wbk-still', '');
+      if (inlineMotion(el) && !el.hasAttribute('data-wbk-pin')) el.setAttribute('data-wbk-still', '');
     } else if (rule.action === 'reveal') {
       if (rule.addClass) el.classList.add(rule.addClass);
       if (rule.removeClass) el.classList.remove(rule.removeClass);
@@ -539,7 +569,8 @@ function freezeInPage(list, notAReveal, when) {
     window.__wbkObserver = new MutationObserver((records) => {
       for (const r of records) {
         const el = r.target;
-        if (el.nodeType === 1 && !el.hasAttribute('data-wbk-still') && inlineMotion(el)) {
+        /* A pinned parallax layer (pinParallaxInPage) keeps its pin; marking it still would clear it. */
+        if (el.nodeType === 1 && !el.hasAttribute('data-wbk-still') && !el.hasAttribute('data-wbk-pin') && inlineMotion(el)) {
           try {
             if (el.matches(still)) el.setAttribute('data-wbk-still', '');
           } catch {}
@@ -562,6 +593,87 @@ function freezeInPage(list, notAReveal, when) {
       } catch {}
     }
   }
+}
+
+/*
+ * Runs in the page, after the freeze. Pins each tall parallax layer where it
+ * sits when its section is centred in the viewport.
+ *
+ * ⚠ `transform: none` IS NOT A NEUTRAL POSITION FOR A LAYER TALLER THAN ITS
+ *   WINDOW. A Salient/WPBakery `.row-bg` (or any `[data-parallax]` layer) is
+ *   taller than the row that clips it, and the script slides it from one end
+ *   to the other as the row crosses the viewport. Where `none` leaves it
+ *   depends on how each side split position between CSS and transform: the
+ *   old theme parks the layer at top:0 and lets the transform do everything,
+ *   a rebuild may centre it in CSS and transform only the offset. Both render
+ *   the same picture at every scroll position, and `still` measured them as
+ *   far apart as the two splits differ — on a real pair, a faithful rebuild failed the
+ *   section, and a label that rides a parallax column was "fixed" to sit
+ *   below a photo it crosses mid-scroll.
+ *
+ *   The one state both sides agree on is the one a visitor sees: the section
+ *   in the middle of the screen. So each such layer is released, its window
+ *   scrolled to the centre, the transform the page computes there read back,
+ *   and pinned by a rule that outranks the inline style. A layer no taller
+ *   than its window keeps `still` — a time-driven drift has no "centred" value.
+ */
+async function pinParallaxInPage(list, max) {
+  const selector = list.filter((r) => r.parallax).map((r) => r.selector).join(', ');
+  let els;
+  try {
+    els = [...document.querySelectorAll(selector)];
+  } catch {
+    return 0;
+  }
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  /* The box that clips the layer: the nearest ancestor that hides its overflow. */
+  const windowOf = (el) => {
+    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (/hidden|clip/.test(`${cs.overflow} ${cs.overflowY}`)) return p;
+    }
+    return null;
+  };
+  const candidates = [];
+  for (const el of els) {
+    if (candidates.length >= max) break;
+    if (el.hasAttribute('data-wbk-pin')) continue;
+    const win = windowOf(el);
+    if (!win || !el.offsetHeight || el.offsetHeight <= win.clientHeight + 1) continue;
+    /* Marked before anything scrolls, so the observer does not re-still it mid-measure. */
+    el.setAttribute('data-wbk-pin', '');
+    candidates.push({ el, win, still: el.hasAttribute('data-wbk-still') });
+  }
+  const rules = [];
+  for (const [i, { el, win, still }] of candidates.entries()) {
+    el.removeAttribute('data-wbk-still');
+    const r = win.getBoundingClientRect();
+    window.scrollTo(0, Math.max(0, Math.round(r.top + window.scrollY + r.height / 2 - window.innerHeight / 2)));
+    await frames();
+    await new Promise((res) => setTimeout(res, 60));
+    await frames();
+    const cs = getComputedStyle(el);
+    const transform = cs.transform && cs.transform !== 'none' ? cs.transform : 'none';
+    const translate = cs.translate && cs.translate !== 'none' ? cs.translate : 'none';
+    if (transform === 'none' && translate === 'none') {
+      el.removeAttribute('data-wbk-pin');
+      if (still) el.setAttribute('data-wbk-still', '');
+      continue;
+    }
+    el.setAttribute('data-wbk-pin', String(i));
+    rules.push(`[data-wbk-pin="${i}"][data-wbk-pin] { transform: ${transform} !important; translate: ${translate} !important; }`);
+  }
+  if (rules.length) {
+    const sheet = document.createElement('style');
+    sheet.setAttribute('data-wbk-pins', '');
+    sheet.textContent = rules.join('\n');
+    document.head.appendChild(sheet);
+  }
+  if (candidates.length) {
+    window.scrollTo(0, 0);
+    await frames();
+  }
+  return rules.length;
 }
 
 /* Runs in the page. Walks it to fire lazy loading, then settles everything that moves. */
@@ -892,6 +1004,7 @@ async function capture(page, url, viewport, states) {
   await page.addStyleTag({ content: FREEZE });
   await page.evaluate(settleInPage);
   await page.evaluate(freezeInPage, FREEZE_LIST, NOT_A_REVEAL, 'after');
+  await page.evaluate(pinParallaxInPage, FREEZE_LIST, MAX_PINS);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const shape = await page.evaluate(sectionsInPage);
   if (!shape.sections.length) {

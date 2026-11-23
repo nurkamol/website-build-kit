@@ -909,6 +909,35 @@ gate('an uncommitted page is dated today, not its last commit', {
   },
 });
 
+/*
+ * ⚠ A DYNAMIC ROUTE OUTSIDE COLLECTIONS IS UNDATED, AND NOW SAYS SO. The
+ *   twin: the template's own legal route IS in COLLECTIONS, so its page is
+ *   dated and no warning is printed.
+ */
+gate('a dynamic route missing from COLLECTIONS is named as undated', {
+  script: 'lastmod.mjs',
+  files: { ...PAGES, 'src/pages/blog/[slug].astro': '---\nconst t = 1;\n---\n<h1>Post</h1>\n' },
+  setup: repoAt('2024-03-05T12:00:00+00:00'),
+  expect: 0,
+  contains: 'src/pages/blog/[slug].astro',
+});
+
+gate('a dynamic route listed in COLLECTIONS is dated, with no warning', {
+  script: 'lastmod.mjs',
+  files: {
+    ...PAGES,
+    'src/pages/[slug].astro': '---\nconst t = 1;\n---\n<h1>Legal</h1>\n',
+    'src/content/legal/privacy.md': '---\ntitle: Privacy\n---\nWords.\n',
+  },
+  setup: repoAt('2024-03-05T12:00:00+00:00'),
+  expect: 0,
+  then: (dir, out) => {
+    if (out.includes('not in COLLECTIONS')) return 'warned about a route COLLECTIONS covers';
+    const d = lastmodOf(dir, '/privacy/');
+    return d?.startsWith('2024-03-05') ? null : `/privacy/ dated ${d}`;
+  },
+});
+
 /* ────────────────────────────────────────────────────────────────────────
  * og-cards — refuses on the stub config, before it looks for a binary
  * ──────────────────────────────────────────────────────────────────────── */
@@ -1792,6 +1821,59 @@ for (const [label, faults, check] of [
 }
 
 /*
+ * ⚠ A TURNSTILE-PROTECTED FORM ANSWERS AN EMPTY BODY 403, NOT 422. An endpoint
+ *   that verifies the token before the fields refuses the empty probe for
+ *   having no token; verify used to report that as "got 403, expected 422".
+ *   With a widget on a page it is its own passing row. Without a widget the
+ *   same 403 is still a failure, and a widget does not excuse a 200.
+ */
+verifyGate('a Turnstile form refusing a tokenless submission passes, as its own row', {
+  faults: 'turnstile-widget,turnstile-enforced',
+  expect: 0,
+  mark: '✓',
+  check: 'spam check refuses a submission without a token',
+  names: 'Turnstile widget on /about/',
+});
+
+verifyGate('a 403 for an empty submission with no Turnstile widget anywhere is still refused', {
+  faults: 'turnstile-enforced',
+  expect: 1,
+  mark: '✗',
+  check: 'empty submission is rejected',
+  names: 'got 403, expected 422',
+});
+
+verifyGate('a Turnstile widget does not excuse an empty submission accepted with 200', {
+  faults: 'turnstile-widget,accepts-empty',
+  expect: 1,
+  mark: '✗',
+  check: 'empty submission is rejected',
+  names: 'got 200',
+});
+
+/*
+ * ⚠ lastmod: COVERAGE FIRST, THEN VARIANCE. Two dated URLs sharing a date
+ *   while the rest carry none was reported as "1 distinct date(s) across 2
+ *   URL(s)" — a variance failure for what is a coverage gap. Partial coverage
+ *   warns and names the undated URL; one date on EVERY URL still fails.
+ */
+verifyGate('names the sitemap URLs with no lastmod, and warns rather than failing on their dated neighbours', {
+  faults: 'orphan-route,lastmod-partial',
+  expect: 0,
+  mark: '!',
+  check: 'every sitemap URL carries a lastmod',
+  names: '1 of 3 carry none: /pricing/',
+});
+
+verifyGate('one lastmod on every sitemap URL is still refused', {
+  faults: 'lastmod-same',
+  expect: 1,
+  mark: '✗',
+  check: 'lastmod values vary',
+  names: '1 distinct date(s) across 2 URL(s)',
+});
+
+/*
  * ⚠ THESE TWO WARN RATHER THAN REFUSE, AND THE CASES SAY SO.
  *
  *   Writing them as `expect: 1` is how this block was first drafted, and both
@@ -2447,6 +2529,51 @@ againstTwoSites('the same page with its motion at a different phase measures ~0%
 });
 
 /*
+ * ⚠ A TALL PARALLAX LAYER IS PINNED WHERE IT SITS MID-SCROLL, NOT AT `none`.
+ *   The layer is taller than the band that clips it; the old side positions
+ *   it entirely by transform, the new side (`parallax-split`) moves 90px of
+ *   that into CSS. Same picture at every scroll position. Clearing both
+ *   transforms measured the pair 13.6–14.5% different on "Moving parts"
+ *   (match-4, the freeze before this one); pinned at the centred position it
+ *   is 0%. The twin is a layer that really is 60px off wherever the band is —
+ *   pinning must not paper over that.
+ */
+const movingWorst = (dir) => {
+  const vps = matchJson(dir)?.routes[0]?.viewports ?? [];
+  if (vps.length !== 3) return { problem: `compared ${vps.length} width(s)` };
+  const moving = vps.map((v) => v.sections.find((s) => s.title === 'Moving parts'));
+  if (moving.some((s) => !s)) return { problem: 'did not find the moving section at every width' };
+  return { worst: Math.max(...moving.map((s) => s.percent ?? 100)) };
+};
+
+againstTwoSites('a tall parallax layer split differently between CSS and transform measures ~0%', {
+  oldFaults: 'motion',
+  newFaults: 'motion,parallax-split',
+  args: ['--only=/about/', '--no-states'],
+  expect: 0,
+  timeout: 300000,
+  then: (dir) => {
+    const { problem, worst } = movingWorst(dir);
+    if (problem) return problem;
+    return worst <= 0.5 ? null : `"Moving parts" ${worst}% — transform: none was measured as a parallax position`;
+  },
+});
+
+againstTwoSites('a tall parallax layer that is really misplaced is still refused', {
+  oldFaults: 'motion',
+  newFaults: 'motion,parallax-misplaced',
+  args: ['--only=/about/', '--no-states'],
+  expect: 1,
+  timeout: 300000,
+  contains: 'Moving parts',
+  then: (dir) => {
+    const { problem, worst } = movingWorst(dir);
+    if (problem) return problem;
+    return worst > 3 ? null : `"Moving parts" only ${worst}% — the pin hid a layer that is 60px off`;
+  },
+});
+
+/*
  * ⚠ INTERACTION STATES, BOTH DIRECTIONS. The branded fixture has a menu toggle
  *   under 900px and a hover dropdown ("Services") above it. Against itself both
  *   states must be found on each side and measure as equal; against a copy
@@ -2554,6 +2681,47 @@ againstTwoSites('--only=/about/,/contact/ selects both, and nothing else', {
   then: (dir) => {
     const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
     return routes.join() === '/about/,/contact/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
+  },
+});
+
+/*
+ * ⚠ `--only=/` SELECTED EVERY ROUTE — `/` is a substring of every path, so the
+ *   home page alone could not be asked for. `/` is exact now, `^…$` anchors
+ *   any value, and a plain value keeps its substring meaning (the twin below:
+ *   /about/ still selects /about/team/). The header must say which was used.
+ */
+const NESTED_FILES = { 'recon/urls.txt': '/\n/about/\n/about/team/\n' };
+
+againstTwoSites('--only=/ selects the home page alone, and says it matched exactly', {
+  files: NESTED_FILES,
+  args: ['--text-only', '--only=/'],
+  expect: 0,
+  contains: '--only / (exact) → 1 of 3 route(s): /',
+  then: (dir) => {
+    const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
+    return routes.join() === '/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
+  },
+});
+
+againstTwoSites("--only='^/about/$' selects that route and not the one under it", {
+  files: NESTED_FILES,
+  args: ['--text-only', '--only=^/about/$'],
+  expect: 0,
+  contains: '--only ^/about/$ (exact) → 1 of 3 route(s): /about/',
+  then: (dir) => {
+    const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
+    return routes.join() === '/about/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
+  },
+});
+
+againstTwoSites('--only=/about/ is still a substring match: it selects /about/team/ too', {
+  files: NESTED_FILES,
+  args: ['--text-only', '--only=/about/'],
+  expect: 0,
+  contains: '--only /about/ (substring) → 2 of 3 route(s)',
+  then: (dir) => {
+    const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
+    return routes.join() === '/about/,/about/team/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
   },
 });
 

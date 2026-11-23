@@ -18,7 +18,8 @@
  *
  * ── NOTHING HERE CREATES DATA ──────────────────────────────────────────────
  * The form checks are deliberately limited to the three submissions the API
- * REFUSES: a honeypot hit (accepted, never stored), an empty body (422) and a
+ * REFUSES: a honeypot hit (accepted, never stored), an empty body (422 — or
+ * 403 from the spam check, where a page carries a Turnstile widget) and a
  * cross-origin post (403). A valid submission would write a real lead and send
  * a real notification, so this script never sends one. Test that by hand, once,
  * and watch it arrive.
@@ -268,6 +269,9 @@ const meta = new Map();
 /* Weight and render-blocking, from the same HTML. See the Weight section. */
 const perf = new Map();
 const assetUrls = new Set();
+/* Pages carrying a Cloudflare Turnstile widget — read by the Form section. */
+const TURNSTILE_WIDGET = /class=["'][^"']*\bcf-turnstile\b|challenges\.cloudflare\.com\/turnstile\//i;
+const turnstilePages = new Set();
 let scanned = 0;
 
 await pool(pagesToScan, async (pageUrl) => {
@@ -293,6 +297,8 @@ await pool(pagesToScan, async (pageUrl) => {
     if (!targets.has(key)) targets.set(key, new Set());
     targets.get(key).add(new URL(pageUrl).pathname);
   };
+
+  if (TURNSTILE_WIDGET.test(html)) turnstilePages.add(new URL(pageUrl).pathname);
 
   for (const m of html.matchAll(/<a\b[^>]*\shref=["']([^"']+)["']/gi)) add(m[1]);
   for (const m of html.matchAll(/<img\b[^>]*\ssrc=["']([^"']+)["']/gi)) add(m[1]);
@@ -1095,7 +1101,43 @@ const empty = await req('/api/contact/', {
   headers: { origin, accept: 'application/json', 'content-type': 'application/json' },
   body: '{}',
 });
-record('empty submission is rejected', empty.status === 422, `got ${empty.status}, expected 422`);
+/*
+ * ⚠ A 403 HERE IS A PROTECTED FORM, NOT A BROKEN ONE — WHEN THE FORM HAS A
+ *   TURNSTILE WIDGET. An endpoint that verifies the Turnstile token before it
+ *   validates fields refuses an empty body for having no token, and this row
+ *   used to read "got 403, expected 422" on a form that was doing exactly its
+ *   job. So where a page carries the widget, the 403 is reported as what it
+ *   is — its own passing row — and the field validation behind it is named as
+ *   unreachable without a real token, never as checked. Without a widget a
+ *   403 is still a failure, and a 200 or a 5xx always is.
+ */
+/* The honeypot's redirect names the form page; read it too, in case the scan did not. */
+const formPageUrl = (() => {
+  try {
+    const u = new URL(honeypotLocation, origin);
+    return honeypotLocation && u.origin === new URL(origin).origin ? u : null;
+  } catch {
+    return null;
+  }
+})();
+if (formPageUrl && !turnstilePages.has(formPageUrl.pathname)) {
+  const formPage = await req(formPageUrl.pathname);
+  if (formPage.status === 200 && TURNSTILE_WIDGET.test(await formPage.text())) turnstilePages.add(formPageUrl.pathname);
+}
+const widgetOn = [...turnstilePages].sort();
+const widgetWhere = `Turnstile widget on ${widgetOn.slice(0, 3).join(', ')}${widgetOn.length > 3 ? ` and ${widgetOn.length - 3} more` : ''}`;
+if (empty.status === 403 && widgetOn.length) {
+  record('spam check refuses a submission without a token', true, `403 before field validation — ${widgetWhere}`);
+  record('empty submission is rejected', true,
+    'by the spam check, before validation — field validation is not reachable without a real token; send one by hand');
+} else {
+  record('empty submission is rejected', empty.status === 422,
+    `got ${empty.status}, expected 422` +
+      (empty.status === 403 ? ' — a 403 is a spam-check refusal only on a form carrying a Turnstile widget, and no page read here has one' : ''));
+  if (widgetOn.length && empty.status === 422) {
+    notes.push(`${widgetWhere}, checked after validation — whether it refuses a missing token needs a valid submission; test by hand`);
+  }
+}
 
 /*
  * ⚠ A MALFORMED BODY HAS TWO WRONG ANSWERS AND THIS CHECKS FOR BOTH.
@@ -1151,20 +1193,52 @@ if (env === 'production' && smIndex.status === 200) {
     noindexed.join('\n      '));
 
   const smXml = await smIndex.text();
+  const undated = [];
+  let urlCount = 0;
   for (const map of [...smXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])) {
     const r = await req(map);
     if (r.status !== 200) continue;
     const body = await r.text();
-    dates.push(...[...body.matchAll(/<lastmod>([^<]{10})/g)].map((m) => m[1]));
+    for (const [, entry] of body.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
+      urlCount++;
+      const date = /<lastmod>([^<]{10})/.exec(entry)?.[1];
+      if (date) dates.push(date);
+      else undated.push(/<loc>([^<]+)<\/loc>/.exec(entry)?.[1] ?? '(no loc)');
+    }
+  }
+  /*
+   * ⚠ PARTIAL COVERAGE IS ITS OWN FINDING, AND IT CHANGES WHAT "ONE DATE" MEANS.
+   *   On a small rebuild only 2 of the sitemap's URLs carried a lastmod, and
+   *   this reported "1 distinct date(s) across 2 URL(s)" as if every page shared
+   *   one date. The defect was coverage, and the template had two ways to
+   *   produce it: src/data/lastmod.json shipped holding the starter's own
+   *   routes dated by the kit's history (so a project that never ran
+   *   `npm run lastmod` dated those and nothing else), and scripts/lastmod.mjs
+   *   skips every dynamic route not listed in COLLECTIONS. So coverage is
+   *   reported first, by name, and the variance row says how many URLs it is
+   *   actually about.
+   */
+  if (dates.length && undated.length) {
+    record('every sitemap URL carries a lastmod', false,
+      `${undated.length} of ${urlCount} carry none: ${undated.slice(0, 5).map((u) => new URL(u, origin).pathname).join(', ')}` +
+        `${undated.length > 5 ? ' …' : ''} — src/data/lastmod.json predates them, or a dynamic route is missing from COLLECTIONS in scripts/lastmod.mjs; run \`npm run lastmod\` and commit the JSON`,
+      { warn: true });
+  } else if (dates.length) {
+    record('every sitemap URL carries a lastmod', true, `${urlCount} URL(s)`);
   }
   if (dates.length) {
     const distinct = new Set(dates).size;
+    const all = dates.length === urlCount;
     /* One date for everything is the failure mode, not a pass: it is what a
        build timestamp or a layout-as-source bug produces, and Google discounts
-       lastmod on sites whose values are not consistently accurate. */
-    record('lastmod values vary', distinct > 1 || dates.length === 1,
-      `${distinct} distinct date(s) across ${dates.length} URL(s)` +
-        (distinct === 1 && dates.length > 1 ? ' — one date for every page carries no signal' : ''));
+       lastmod on sites whose values are not consistently accurate. With only
+       some URLs dated, the shared date is a symptom of the coverage row above
+       rather than a finding of its own — warned, not failed. */
+    const oneDate = distinct === 1 && dates.length > 1;
+    record('lastmod values vary', !oneDate,
+      `${distinct} distinct date(s) across ${all ? '' : `the ${dates.length} of `}${urlCount} URL(s)${all ? '' : ' that carry one'}` +
+        (oneDate ? (all ? ' — one date for every page carries no signal' : ' — too few dated to say; fix the coverage first') : ''),
+      { warn: oneDate && !all });
   } else {
     notes.push('no <lastmod> in the sitemap — run `npm run lastmod` and commit src/data/lastmod.json');
   }
