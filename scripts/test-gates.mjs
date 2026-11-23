@@ -123,7 +123,27 @@ function gate(label, { script, files, env = {}, args = [], expect, contains, the
             : `exit ${expect}`,
     });
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    cleanup(dir);
+  }
+}
+
+/*
+ * ⚠ ON WINDOWS A TEMP DIRECTORY IS NOT DELETABLE WHILE ANYTHING HOLDS A FILE IN IT, and the cases
+ *   that drive Chrome leave a renderer or its profile lock behind for a moment after the run ends.
+ *   A bare rmSync threw EPERM there and took the WHOLE suite down from inside a `finally` — every
+ *   Windows CI run red, for a cleanup, with no case having failed. Retry while the lock is released;
+ *   if Windows still refuses, leave the directory for the OS temp sweep rather than abort the run.
+ *   Any other error still throws.
+ */
+function cleanup(dir) {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (err) {
+    if (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EBUSY')) {
+      console.log(`${DIM}  (left ${dir} for the OS to clean: ${err.code})${RESET}`);
+      return;
+    }
+    throw err;
   }
 }
 
@@ -386,7 +406,7 @@ if (process.platform === 'win32') {
   });
 
   for (const d of [bothSet, oneSet, notDeployed, loggedOut, demandsJsonFlag, prettyTable, noneSet, tooOldForFlag, withTurnstile]) {
-    rmSync(d, { recursive: true, force: true });
+    cleanup(d);
   }
 }
 
@@ -2163,7 +2183,7 @@ const cannotLinkModules = (() => {
   } catch (err) {
     return `this platform refused a directory link (${err.code}), which pa11y-ci needs to resolve`;
   } finally {
-    rmSync(probe, { recursive: true, force: true });
+    cleanup(probe);
   }
 })();
 
@@ -2655,7 +2675,7 @@ againstTwoSites('a rebuild without the menu and the dropdown is refused, state b
   } finally {
     before?.child.kill('SIGKILL');
     after?.child.kill('SIGKILL');
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    if (dir) cleanup(dir);
   }
 }
 
@@ -3010,7 +3030,7 @@ function designSession(label, faults, fn) {
     });
   } finally {
     fx.child.kill('SIGKILL');
-    rmSync(dir, { recursive: true, force: true });
+    cleanup(dir);
   }
 }
 /** A case over output already written. `fn` returns null when satisfied, else why not. */
@@ -5141,7 +5161,7 @@ if (cannotLinkModules) {
   } catch (err) {
     lightboxCase('the viewer fixture ran', false, err.message);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    cleanup(dir);
   }
 }
 
