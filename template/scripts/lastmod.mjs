@@ -14,6 +14,13 @@
  * here, by a human running a script with a full clone, and committed as data —
  * which is how every other fact in this project is handled.
  *
+ * ── THE TEMPLATE SHIPS `{}` ───────────────────────────────────────────────
+ * It once shipped the starter's own routes dated by the KIT's history. A
+ * project that never ran this script then advertised those few pages with the
+ * kit's date and every page it added with none — a plausible half-sitemap
+ * nobody re-reads. Empty means no lastmod anywhere until this runs, which is
+ * the honest default.
+ *
  * ── UNCOMMITTED WORK COUNTS AS TODAY ──────────────────────────────────────
  * If a page's source is modified but not yet committed, its last commit date
  * is the PREVIOUS edit — so running this before committing would record a date
@@ -107,6 +114,8 @@ function newest(files) {
 const EXTRA_SOURCES = {};
 
 const sources = new Map();
+/* `[slug].astro` and friends: a pattern, not a route — dated only through COLLECTIONS below. */
+const dynamic = [];
 
 const walk = (dir, prefix = '') => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,7 +124,11 @@ const walk = (dir, prefix = '') => {
       if (entry.name !== 'api') walk(full, `${prefix}${entry.name}/`);
       continue;
     }
-    if (!entry.name.endsWith('.astro') || entry.name.startsWith('[')) continue;
+    if (!entry.name.endsWith('.astro')) continue;
+    if (entry.name.startsWith('[')) {
+      dynamic.push(full);
+      continue;
+    }
     const base = entry.name.replace(/\.astro$/, '');
     sources.set(base === 'index' ? `/${prefix}` : `/${prefix}${base}/`, [full]);
   }
@@ -165,3 +178,19 @@ const spread = Object.values(out).reduce((m, d) => m.set(d, (m.get(d) ?? 0) + 1)
 console.log(`${Object.keys(out).length} routes written to ${OUT}`);
 for (const [date, n] of [...spread].sort()) console.log(`  ${date}  ${n} page${n > 1 ? 's' : ''}`);
 if (dirty.size) console.log(`\n${dirty.size} uncommitted file(s) dated today — commit the JSON with them.`);
+
+/*
+ * ⚠ A DYNAMIC ROUTE NOT IN COLLECTIONS IS SILENTLY UNDATED. Every page it
+ *   serves reaches the sitemap with no lastmod, while the static pages beside
+ *   them carry one — a site whose pages are CMS entries rendered through one
+ *   route dates its two or three static pages and nothing else, and verify
+ *   used to read that as "one date for every page". Said here, by file,
+ *   where the fix is.
+ */
+const covered = new Set(COLLECTIONS.map((c) => c.template));
+const undated = dynamic.filter((f) => !covered.has(f)).sort();
+if (undated.length) {
+  console.log(`\n! ${undated.length} dynamic route file(s) not in COLLECTIONS — every page they serve gets no lastmod:`);
+  for (const f of undated) console.log(`    ${f}`);
+  console.log('  Add each one\'s content directory to COLLECTIONS in scripts/lastmod.mjs, then run this again.');
+}

@@ -1,7 +1,43 @@
 # Changelog
 
-## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
+## Unreleased — silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **`match --only=/` compared every route.** `--only` is a substring match and `/` is in every
+  path, so the home page alone could not be selected — the run that asked for it compared the whole
+  site. `--only=/` now means exactly `/`, and `^`/`$` anchor any other value (`--only='^/about/$'`
+  is exactly `/about/`, `--only=^/blog/` every route starting with it). A plain value keeps its
+  substring meaning, so `--only=/about/` still selects `/about/team/`. The header line names each
+  filter's mode: `--only / (exact) → 1 of 3 route(s): /`. Documented in the usage block.
+- **`match` measured a faithful parallax rebuild as drift.** The freeze cleared every
+  script-written transform to `none`, and for a parallax layer taller than the band that clips it
+  (Salient/WPBakery `.row-bg`, any `[data-parallax]` layer) `none` is not neutral: the old theme
+  parks the layer at one end and transforms it the whole way, a rebuild may centre it in CSS and
+  transform only the offset. Same picture at every scroll position, different `none` — and a label
+  riding a parallax column was moved below a photo it actually crosses mid-scroll to "fix" it. Such
+  a layer is now pinned where it sits when its band is centred in the viewport (scrolled there, the
+  transform read back, pinned by a rule that outranks the inline style); a layer no taller than its
+  band keeps `still`. Fixture faults `parallax-split` (the same layer split differently between CSS
+  and transform) and `parallax-misplaced` (really 60px off): the split pair measured 13.6–14.5% on
+  `match-4` and 0% now; the misplaced one is still refused at 27–34%. `HARNESS_VERSION` is
+  `match-5`, so cached old captures are retaken.
+- **`verify` failed a form for being protected by Turnstile.** An endpoint that verifies the
+  Turnstile token before the fields answers an empty submission 403, and verify reported
+  "empty submission is rejected — got 403, expected 422". Where a page carries a Turnstile widget
+  (`.cf-turnstile` or the Turnstile script; the honeypot's redirect target is read too), the 403 is
+  now its own passing row, "spam check refuses a submission without a token", and the empty-body
+  row says validation was not reachable without a token. A 403 with no widget anywhere still fails,
+  and so does a 200 or a 5xx. The template's own endpoint checks the token after validation and
+  still answers 422; verify then notes that the token check needs a hand test. Fixture faults
+  `turnstile-widget`, `turnstile-enforced`.
+- **`verify` called a coverage gap "one date for every page".** On a small rebuild 2 of the
+  sitemap's URLs carried a `lastmod` and the check reported "1 distinct date(s) across 2 URL(s)".
+  Two template causes: `src/data/lastmod.json` shipped holding the starter's own routes dated by
+  the kit's history, so a project that never ran `npm run lastmod` dated those few pages and none
+  of its own; and `scripts/lastmod.mjs` skips every dynamic route not listed in `COLLECTIONS`, so
+  CMS entries rendered through one route are never dated. The template now ships `{}`, `lastmod`
+  names each dynamic route file it cannot date, and verify reports coverage first ("1 of 3 carry
+  none: /pricing/", a warning) and words the variance row for the URLs it is about — still a
+  failure when every URL carries the same date. Fixture faults `lastmod-same`, `lastmod-partial`.
 - **`match` moved a faded-in element by clearing a transform that was layout, not motion.** The
   freeze's catch-all reveal (opacity 0 with a transition) forced `transform: none` on everything it
   revealed. Salient centres its scrolling text with `translateY(-50%)` and fades it in by opacity
