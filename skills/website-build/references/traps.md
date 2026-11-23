@@ -255,9 +255,9 @@ screen's *height* (`object-fit: cover`), so a 1.32:1 photo on an 844px-tall phon
 is visibly soft on exactly the device most visitors use, and every lab test on a desktop passes.
 
 *Rule:* on portrait screens give the drawn width, not the viewport's:
-`sizes="(max-aspect-ratio: <photo ratio>) calc(100svh * <photo ratio>), 100vw"`. The same applies
-to any layer taller than its window (a parallax photo at 150% height) — and those must not take
-`maxDensity`, which caps a slot that is already undersold.
+`sizes="(max-aspect-ratio: <photo ratio>) calc(100svh * <photo ratio>), 100vw"`. A parallax layer
+is the same failure in a smaller box — see "A parallax layer renders its photo wider than its slot"
+below.
 
 ### A Turnstile site key kept in `.env` is gone on the next machine
 
