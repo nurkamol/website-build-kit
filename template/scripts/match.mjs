@@ -10,6 +10,7 @@
  *   npm run match -- --old … --new … --text-only            # no browser: words + headings only
  *   npm run match -- --old … --new … --report-only          # write the report, always exit 0
  *   npm run match -- --old … --new … --json                 # the result on stdout, nothing else
+ *   npm run match -- --old … --new … --timeout=90           # s per browser call before it counts as hung
  *
  * Writes shots/match/index.html (old | new | diff per section, worst first)
  * and shots/match/match.json. Reads both sites; writes to neither.
@@ -78,11 +79,12 @@ const DEFAULT_THRESHOLD = 3; // % of a section's pixels
 const DEFAULT_TEXT = 0.98; // share of the old page's distinct words
 const PIXEL_DELTA = 0.15; // YIQ distance, as pixelmatch measures it
 const MAX_SECTION = 6000; // px compared per section — a 20,000px "section" is a detection failure, not a section
-const MAX_SHOT = 16384; // Chrome cannot rasterise past this; shots.mjs has the trap
+const MAX_PAGE = 30000; // px captured per page. Far taller is almost always broken: a stylesheet that failed leaves full-height backgrounds unbounded
+const DEFAULT_TIMEOUT = 90; // s per browser call before it counts as hung
 const HEIGHT_WARN = 0.1; // page height ratio outside 0.9–1.1 is called out
 
 /* Not pages — same list as shots. */
-const NOT_A_PAGE = /\.(pdf|xml|txt|json|zip|gz|csv|ico|png|jpe?g|gif|webp|avif|svg|mp4|webm|woff2?)$/i;
+const NOT_A_PAGE = /\.(pdf|xml|kml|kmz|rss|atom|txt|json|zip|gz|csv|ico|png|jpe?g|gif|webp|avif|svg|mp4|webm|woff2?)$/i;
 
 /* Identifies the fetches for what they are. A person reading the old site's
    access log should be able to tell this was a comparison, not an attack. */
@@ -102,7 +104,7 @@ const value = (name) => {
 const USAGE =
   'usage: npm run match -- --old https://old-site.com --new https://new.example.com\n' +
   '         [--only=/path/] [--threshold=3] [--text-threshold=0.98] [--viewports=mobile,tablet,desktop]\n' +
-  '         [--text-only] [--report-only] [--json] [--limit=40]';
+  '         [--text-only] [--report-only] [--json] [--limit=40] [--timeout=90]';
 
 function usage(problem) {
   console.error(`${RED}✗${RESET} ${problem}\n\n${USAGE}`);
@@ -136,6 +138,8 @@ if (!Number.isFinite(textThreshold) || textThreshold < 0 || textThreshold > 1) {
 }
 const only = value('only') ?? '';
 const limit = Number(value('limit') ?? DEFAULT_LIMIT) || DEFAULT_LIMIT;
+const timeoutSec = Number(value('timeout') ?? DEFAULT_TIMEOUT);
+if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) usage(`--timeout is seconds per browser call (got ${value('timeout')})`);
 const textOnly = flag('text-only');
 const reportOnly = flag('report-only');
 const asJson = flag('json');
@@ -208,12 +212,26 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: { 'user-agent': UA_TOKEN, accept: 'text/html' }, redirect: 'follow' });
   const html = await res.text();
-  return { status: res.status, final: res.url, html };
+  return { status: res.status, final: res.url, html, type: res.headers.get('content-type') ?? '' };
 }
 
-function compareText(oldHtml, newHtml, source) {
-  const a = pageContent(oldHtml);
-  const b = pageContent(newHtml);
+function compareText(oldHtml, newHtmls, source) {
+  /* Visually hidden text counts on the new side and not the old — lib/page-text.mjs has why. */
+  const a = pageContent(oldHtml, { side: 'old' });
+  /*
+   * ⚠ THE NEW SIDE IS READ TWICE, RENDERED AND AS SERVED, AND A WORD IN EITHER
+   *   COUNTS. A progressively enhanced form ships every option in its HTML and
+   *   lets JavaScript set `hidden` on the conditional ones — so the rendered DOM
+   *   alone reported eleven room names and twelve months "missing" from a form
+   *   that carries all of them. Served HTML is what works with JavaScript off;
+   *   rendered is what a JS-built page shows. A word in either is on the page.
+   */
+  const views = [].concat(newHtmls).filter(Boolean).map((h) => pageContent(h, { side: 'new' }));
+  const b = {
+    text: views.map((v) => v.text).join(' \n '),
+    headings: views.flatMap((v) => v.headings),
+    h1Count: views[0].h1Count,
+  };
   const c = conservation(a.text, b.text);
   const headings = compareHeadings(a, b);
   return {
@@ -326,11 +344,23 @@ function sectionsInPage() {
         return [c];
       });
     let level = expand(root);
+    let container = root;
     /* A single wrapper is not a section; its children are. */
     while (level.length === 1 && level[0].children.length > 1) {
       const inner = expand(level[0]);
       if (!inner.length) break;
+      container = level[0];
       level = inner;
+    }
+    /*
+     * ⚠ BUT PARAGRAPHS ARE NOT SECTIONS. A legal page is one wrapper of <h2>s
+     *   and <p>s; unwrapped, it became 73 "sections" against the rebuild's 4,
+     *   and every one of them failed at 100% by position. When most of what
+     *   is left is running text, the wrapper holding it is the section.
+     */
+    const TEXT = /^(P|H[1-6]|UL|OL|LI|DL|BLOCKQUOTE|TABLE|PRE|FIGURE|IMG|PICTURE|A|SPAN|BR|HR|STRONG|EM|B|I|ADDRESS)$/;
+    if (level.length > 2 && level.filter((el) => TEXT.test(el.tagName)).length >= level.length * 0.6) {
+      level = [container];
     }
     content = level.filter((el) => getComputedStyle(el).position !== 'fixed');
   }
@@ -370,6 +400,17 @@ function sectionsInPage() {
   };
 }
 
+/*
+ * One capture: a FRESH page, settled, measured, and each section photographed
+ * by its own clip — never one full-page bitmap.
+ *
+ * ⚠ ONE PAGE REUSED ACROSS A RUN IS ONE FAILURE AWAY FROM FAILING EVERY ROUTE
+ *   AFTER IT. On the first real pair this ran against, a capture timed out on a
+ *   16,000px legal page; Chrome closed the target, and every later capture
+ *   failed on "Session closed" — two good routes reported as errors because of
+ *   one bad one. Hence a page per capture, closed afterwards, and a browser that
+ *   is relaunched when it stops answering (`captureSafe` below).
+ */
 async function capture(page, url, viewport, wantHtml) {
   await page.setViewport({
     width: viewport.width,
@@ -378,20 +419,96 @@ async function capture(page, url, viewport, wantHtml) {
     isMobile: viewport.name === 'mobile',
     hasTouch: viewport.name === 'mobile',
   });
-  const res = await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+  const res = await page.goto(url, { waitUntil: 'networkidle2', timeout: timeoutSec * 1000 });
   const status = res?.status() ?? 0;
+  const type = res?.headers()['content-type'] ?? '';
   if (status >= 400) return { status, final: page.url() };
+  /* A KML file, a feed or a sitemap is served 200 and is not a page. Settling
+     one hung the browser until the protocol timed out. */
+  if (type && !/html/i.test(type)) return { status, final: page.url(), notHtml: type.split(';')[0] };
   await page.addStyleTag({ content: FREEZE });
   await page.evaluate(settleInPage);
   const shape = await page.evaluate(sectionsInPage);
-  const height = Math.min(shape.height, MAX_SHOT);
-  const png = await page.screenshot(
-    shape.height <= MAX_SHOT
-      ? { fullPage: true, type: 'png' }
-      : { clip: { x: 0, y: 0, width: viewport.width, height }, captureBeyondViewport: true, type: 'png' },
-  );
+  if (!shape.sections.length) {
+    /* No sections found: the page, top to bottom, is the one section. A
+       comparison that compared nothing would read as a pass. */
+    shape.sections = [{ key: 's1', label: 'whole page', y: 0, height: shape.height, title: '' }];
+  }
+  for (const s of shape.sections) {
+    if (s.y >= MAX_PAGE) {
+      s.beyondCap = true;
+      continue;
+    }
+    const height = Math.max(1, Math.min(s.height, MAX_SECTION, MAX_PAGE - s.y));
+    s.png = await page.screenshot({
+      clip: { x: 0, y: s.y, width: viewport.width, height },
+      captureBeyondViewport: true,
+      type: 'png',
+    });
+  }
   const html = wantHtml ? await page.content() : null;
-  return { status, final: page.url(), png, html, truncated: shape.height > MAX_SHOT, ...shape };
+  return { status, final: page.url(), html, truncated: shape.height > MAX_PAGE, ...shape };
+}
+
+let puppeteer;
+let browser = null;
+let engine = '';
+let relaunches = 0;
+
+/*
+ * ⚠ chrome-headless-shell FIRST, and the reason is not speed. The full
+ *   headless Chrome produces frames in step with the machine's display: with the
+ *   display asleep — a long unattended run, a closed lid — `captureScreenshot`
+ *   never returns, on any page, including `data:text/html,<h1>hi</h1>`. Measured
+ *   on macOS: full headless timed out on every capture; the shell captured the
+ *   same page in 0.6s. Puppeteer installs both; fall back if the shell is absent.
+ */
+async function launch() {
+  puppeteer ??= (await import('puppeteer')).default;
+  const opts = { args: ['--no-sandbox'], protocolTimeout: timeoutSec * 1000 };
+  try {
+    browser = await puppeteer.launch({ ...opts, headless: 'shell' });
+    engine = 'chrome-headless-shell';
+  } catch {
+    browser = await puppeteer.launch(opts);
+    engine = 'chrome (full headless — capture stalls while the display sleeps)';
+  }
+}
+
+const connected = () => browser && (browser.connected ?? browser.isConnected?.());
+
+async function captureSafe(url, viewport, wantHtml) {
+  for (let attempt = 1; ; attempt++) {
+    if (!connected()) {
+      await browser?.close().catch(() => {});
+      await launch();
+      relaunches++;
+    }
+    let page = null;
+    try {
+      page = await browser.newPage();
+      await page.setBypassCSP(true); // the freeze stylesheet is inline, and a strict CSP would refuse it
+      await page.setUserAgent(`${await browser.userAgent()} ${UA_TOKEN}`);
+      await page.emulateMediaFeatures([
+        { name: 'prefers-reduced-motion', value: 'reduce' },
+        { name: 'prefers-color-scheme', value: 'light' },
+      ]);
+      return await capture(page, url, viewport, wantHtml);
+    } catch (e) {
+      /* A hung or crashed renderer poisons the browser for whatever runs next.
+         Throw it away, start a new one, and try this capture once more. */
+      const broken = !connected() || /Target closed|Session closed|detached|timed out|timeout|crashed|Protocol error/i.test(e.message);
+      if (broken) {
+        await browser.close().catch(() => {});
+        browser = null;
+        await launch();
+        relaunches++;
+      }
+      if (!broken || attempt >= 2) throw e;
+    } finally {
+      await page?.close().catch(() => {});
+    }
+  }
 }
 
 /* ── pixels ─────────────────────────────────────────────────────────────── */
@@ -401,22 +518,6 @@ async function raw(png) {
   sharp ??= (await import('sharp')).default;
   const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   return { data, width: info.width, height: info.height };
-}
-
-/** Rows y..y+h of an RGB image, at a given width (cropped or rescaled to it). */
-async function cut(img, y, h, width) {
-  const top = Math.max(0, Math.min(y, img.height));
-  const rows = Math.max(0, Math.min(h, img.height - top));
-  const w = Math.min(img.width, width);
-  const out = Buffer.alloc(w * rows * 3);
-  for (let r = 0; r < rows; r++) img.data.copy(out, r * w * 3, ((top + r) * img.width) * 3, ((top + r) * img.width + w) * 3);
-  if (w === width || !rows) return { data: out, width: w, height: rows };
-  /* Different widths: rescale to the common one so a column lines up with a column. */
-  const scaled = await sharp(out, { raw: { width: w, height: rows, channels: 3 } })
-    .resize({ width })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  return { data: scaled.data, width: scaled.info.width, height: scaled.info.height };
 }
 
 const MAX_DELTA = 35215 * PIXEL_DELTA * PIXEL_DELTA;
@@ -473,40 +574,85 @@ async function writePng(img, file) {
 }
 
 /** Pair sections by role and position: header↔header, section n↔section n, footer↔footer. */
+/**
+ * Pair sections: header↔header, footer↔footer, and the content sections by
+ * their headings first, by position between those.
+ *
+ * Position alone breaks on the first section added or removed: every section
+ * after it is compared with its neighbour and fails at 50–100%, which reads as
+ * a rebuild that got everything wrong when it changed one thing. So the longest
+ * run of matching section titles anchors the pairing (an LCS), and only the
+ * sections between two anchors are paired by position — which still pairs a
+ * heading whose typo the rebuild fixed.
+ */
 function pairSections(oldShape, newShape) {
-  const keys = [...new Set([...oldShape.sections, ...newShape.sections].map((s) => s.key))];
-  const order = (k) => (k === 'header' ? -1 : k === 'footer' ? 1e6 : Number(k.slice(1)));
-  return keys
-    .sort((x, y) => order(x) - order(y))
-    .map((k) => ({ key: k, old: oldShape.sections.find((s) => s.key === k), new: newShape.sections.find((s) => s.key === k) }));
+  const role = (shape, k) => shape.sections.find((s) => s.key === k);
+  const content = (shape) => shape.sections.filter((s) => s.key !== 'header' && s.key !== 'footer');
+  const A = content(oldShape);
+  const B = content(newShape);
+  const key = (s) => (s.title ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+  const L = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
+  for (let i = A.length - 1; i >= 0; i--) {
+    for (let j = B.length - 1; j >= 0; j--) {
+      L[i][j] = key(A[i]) && key(A[i]) === key(B[j]) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    }
+  }
+  const anchors = [];
+  for (let i = 0, j = 0; i < A.length && j < B.length; ) {
+    if (key(A[i]) && key(A[i]) === key(B[j])) anchors.push([i++, j++]);
+    else if (L[i + 1][j] >= L[i][j + 1]) i++;
+    else j++;
+  }
+  anchors.push([A.length, B.length]);
+
+  const pairs = [];
+  const pair = (o, n) => pairs.push({ old: o, new: n, label: o && n && o.label !== n.label ? `${o.label} ↔ new ${n.label.replace('section ', '')}` : (o ?? n).label });
+  if (role(oldShape, 'header') || role(newShape, 'header')) pair(role(oldShape, 'header'), role(newShape, 'header'));
+  let pi = 0;
+  let pj = 0;
+  for (const [i, j] of anchors) {
+    const gap = Math.max(i - pi, j - pj);
+    for (let g = 0; g < gap; g++) pair(A[pi + g] && pi + g < i ? A[pi + g] : undefined, B[pj + g] && pj + g < j ? B[pj + g] : undefined);
+    if (i < A.length) pair(A[i], B[j]);
+    pi = i + 1;
+    pj = j + 1;
+  }
+  if (role(oldShape, 'footer') || role(newShape, 'footer')) pair(role(oldShape, 'footer'), role(newShape, 'footer'));
+  return pairs;
+}
+
+/** Decode one clip to RGB, rescaled to the common width when the two sides differ. */
+async function decode(png, width) {
+  const img = await raw(png);
+  if (img.width === width) return img;
+  const scaled = await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
+    .resize({ width })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return { data: scaled.data, width: scaled.info.width, height: scaled.info.height };
 }
 
 async function compareViewport(slug, viewport, a, b) {
-  const imgA = await raw(a.png);
-  const imgB = await raw(b.png);
-  const width = Math.min(imgA.width, imgB.width);
-  /* No sections found on either side: the whole page is the one section. A
-     comparison that silently compared nothing would read as a pass. */
-  const shapeA = a.sections.length ? a : { ...a, sections: [{ key: 's1', label: 'whole page', y: 0, height: imgA.height, title: '' }] };
-  const shapeB = b.sections.length ? b : { ...b, sections: [{ key: 's1', label: 'whole page', y: 0, height: imgB.height, title: '' }] };
   const sections = [];
   let k = 0;
-  for (const pair of pairSections(shapeA, shapeB)) {
-    const label = (pair.old ?? pair.new).label;
+  for (const pair of pairSections(a, b)) {
+    const label = pair.label;
     const title = pair.old?.title || pair.new?.title || '';
-    if (!pair.old || !pair.new) {
-      sections.push({
-        label,
-        title,
-        percent: 100,
-        oldHeight: pair.old?.height ?? 0,
-        newHeight: pair.new?.height ?? 0,
-        note: pair.old ? 'not found on the new site' : 'only on the new site',
-      });
+    const oldHeight = pair.old?.height ?? 0;
+    const newHeight = pair.new?.height ?? 0;
+    if (pair.old?.beyondCap || pair.new?.beyondCap) {
+      /* Reported, never a failure and never a pass: it was not measured. */
+      sections.push({ label, title, percent: null, oldHeight, newHeight, note: `starts below the ${MAX_PAGE}px capture cap — not compared` });
       continue;
     }
-    const ca = await cut(imgA, pair.old.y, Math.min(pair.old.height, MAX_SECTION), width);
-    const cb = await cut(imgB, pair.new.y, Math.min(pair.new.height, MAX_SECTION), width);
+    if (!pair.old || !pair.new) {
+      sections.push({ label, title, percent: 100, oldHeight, newHeight, note: pair.old ? 'not found on the new site' : 'only on the new site' });
+      continue;
+    }
+    const width = viewport.width;
+    const ca = await decode(pair.old.png, width);
+    const cb = await decode(pair.new.png, width);
     const d = diff(ca, cb);
     const base = `${slug}/${viewport.name}/${String(++k).padStart(2, '0')}`;
     mkdirSync(join(OUT, slug, viewport.name), { recursive: true });
@@ -514,8 +660,8 @@ async function compareViewport(slug, viewport, a, b) {
       label,
       title,
       percent: Number(d.percent.toFixed(2)),
-      oldHeight: pair.old.height,
-      newHeight: pair.new.height,
+      oldHeight,
+      newHeight,
       files: {
         old: await writePng(ca, `${base}-old.png`),
         new: await writePng(cb, `${base}-new.png`),
@@ -523,7 +669,7 @@ async function compareViewport(slug, viewport, a, b) {
       },
     });
   }
-  sections.sort((x, y) => y.percent - x.percent);
+  sections.sort((x, y) => (y.percent ?? -1) - (x.percent ?? -1));
   return {
     name: viewport.name,
     width: viewport.width,
@@ -549,19 +695,7 @@ const results = [];
 const failures = [];
 const fail = (route, viewport, section, kind, detail) => failures.push({ route, viewport, section, kind, detail });
 
-let browser = null;
-let page = null;
-if (!textOnly) {
-  const puppeteer = (await import('puppeteer')).default;
-  browser = await puppeteer.launch({ args: ['--no-sandbox'] });
-  page = await browser.newPage();
-  await page.setBypassCSP(true); // the freeze stylesheet is inline, and a strict CSP would refuse it
-  await page.setUserAgent(`${await browser.userAgent()} ${UA_TOKEN}`);
-  await page.emulateMediaFeatures([
-    { name: 'prefers-reduced-motion', value: 'reduce' },
-    { name: 'prefers-color-scheme', value: 'light' },
-  ]);
-}
+if (!textOnly) await launch();
 
 try {
   for (const route of ROUTES) {
@@ -577,10 +711,12 @@ try {
         Object.assign(row, { oldStatus: a.status, newStatus: b.status, oldFinal: a.final, newFinal: b.final.replace(/[?&]nobadge=1/, '') });
         if (a.status >= 400) {
           row.skipped = `HTTP ${a.status} on the old site`;
+        } else if (!/html/i.test(a.type)) {
+          row.skipped = `not a page (${a.type.split(';')[0]})`;
         } else if (b.status >= 400) {
           fail(route, null, null, 'missing', `HTTP ${b.status} on the new site`);
         } else {
-          row.text = compareText(a.html, b.html, 'fetched HTML');
+          row.text = compareText(a.html, b.html, 'served HTML');
         }
       } catch (e) {
         fail(route, null, null, 'error', e.message);
@@ -590,14 +726,14 @@ try {
       for (const viewport of ACTIVE) {
         try {
           await pause(250);
-          const a = await capture(page, oldUrl(route), viewport, !htmlPair);
+          const a = await captureSafe(oldUrl(route), viewport, !htmlPair);
           row.oldStatus = a.status;
           row.oldFinal = a.final;
-          if (a.status >= 400) {
-            row.skipped = `HTTP ${a.status} on the old site`;
+          if (a.status >= 400 || a.notHtml) {
+            row.skipped = a.notHtml ? `not a page (${a.notHtml})` : `HTTP ${a.status} on the old site`;
             break;
           }
-          const b = await capture(page, newUrl(route), viewport, !htmlPair);
+          const b = await captureSafe(newUrl(route), viewport, !htmlPair);
           row.newStatus = b.status;
           row.newFinal = b.final.replace(/[?&]nobadge=1/, '');
           if (b.status >= 400) {
@@ -616,17 +752,21 @@ try {
           fail(route, viewport.name, null, 'error', e.message);
         }
       }
-      if (htmlPair) row.text = compareText(htmlPair[0], htmlPair[1], 'rendered DOM');
+      if (htmlPair) {
+        const served = await fetchHtml(newUrl(route)).catch(() => null);
+        row.text = compareText(htmlPair[0], [htmlPair[1], served?.status === 200 ? served.html : null], 'old rendered; new rendered + served');
+      }
     }
 
     /* ── verdicts for this route ── */
     for (const v of row.viewports) {
       if (v.error) continue;
       for (const s of v.sections) {
-        if (s.percent > threshold) {
+        if (s.percent !== null && s.percent > threshold) {
           fail(route, v.name, s.label, 'visual', `${s.percent}% different${s.note ? ` — ${s.note}` : ''}${s.title ? ` “${s.title}”` : ''}`);
         }
       }
+      if (v.truncated) log(`  ${YELLOW}!${RESET} ${route} · ${v.name}: taller than ${MAX_PAGE}px — sections below the cap not compared`);
       if (v.overflowX > 1) fail(route, v.name, null, 'overflow', `scrolls sideways by ${v.overflowX}px${v.overflowBy ? ` (${v.overflowBy})` : ''}`);
     }
     if (row.text) {
@@ -644,7 +784,7 @@ try {
     const bits = [
       row.skipped ?? '',
       row.text ? `text ${(row.text.ratio * 100).toFixed(1)}%` : '',
-      row.viewports.length ? `worst section ${worst.toFixed(1)}%` : '',
+      row.viewports.some((v) => !v.error) ? `worst section ${worst.toFixed(1)}%` : '',
     ].filter(Boolean);
     log(`  ${mark} ${route}  ${DIM}${bits.join(' · ')}${RESET}`);
   }
@@ -664,6 +804,7 @@ const result = {
   viewports: textOnly ? [] : ACTIVE,
   routeSource,
   notCompared,
+  browser: textOnly ? null : { engine, relaunches, timeoutSeconds: timeoutSec, pageCapPx: MAX_PAGE },
   passed,
   failures,
   routes: results,
@@ -680,6 +821,7 @@ if (asJson) {
     log(`\n  ${YELLOW}!${RESET} ${skipped.length} route(s) not compared — the old site did not serve a page:`);
     for (const r of skipped) log(`      ${DIM}${r.route} (${r.skipped})${RESET}`);
   }
+  if (relaunches) log(`\n  ${YELLOW}!${RESET} the browser stopped answering and was relaunched ${relaunches} time(s) — the routes after it were still compared`);
   if (failures.length) {
     log(`\n${RED}✗ ${failures.length} difference(s) past the threshold${RESET}`);
     for (const f of failures) {
@@ -731,7 +873,7 @@ function report(r) {
   };
 
   const sectionRow = (s) => `<figure class="sec ${over(s) ? 'bad' : ''}">
-      <figcaption><b>${esc(s.label)}</b>${s.title ? ` “${esc(s.title)}”` : ''} — <b>${pct(s.percent)}</b> · ${s.oldHeight}px → ${s.newHeight}px${s.note ? ` · ${esc(s.note)}` : ''}</figcaption>
+      <figcaption><b>${esc(s.label)}</b>${s.title ? ` “${esc(s.title)}”` : ''} — <b>${s.percent === null ? 'not compared' : pct(s.percent)}</b> · ${s.oldHeight}px → ${s.newHeight}px${s.note ? ` · ${esc(s.note)}` : ''}</figcaption>
       ${s.files ? `<div class="three">
         <a href="${esc(s.files.old)}"><img loading="lazy" src="${esc(s.files.old)}" alt="old: ${esc(s.label)}"></a>
         <a href="${esc(s.files.new)}"><img loading="lazy" src="${esc(s.files.new)}" alt="new: ${esc(s.label)}"></a>
@@ -746,7 +888,7 @@ function report(r) {
     return `<details class="vp" ${worst || v.overflowX > 1 ? 'open' : ''}>
       <summary><b>${esc(v.name)} · ${v.width}px</b> — worst ${pct(v.sections[0]?.percent ?? 0)} ·
         height ${v.oldHeight}px → ${v.newHeight}px (<span class="${off ? 'warn' : ''}">×${v.heightRatio}</span>) ·
-        sections ${v.oldSections} → ${v.newSections}${v.overflowX > 1 ? ` · <span class="warn">scrolls sideways ${v.overflowX}px ${esc(v.overflowBy)}</span>` : ''}${v.truncated ? ' · capped at 16384px' : ''}</summary>
+        sections ${v.oldSections} → ${v.newSections}${v.overflowX > 1 ? ` · <span class="warn">scrolls sideways ${v.overflowX}px ${esc(v.overflowBy)}</span>` : ''}${v.truncated ? ` · taller than ${MAX_PAGE}px, captured to the cap` : ''}</summary>
       <p class="cols"><span>old</span><span>new</span><span>difference</span></p>
       ${v.sections.map(sectionRow).join('\n')}
     </details>`;
@@ -789,7 +931,8 @@ function report(r) {
   <p><b>old</b> ${esc(r.old)} → <b>new</b> ${esc(r.new)} · ${esc(r.ranAt.slice(0, 16).replace('T', ' '))} UTC · ${esc(r.mode)}</p>
   <p>Section fails above ${r.thresholds.sectionPercent}% of its pixels (YIQ distance ${r.thresholds.pixelDelta}); text fails under ${r.thresholds.textRatio} of the old page's distinct words.
      Routes from ${esc(r.routeSource)}${r.notCompared ? ` — <b>${r.notCompared} route(s) beyond --limit not compared</b>` : ''}.
-     Animations frozen, carousels on their first slide, cookie banners and chat widgets hidden, light scheme, reduced motion.</p>
+     Animations frozen, carousels on their first slide, cookie banners and chat widgets hidden, light scheme, reduced motion.
+     ${r.browser ? `Captured with ${esc(r.browser.engine)}, each section by its own clip, pages capped at ${r.browser.pageCapPx}px${r.browser.relaunches ? ` — <b>the browser was relaunched ${r.browser.relaunches} time(s)</b> after it stopped answering` : ''}.` : ''}</p>
   <h2>${r.passed ? 'Passed' : `${r.failures.length} difference(s) past the threshold`}</h2>
   ${failList}
 </header>

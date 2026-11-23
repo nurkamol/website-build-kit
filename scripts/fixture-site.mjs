@@ -39,6 +39,9 @@ const arg = (name, fallback) => {
 };
 
 const PORT = Number(arg('port', 8123));
+/* Echoed by /__ready, so the harness knows it reached THIS process and not
+   another fixture already on the port — see startFixture in test-gates. */
+const TOKEN = arg('token', 'ready');
 const FAULTS = new Set((arg('faults', '') || '').split(',').filter(Boolean));
 
 const KNOWN_FAULTS = [
@@ -75,6 +78,12 @@ const KNOWN_FAULTS = [
   'section-drift', // the second section changes colour and grows taller
   'drop-paragraph', // a paragraph of the second section is gone
   'rename-heading', // the third section's heading is reworded
+  'sr-copy', // the third section's sentence carried in a visually hidden copy, the visible one aria-hidden
+  'sr-ui-label', // a WordPress-style screen-reader label inside the content — UI, not copy
+  'renderer-hang', // the home page locks its main thread after load, so the browser stops answering
+  'insert-section', // a new section added before the second one
+  'flat-text', // no sections at all: one wrapper of headings and paragraphs
+  'filename-alt', // an image whose alt text the CMS wrote from its filename
 ];
 for (const f of FAULTS) {
   if (!KNOWN_FAULTS.includes(f)) {
@@ -142,6 +151,11 @@ ${
  * run reads this same page, and a styled band would be a contrast case nobody
  * asked for.
  */
+/* `flat-text`: the same content with no sections — one wrapper of headings and
+   paragraphs, the shape of a builder's legal page. */
+const content = (html) =>
+  FAULTS.has('flat-text') ? `<div class="entry">${html.replace(/<\/?section[^>]*>/g, '')}</div>` : html;
+
 function page({ path, title, description, h1 = 'Heading', canonical = `${BASE}${path}` }) {
   return `<!doctype html>
 <html lang="en">
@@ -157,7 +171,7 @@ ${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" asyn
 </head>
 <body>
 <main>
-<section>
+${content(`<section>
 <h1>${h1}</h1>
 ${FAULTS.has('two-h1') && path === '/about/' ? '<h1>A second heading</h1>' : ''}
 <p class="ok">Body copy long enough to be substantial, so the page is not treated as empty
@@ -168,6 +182,7 @@ ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
 </section>
+${FAULTS.has('insert-section') ? '<section><h2>A section the rebuild added</h2><p>Opening hours are posted by the door.</p></section>' : ''}
 <section${FAULTS.has('section-drift') ? ' style="background: rgb(200, 200, 200); padding: 6rem 0"' : ''}>
 <h2>Second section</h2>
 <p>The quarterly ledger reconciles itself overnight, and nobody has to stay late for it.</p>
@@ -175,10 +190,26 @@ ${FAULTS.has('drop-paragraph') ? '' : '<p>Our couriers deliver parcels before br
 </section>
 <section>
 <h2>${FAULTS.has('rename-heading') ? 'A renamed section' : 'Third section'}</h2>
-<p>Questions go to the front desk, which answers them in the order they arrive.</p>
-</section>
+${
+  FAULTS.has('sr-copy')
+    ? /* The accessible shape of a decorative marquee: the words once for
+         assistive tech, the moving copy hidden from it. Real copy, not chrome. */
+      '<p class="visually-hidden">Questions go to the front desk, which answers them in the order they arrive.</p>' +
+      '<p aria-hidden="true" data-t="Questions go to the front desk"></p>'
+    : '<p>Questions go to the front desk, which answers them in the order they arrive.</p>'
+}
+${FAULTS.has('filename-alt') ? '<img src="/hero.png" width="80" height="60" alt="IMG 20231028 133434">' : ''}
+${FAULTS.has('sr-ui-label') ? '<label><span class="screen-reader-text">Search for:</span><input type="search" name="s"></label>' : ''}
+</section>`)}
 </main>
 ${FAULTS.has('console-error') ? '<script>notAFunctionAnywhere();</script>' : ''}
+${
+  FAULTS.has('renderer-hang') && path === '/'
+    ? /* After load, so the response and network idle both look healthy — the
+         browser only stops answering once something asks it to do work. */
+      "<script>addEventListener('load', () => setTimeout(() => { for (;;) {} }, 50));</script>"
+    : ''
+}
 </body>
 </html>`;
 }
@@ -266,7 +297,7 @@ const server = createServer((req, res) => {
     res.end(req.method === 'HEAD' ? undefined : body);
   };
 
-  if (path === '/__ready') return send(200, 'text/plain', 'ready');
+  if (path === '/__ready') return send(200, 'text/plain', TOKEN);
   /*
    * A page that redirects somewhere the crawler must refuse to follow — the
    * SSRF shape recon's guard exists for. The old site is not ours, and a 302
