@@ -38,6 +38,24 @@ element every navigation and the old handler keeps mutating the previous page's 
 
 *Fix:* never capture a non-persisted element in a long-lived closure. Look it up at call time.
 
+### The router takes a link click before a script that enhances the link
+
+The router listens for clicks on `document` and is registered first, so a delegated listener
+that turns a link into something else — the photo viewer — runs after the router has already
+started navigating. A photo link then opens **the bare image file** instead of the viewer.
+
+*Symptom:* works where the router is off; on the site every click leaves the page. No error.
+
+*Fix:* `data-astro-reload` on the link. `LightboxPhoto.astro` sets it — keep it if you restyle or
+replace that component, and add it to anything else a script intercepts.
+
+### `transitionend` bubbles
+
+A close that waits for the panel's `transitionend` is ended by the first CHILD to finish a
+transition — a link easing out, a button's colour — and the panel vanishes mid-animation.
+`Header.astro` checks `event.target === panel` for this reason; keep the check if you give the
+menu a richer animation.
+
 ### `trailingSlash: 'always'` breaks form POSTs
 
 `POST /api/contact` 308-redirects to `/api/contact/` and the redirected request loses its body

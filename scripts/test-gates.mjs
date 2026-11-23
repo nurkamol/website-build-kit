@@ -4761,6 +4761,155 @@ gate('a comments-only file is not a failure', {
   contains: '0 redirect rule',
 });
 
+/* ────────────────────────────────────────────────────────────────────────
+ * Lightbox — the template's photo viewer, built and driven in a browser
+ *
+ * A component, not a gate, but held to the same rule: a case that can only
+ * pass proves nothing. The viewer exists because of one silent failure — the
+ * ClientRouter claims a same-origin link click before the viewer's listener
+ * and navigates to the bare image file — so the fixture carries a link WITHOUT
+ * `data-astro-reload` and asserts the router really does take it there. If
+ * that refusal stops reproducing, the router is not in play and the positive
+ * cases are testing nothing.
+ *
+ * A real build because the trap is in the built page: the component's script
+ * bundled next to the router's, both listening on `document`, in that order.
+ * And `tells` on the same copy, because a viewer that brought a look with it
+ * would turn a fresh clone half-decided.
+ *
+ * ⚠ `vite.resolve.preserveSymlinks` IS PATCHED INTO THE COPY'S CONFIG. The
+ *   fixture links the template's node_modules rather than installing, and
+ *   without it Vite resolves the router component by its real path and then
+ *   asks for its styles by the linked one — "No cached compile metadata found
+ *   for …ClientRouter.astro". That is the harness, not the template.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('Lightbox — the template viewer, built and driven');
+
+const LIGHTBOX_PAGE = `---
+import Base from '../layouts/Base.astro';
+import Lightbox from '../components/Lightbox.astro';
+import LightboxPhoto from '../components/LightboxPhoto.astro';
+---
+<Base title="Viewer fixture" description="fixture">
+  <main id="main">
+    <section data-lightbox-group><h2>Three</h2>
+      <LightboxPhoto name="gallery/a" alt="first" sizes="200px" />
+      <LightboxPhoto name="gallery/b" alt="second" sizes="200px" />
+      <LightboxPhoto name="gallery/c" alt="third" sizes="200px" />
+    </section>
+    <section data-lightbox-group><h2>One</h2>
+      <LightboxPhoto name="gallery/a" alt="alone" sizes="200px" />
+    </section>
+    <section data-lightbox-group><h2>Unguarded</h2>
+      <a href="/img/gallery/c-1200.webp" data-lightbox-item data-alt="unguarded" id="unguarded">unguarded</a>
+    </section>
+    <a href="/lightbox-other/" id="away">away</a>
+  </main>
+  <Lightbox />
+</Base>
+`;
+
+const LIGHTBOX_OTHER = `---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Other" description="fixture"><main id="main"><a href="/lightbox-fixture/" id="back">back</a></main></Base>
+`;
+
+const LIGHTBOX_MANIFEST = Object.fromEntries(
+  ['a', 'b', 'c'].map((name) => [
+    `gallery/${name}`,
+    {
+      src: `/img/gallery/${name}-1200.webp`,
+      width: 1200,
+      height: 800,
+      aspect: 1.5,
+      srcset: `/img/gallery/${name}-480.webp 480w, /img/gallery/${name}-1200.webp 1200w`,
+      avifSrcset: null,
+      widths: [480, 1200],
+    },
+  ]),
+);
+
+const lightboxCase = (label, ok, detail = '') => results.push({ gate: currentGate, label, ok: !!ok, detail: ok ? '' : String(detail) });
+
+if (cannotLinkModules) {
+  results.push({ gate: currentGate, label: 'Lightbox cases', ok: true, skipped: true, detail: `skipped — ${cannotLinkModules}` });
+} else {
+  const dir = mkdtempSync(join(tmpdir(), 'kit-lightbox-'));
+  try {
+    /* What a clone would have: never a local build, cache, crawl or generated image. */
+    const SKIP = new Set(['node_modules', 'dist', '.astro', '.wrangler', 'recon', 'shots', 'media', '.dev.vars']);
+    cpSync(join(KIT, 'template'), dir, {
+      recursive: true,
+      filter: (src) => {
+        const rel = src.slice(join(KIT, 'template').length + 1);
+        return !SKIP.has(rel.split(/[\\/]/)[0]) && !/^public[\\/]img([\\/]|$)/.test(rel);
+      },
+    });
+    symlinkSync(TEMPLATE_MODULES, join(dir, 'node_modules'), 'junction');
+
+    /* tells first, on the template as it ships plus the viewer — before any
+       fixture page or build output can change what it reads. */
+    const undecided = spawnSync(process.execPath, [join(dir, 'scripts', 'tells.mjs'), '--undecided-only'], { cwd: dir, encoding: 'utf8' });
+    const undecidedOut = plain(`${undecided.stdout}${undecided.stderr}`);
+    lightboxCase(
+      'tells: the template with the viewer in it is still a "fresh template"',
+      undecided.status === 0 && undecidedOut.includes('fresh template'),
+      `exit ${undecided.status}: ${undecidedOut.slice(-300)}`,
+    );
+    const tells = spawnSync(process.execPath, [join(dir, 'scripts', 'tells.mjs')], { cwd: dir, encoding: 'utf8' });
+    const tellsOut = plain(`${tells.stdout}${tells.stderr}`);
+    const fired = ['raw hex colours inside components', 'motion longer than 400ms', 'focus ring removed and not replaced', 'border radii of 24px', 'frosted glass'].filter((t) =>
+      tellsOut.includes(`✗ ${t}`),
+    );
+    lightboxCase('tells: the viewer adds no tell (no hex, no slow motion, no stripped focus ring)', tells.status === 0 && !fired.length, `exit ${tells.status}, fired: ${fired.join(', ')}`);
+
+    const config = join(dir, 'astro.config.mjs');
+    const before = readFileSync(config, 'utf8');
+    const patched = before.replace(/^  vite: \{/m, '  vite: {\n    resolve: { preserveSymlinks: true },');
+    if (patched === before) throw new Error('astro.config.mjs has no `  vite: {` block to patch — update this harness');
+    writeFileSync(config, patched);
+    writeFileSync(join(dir, 'src', 'data', 'image-manifest.json'), JSON.stringify(LIGHTBOX_MANIFEST, null, 1));
+    writeFileSync(join(dir, 'src', 'pages', 'lightbox-fixture.astro'), LIGHTBOX_PAGE);
+    writeFileSync(join(dir, 'src', 'pages', 'lightbox-other.astro'), LIGHTBOX_OTHER);
+    cpSync(join(KIT, 'scripts', 'fixtures', 'lightbox', 'driver.mjs'), join(dir, 'driver.mjs'));
+
+    const build = spawnSync(process.execPath, [join(dir, 'node_modules', 'astro', 'bin', 'astro.mjs'), 'build'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, PUBLIC_SITE_ENV: 'staging' },
+      timeout: 240000,
+      killSignal: 'SIGKILL',
+    });
+    if (build.status !== 0) throw new Error(`the template did not build with the viewer on a page:\n${plain(`${build.stdout}${build.stderr}`).slice(-1200)}`);
+
+    /* Without JavaScript: each photo is a link to its LARGEST rendition. */
+    const html = readFileSync(join(dir, 'dist', 'client', 'lightbox-fixture', 'index.html'), 'utf8');
+    const links = [...html.matchAll(/<a\b[^>]*\bdata-lightbox-item\b[^>]*>/g)].map((m) => m[0]).filter((a) => !a.includes('unguarded'));
+    lightboxCase(
+      'no JavaScript: every photo links to its largest rendition, not the thumbnail',
+      links.length === 4 && links.every((a) => /href="\/img\/gallery\/[abc]-1200\.webp"/.test(a)),
+      links.join('\n'),
+    );
+    lightboxCase('every viewer link carries data-astro-reload', links.length === 4 && links.every((a) => /\bdata-astro-reload\b/.test(a)), links.join('\n'));
+    const dialogs = (html.match(/<dialog\b/g) ?? []).length;
+    lightboxCase('one dialog on the page', dialogs === 1, `${dialogs} dialogs`);
+
+    const drive = spawnSync(process.execPath, [join(dir, 'driver.mjs')], { cwd: dir, encoding: 'utf8', timeout: 180000, killSignal: 'SIGKILL' });
+    let driven = null;
+    try {
+      driven = JSON.parse(drive.stdout.trim().split('\n').pop());
+    } catch {
+      lightboxCase('the browser driver reported', false, `exit ${drive.status}: ${`${drive.stdout}${drive.stderr}`.slice(-800)}`);
+    }
+    for (const r of driven ?? []) lightboxCase(r.label, r.ok, r.detail);
+  } catch (err) {
+    lightboxCase('the viewer fixture ran', false, err.message);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /* ────────────────────────────────────────────────────────────────────────
  * Report

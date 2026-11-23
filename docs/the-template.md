@@ -89,6 +89,8 @@ src/pages/accessibility.astro  the statement — a required artefact under the E
 src/styles/                    tokens → prose → global → project
 src/components/                header, footer, form, page opening, CTA, SEO, structured data
   EnvBadge.astro               standing non-production marker. verifies the DOM, never asserts
+  Lightbox.astro               full-screen photo viewer: <dialog>, counter, keys, swipe, zoom.
+  LightboxPhoto.astro          …and the link that opens it. No grid — that is the project's
 src/env.d.ts                   Cloudflare Workers types, so the runtime file is type-checked
 tsconfig.json                  astro/tsconfigs/strict. Without it every Props interface is decorative
 public/_headers                cache rules for unfingerprinted assets, plus security headers
@@ -155,6 +157,16 @@ sitemap `filter` and the pages' own `noindex` are two lists that must agree; `ch
 is what keeps them honest, because `@astrojs/sitemap` decides inclusion before any page
 renders and cannot know.
 
+**`src/components/Lightbox.astro` + `LightboxPhoto.astro`** — a photo gallery's full-screen
+viewer, as plumbing with a placeholder look. Put `<LightboxPhoto name alt sizes>` wherever a
+photo should open big, wrap each set in an element with `data-lightbox-group` (the counter reads
+"2 / 8" within it), and put `<Lightbox />` once on the page. The grid, the crop and the hover are
+yours. Three things in it are the reason it ships: each link points at the **largest** rendition,
+so it works without JavaScript; each link carries **`data-astro-reload`**, or the ClientRouter
+takes the click to the bare image file; and the script sets itself up on `astro:page-load`, so it
+never drives the previous page's detached dialog. `test:gates` builds it and drives it in a
+browser, including the router taking a link that lacks the attribute.
+
 **`src/data/business.ts`, `schemaTypes`** — the organisation's schema.org types. Set the
 subtype or leave the two generic ones. A wrong subtype is worse than none: it is a specific
 claim and local classification acts on it. This shipped as `HVACBusiness` for two projects, so
@@ -201,7 +213,8 @@ where you look at half-finished work.
 - A CMS — add PagesCMS or Keystatic only if someone non-technical publishes
 - Any legal *content* — `src/content/legal/` ships the route, the schema and the footer
   wiring, and not one word of a policy. Nobody should inherit a privacy notice
-- Testimonials, pricing, galleries — project-shaped, not skeleton-shaped
+- Testimonials, pricing, gallery layouts — project-shaped, not skeleton-shaped. The gallery
+  **viewer** does ship (`Lightbox.astro`), because it is behaviour you would get wrong: see below
 
 ## Checklist for a new site
 

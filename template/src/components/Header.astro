@@ -459,7 +459,16 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
           if (!open) menu.hidden = true;
         };
         if (panel && window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
-          panel.addEventListener('transitionend', finish, { once: true });
+          // ⚠ The PANEL's own transition only. transitionend bubbles, so with
+          // `{ once: true }` the first child to finish one — a button's colour,
+          // a link easing out — ended the close early and the panel vanished
+          // mid-animation. Found on a real build with a clip-path wipe.
+          const onEnd = (event: TransitionEvent) => {
+            if (event.target !== panel) return;
+            panel.removeEventListener('transitionend', onEnd);
+            finish();
+          };
+          panel.addEventListener('transitionend', onEnd);
           // Belt and braces: if the transition never fires, hide anyway.
           setTimeout(finish, 600);
         } else {
