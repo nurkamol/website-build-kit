@@ -28,6 +28,7 @@
     "console": "node scripts/check-console.mjs",
     "deploy:production": "npm run build:production && wrangler deploy && node scripts/check-secrets.mjs",
     "deploy:staging": "npm run build:staging && wrangler deploy && node scripts/check-secrets.mjs",
+    "design": "node scripts/design.mjs",
     "dev": "astro dev",
     "dns": "node scripts/dns-snapshot.mjs",
     "extract": "node scripts/extract.mjs",

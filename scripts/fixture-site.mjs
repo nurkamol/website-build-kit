@@ -67,6 +67,15 @@ const KNOWN_FAULTS = [
   'dark-only-contrast', // AA contrast that passes in light and fails in dark
   'no-stylesheet', // a page that arrives with no CSS at all
   'orphan-route', // a page in the sitemap that no other page links to
+
+  /* ── Not a fault: a site WITH a design, for `npm run design` ─────────────
+   * The default fixture is deliberately unstyled, which gives a design capture
+   * nothing to find — and a capture that finds nothing on a site with nothing
+   * passes for the wrong reason. This one has known faces, a known palette,
+   * known sizes at known breakpoints, a menu toggle with an off-canvas panel,
+   * a header that changes on scroll, a carousel and a marquee, so the cases
+   * can assert the capture found each one by value. */
+  'branded',
 ];
 for (const f of FAULTS) {
   if (!KNOWN_FAULTS.includes(f)) {
@@ -157,17 +166,164 @@ ${FAULTS.has('console-error') ? '<script>notAFunctionAnywhere();</script>' : ''}
 </html>`;
 }
 
+/*
+ * ── THE BRANDED SITE ────────────────────────────────────────────────────────
+ * Every value here is synthetic and asserted on by name in test-gates.mjs:
+ * the two faces, ground rgb(250, 248, 244), ink rgb(34, 34, 34), brand
+ * rgb(20, 90, 140), accent rgb(200, 80, 40), h1 40px → 64px at 1024px, a
+ * 1200px container with 24px padding (1152px of content), 12px photo corners
+ * and an 80px header. The faces are never loaded — computed font-family is
+ * what the capture reads, and a font request would make the case depend on a
+ * file this server does not have.
+ *
+ * Channels, not hex, for the same provenance-sweep reason as STYLE above.
+ */
+const BRANDED_STYLE = `
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: rgb(250, 248, 244); color: rgb(34, 34, 34);
+  font-family: "Fixture Sans", Arial, sans-serif; font-size: 18px; line-height: 1.6; }
+h1, h2, h3 { font-family: "Fixture Display", Georgia, serif; line-height: 1.1; margin: 0 0 0.5em; }
+h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 28px; font-weight: 700; }
+h3 { font-size: 22px; font-weight: 600; }
+@media (min-width: 1024px) { h1 { font-size: 64px; } h2 { font-size: 40px; } h3 { font-size: 28px; } }
+p { margin: 0 0 1.25em; }
+a { color: rgb(20, 90, 140); }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.site-header { position: fixed; top: 0; left: 0; right: 0; height: 80px; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+  background: rgba(0, 0, 0, 0); transition: background-color 200ms ease-out; }
+.site-header.scrolled { background: rgb(255, 255, 255); }
+.site-header a { color: rgb(255, 255, 255); }
+.site-header.scrolled a { color: rgb(34, 34, 34); }
+.menu-toggle { display: none; }
+#site-menu ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 24px; }
+#site-menu li { position: relative; }
+#site-menu .sub-menu { position: absolute; top: 100%; left: 0; display: block; background: rgb(255, 255, 255);
+  padding: 12px; opacity: 0; visibility: hidden; transition: opacity 150ms ease-in; }
+#site-menu .sub-menu a { color: rgb(34, 34, 34); }
+#site-menu li:hover > .sub-menu { opacity: 1; visibility: visible; }
+@media (max-width: 899px) {
+  .menu-toggle { display: block; font: inherit; padding: 8px 12px; }
+  #site-menu { position: fixed; top: 0; right: 0; height: 100vh; width: 80vw; background: rgb(255, 255, 255);
+    padding: 96px 24px 24px; transform: translateX(100%); visibility: hidden;
+    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 300ms; }
+  #site-menu.is-open { transform: translateX(0); visibility: visible; transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+  #site-menu ul { display: block; }
+  #site-menu a { color: rgb(34, 34, 34); }
+  #site-menu .sub-menu { position: static; opacity: 1; visibility: inherit; padding: 0 0 0 16px; }
+}
+.hero { min-height: 70vh; background: rgb(20, 90, 140); color: rgb(255, 255, 255); padding: 140px 0 64px; }
+.hero h1 { color: rgb(255, 255, 255); }
+.btn { display: inline-block; background: rgb(200, 80, 40); color: rgb(255, 255, 255); border-radius: 6px;
+  padding: 14px 28px; text-decoration: none; font-weight: 600; }
+section { padding: 64px 0; }
+.band { background: rgb(20, 90, 140); color: rgb(255, 255, 255); }
+.band a { color: rgb(255, 255, 255); }
+.media { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.media img { width: 100%; height: 240px; border-radius: 12px; display: block; object-fit: cover; }
+.swiper { overflow: hidden; }
+.swiper-wrapper { display: flex; transition: transform 400ms ease; }
+.swiper-slide { flex: 0 0 100%; height: 160px; background: rgb(230, 230, 230); }
+.marquee { overflow: hidden; white-space: nowrap; }
+.marquee-track { display: inline-block; animation: marquee 8s linear infinite; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+footer { background: rgb(24, 24, 24); color: rgb(240, 240, 240); padding: 48px 0; }
+footer a { color: rgb(240, 240, 240); }
+`;
+
+const BRANDED_SCRIPT = `
+const header = document.querySelector('.site-header');
+addEventListener('scroll', () => header.classList.toggle('scrolled', scrollY > 10), { passive: true });
+const toggle = document.querySelector('.menu-toggle');
+const menu = document.getElementById('site-menu');
+const set = (open) => { menu.classList.toggle('is-open', open); toggle.setAttribute('aria-expanded', String(open)); };
+toggle.addEventListener('click', () => set(toggle.getAttribute('aria-expanded') !== 'true'));
+addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
+const track = document.querySelector('.swiper-wrapper');
+let slide = 0;
+setInterval(() => { slide = (slide + 1) % 3; track.style.transform = 'translateX(' + (-100 * slide) + '%)'; }, 700);
+`;
+
+function brandedPage({ path, title, description }) {
+  const para = 'Body copy long enough to be measured as a paragraph, set in the body face at the body size, with a link to <a href="/about/">about</a> in the brand colour.';
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<meta name="description" content="${description}">
+<link rel="canonical" href="${BASE}${path}">
+<style>${BRANDED_STYLE}</style>
+</head>
+<body>
+<header class="site-header">
+  <a href="/" class="logo">Fixture</a>
+  <button class="menu-toggle" aria-controls="site-menu" aria-expanded="false" aria-label="Menu">Menu</button>
+  <nav id="site-menu" aria-label="Primary">
+    <ul>
+      <li><a href="/about/">About</a></li>
+      <li><a href="/services/">Services</a>
+        <ul class="sub-menu"><li><a href="/services/one/">Service one</a></li><li><a href="/services/two/">Service two</a></li></ul>
+      </li>
+      <li><a href="/work/">Work</a></li>
+      <li><a href="/contact/">Contact</a></li>
+    </ul>
+  </nav>
+</header>
+<main>
+<section class="hero"><div class="wrap">
+  <h1>A branded fixture page</h1>
+  <p>${para}</p>
+  <a class="btn" href="/contact/">Get in touch</a>
+</div></section>
+<section><div class="wrap">
+  <h2>Section heading</h2>
+  <p>${para}</p>
+  <p>${para}</p>
+  <p>${para}</p>
+  <h3>Smaller heading</h3>
+  <p>${para}</p>
+  <div class="media">
+    <img src="/hero.png" width="800" height="600" alt="A first photograph">
+    <img src="/hero.png" width="800" height="600" alt="A second photograph">
+  </div>
+</div></section>
+<section class="band"><div class="wrap">
+  <h2>A band in the brand colour</h2>
+  <p>${para}</p>
+  <div class="swiper"><div class="swiper-wrapper">
+    <div class="swiper-slide">Slide one</div><div class="swiper-slide">Slide two</div><div class="swiper-slide">Slide three</div>
+  </div></div>
+</div></section>
+<section><div class="wrap">
+  <div class="marquee"><span class="marquee-track">Moving fixture text · Moving fixture text · Moving fixture text · Moving fixture text · </span></div>
+  <h3>Another smaller heading</h3>
+  <p>${para}</p>
+  <p>${para}</p>
+</div></section>
+<div style="height: 1200px"></div>
+</main>
+<footer><div class="wrap"><p>Fixture footer, with a link to <a href="/">home</a>.</p></div></footer>
+<script>${BRANDED_SCRIPT}</script>
+</body>
+</html>`;
+}
+
 const HOME_TITLE = 'Fixture home — a deliberately simple page';
 const ABOUT_TITLE = FAULTS.has('dup-title') ? HOME_TITLE : 'About the fixture site';
 const ABOUT_CANONICAL = FAULTS.has('canonical-elsewhere') ? 'https://example.com/about/' : `${BASE}/about/`;
 
+const render = FAULTS.has('branded') ? brandedPage : page;
+
 const ROUTES = {
-  '/': page({
+  '/': render({
     path: '/',
     title: HOME_TITLE,
     description: 'The home page of a fixture site used to prove the go-live checks still refuse.',
   }),
-  '/about/': page({
+  '/about/': render({
     path: '/about/',
     title: ABOUT_TITLE,
     description: 'An about page, present so that cross-page checks have two pages to compare.',

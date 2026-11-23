@@ -15,6 +15,21 @@
 - **A photo uploaded through the CMS turned the next build red.** The upload lands in
   `media/source/` and nobody runs `npm run media` after a CMS save. `build.mjs` now runs the
   (incremental) media pipeline before the gates.
+- **`npm run design` — the old site's design, measured instead of eyedropped.** build.md §3
+  said "source real values from the original brand" and nothing in the kit sampled anything, so
+  every value was read off a screenshot by eye. Ported from a sister WordPress migration tool's
+  audit, built against Salient/WPBakery sites. It reads computed styles at 390, 820 and
+  1440px on the home page and one page per template family, and writes `recon/design.md`,
+  `recon/tokens.proposed.css` (tokens.css with the values in, the brand colour sampled into the
+  ramp unchanged) and `recon/interactions.json`: the menu toggle opened at each width, panel type,
+  items and timing, the header on scroll, carousels and marquees. `--apply` writes the tokens,
+  only over an undecided file. Read-only by construction: every non-GET request is aborted in the
+  browser. The host guard moved from `recon` into `lib/hosts.mjs` so both crawlers share one.
+- **`tells` could never clear `--unset`.** It tested the raw file, and tokens.css's own header
+  says "then delete --unset:" — so a project that deleted the declaration, exactly as told, still
+  read as half-decided and `build:production` refused it unless the comment was edited too. Comments are now stripped first. Found
+  by the `design --apply` case running `tells` afterwards; the real template tokens.css is now
+  the fixture for it.
 
 ## 2026-10-29 — 0.1.23, and the Monday audit went red under no commit at all
 

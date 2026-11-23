@@ -93,7 +93,13 @@ const appliedCss = componentSource + '\n' + distHtml.map(read).join('\n');
 const markers = [
   {
     name: '--unset in tokens.css',
-    present: /--unset:/.test(tokens),
+    /* ⚠ DECLARATIONS ONLY, NEVER COMMENTS. tokens.css's own header says
+       "Clear it in this order, then delete --unset:", so testing the raw file
+       matched the instruction to delete the marker — and the marker could
+       never clear. A project that did exactly what the file says still read
+       as half-decided, and `build:production` refused it. Found when
+       `npm run design -- --apply` removed the line and tells disagreed. */
+    present: /--unset:/.test(tokens.replace(/\/\*[\s\S]*?\*\//g, '')),
     fix: 'set the brand ramp and the two faces, then delete the --unset line',
   },
   {

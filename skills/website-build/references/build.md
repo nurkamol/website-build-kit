@@ -243,6 +243,7 @@ re-read of the whole repo.
 npm run recon -- https://old-site.com     # → recon/urls.txt, preserved.md, integrations.md
 npm run dns   -- old-site.com             # → recon/dns.md + dns.json. THE ROLLBACK ARTEFACT
 npm run seo   -- https://old-site.com --json recon/seo-before.json --fail-on never
+npm run design -- https://old-site.com    # → recon/design.md + tokens.proposed.css. Phase 3 reads it
 ```
 
 Commit all three. `dns.json` is what tells you after cutover whether the launch took the
@@ -296,6 +297,29 @@ Collapse repeating families into template + data.
 Tokens first — colour, type scale, spacing, radii, shadows, motion, layout widths. Source
 real values from the original brand rather than approximating. Build components against
 tokens only; no hard-coded hex or px in components.
+
+**On a migration, measure the old site rather than eyedropping it.** `npm run design -- https://old-site.com`
+opens the home page and one page per template family from `recon/urls.txt` at 390, 820 and
+1440px and asks the browser what it actually rendered: the faces in use (counted by element),
+colours by use, computed type per h1–h6/p/a with weight, line-height, tracking and case, the
+buttons, the container, the text edge, photo corners and the header height. It writes
+`recon/design.md` (read this), `recon/tokens.proposed.css` (tokens.css with the values written
+in — diff it) and `recon/interactions.json`: the menu toggle opened at each width — off-canvas,
+dropdown or fullscreen, its items and its timing — the header before and after a scroll, and any
+carousel or moving text. Screenshots of the open menu land in `shots/design/`. It never writes to
+the old site: every non-GET request is aborted in the browser, and analytics beacons with them.
+
+| Fidelity | What to do with the capture |
+| --- | --- |
+| **Faithful rebuild** ✅ | `npm run design -- --apply` writes the proposal into `tokens.css` and removes `--unset`. Then self-host the two faces — `design.md` names the Fontsource package when the face is on Google Fonts, and says when it is Adobe Fonts and cannot be self-hosted |
+| **Pixel-perfect clone** | Apply, then add `--uncapped` if the old hero headline is past the restraint cap below — that is the knowing raise tokens.css asks for |
+| **Full redesign** | Do **not** apply. The capture is the *before*: what the brand already owns, and the contrast failures it ships. Decide in Round 3 |
+
+The ramp is **sampled**: the brand colour sits in it unchanged at its nearest step and only the
+others are derived. The alternative — reading each value off a screenshot — is off by a little
+everywhere, invisibly, and the sum is a site that "feels different" for no reason anyone can
+name. `--apply` refuses a `tokens.css` that is already decided; a re-run never overwrites
+decisions somebody made.
 
 **The template arrives undecided and it is your job to decide.** `tokens.css` ships a grey
 placeholder ramp, the system font stack for both faces and a `--unset` marker; there are no
