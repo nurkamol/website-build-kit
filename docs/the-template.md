@@ -51,7 +51,11 @@ scripts/lib/inventory.mjs      the one parser for recon/urls.txt. paths or
 scripts/shots.mjs              before/after screenshots, both sides off recon/urls.txt,
                                paired into shots/index.html for the handover
 scripts/match.mjs              old vs new measured: per-section pixel diff at three widths,
-                               words + headings kept. shots/match/, exits 1 past threshold
+                               words + headings kept, plus scrolled header / open menu /
+                               dropdowns. Old side cached in shots/match/.cache/; --watch
+                               re-measures on save. shots/match/, exits 1 past threshold
+scripts/lib/capture-rules.mjs  menu toggles, header selectors, analytics collectors —
+                               shared by design and match
 scripts/lib/page-text.mjs      a page's words and headings with site chrome removed
 scripts/optimize-media.mjs     media/source → public/img as AVIF + WebP, plus a manifest
 scripts/tells.mjs              what is still undecided, and design.md §3 checked mechanically

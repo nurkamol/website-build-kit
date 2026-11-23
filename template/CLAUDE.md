@@ -26,6 +26,10 @@ npm run shots -- --before https://old-site.com  # visual record, WHILE the old s
 npm run match -- --old https://old-site.com --new https://staging.example.com
 #                                            # faithful rebuild: per-section pixel diff + words
 #                                            # kept, exits 1 past 3% / 0.98. --text-only: no browser
+#                                            # old side cached 7 days (--refresh-old); also
+#                                            # compares scrolled header, open menu, dropdowns
+npm run match -- --old https://old-site.com --new http://localhost:4321 --only=/about/ --watch
+#                                            # tuning loop beside `astro dev`: re-measures on save
 npm run extract                              # captured HTML → recon/extracted/*.md
 npm run forms:import -- export.json          # a Fluent / CF7 / Gravity form → src/data/forms.ts
 #   --print                                  # ...show the snippet, write nothing

@@ -384,6 +384,23 @@ be faithful to. A deliberate change (a section dropped on the client's instructi
 recorded in `BUILD-STATE.md` and the run is read with `--report-only`, never by raising the
 threshold until it passes.
 
+The scrolled header, the opened menu and each desktop dropdown are compared as `state: …`
+sections under the same threshold — those are what a client touches first. Motion is frozen
+identically on both sides (parallax layers, scroll-driven marquees, reveal-on-scroll, rotating
+words); if a builder's motion still shows up as a noisy section, add it to `FREEZE_LIST` in
+`match.mjs` rather than raising the threshold. The old side is cached for 7 days
+(`--refresh-old` to retake it), so the tuning loop is cheap:
+
+```bash
+npm run dev                                   # in one terminal
+npm run match -- --old https://old-site.com --new http://localhost:4321 --only=/about/ --watch
+```
+
+Every save under `src/` or `public/` re-measures that page and prints each section's % and how
+it moved since the last save. Put every flag after the `--`: npm keeps `--only` for itself when
+it comes before. A run stops at `--budget` (20 min) with what finished and exits 1 — it never
+hangs.
+
 ### 5 · Media
 AVIF + WebP through `npm run media`, per `stacks.md` §3. Encoding is incremental, so the
 AVIF cost is one-time per image and not per run.

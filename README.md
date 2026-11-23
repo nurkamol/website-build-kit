@@ -263,7 +263,10 @@ does ship is the skeleton of the parts that take longest to get right:
   diffed against the one in the same position on the new page at 390, 768 and 1440px, and each
   page's words and h1–h3 are checked as kept; it exits 1 past 3% of a section's pixels or under
   98% of the words. A section 40px shorter or a paragraph gone from the middle of a long page
-  passes a skimming eye, and it is the thing a client finds after launch
+  passes a skimming eye, and it is the thing a client finds after launch. Both sides are frozen
+  the same way first — parallax, scroll marquees, reveal-on-scroll and rotating words included —
+  the scrolled header, the open menu and each desktop dropdown are compared too, the old side is
+  cached for a week, and `--watch` re-measures one page on every save beside `astro dev`
 - **Legal pages as content** — `src/content/legal/*.md` served through one route, with the
   footer links derived from the collection itself. A footer link to a page nobody has written
   yet is a 404 on every page of the site, and nothing reports it

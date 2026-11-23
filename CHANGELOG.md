@@ -2,6 +2,44 @@
 
 ## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **`match` was too slow to run after each change, and too noisy to tune against.** A 6-page
+  site took long enough that it stopped being run, and a rebuild could not get a moving section
+  under 3% because the old site's motion was measured as drift. Now:
+  - **The old side is cached** in `shots/match/.cache/old/` (per URL, viewport and a harness
+    version) for 7 days, and reused unless the old page's words or images changed since — one
+    plain fetch per route checks that. `--refresh-old` retakes it. Each route says
+    `old: cached (2h)` or `captured`. The new side is never cached.
+  - **Captures run in parallel** — `--concurrency=3` (max 6) pages in one browser, each in its own
+    context; a browser that stops answering is relaunched once for everyone in flight.
+    **`--budget=20`** minutes caps the whole run: past it the report is written with what finished,
+    the rest named, and it exits 1 even under `--report-only`. Elapsed time and per-phase timings
+    are printed at the end. Fixture pair, 2 routes × 3 widths: 21s → 9.6s cold (now including the
+    states below) and 4.7s warm; the branded fixture 26s → 11s cold, 6s warm.
+  - **A strict freeze, identical on both sides** — inline transforms written by parallax and
+    scroll-marquee scripts cleared (Salient, Elementor motion effects, Rellax, jarallax, anything
+    named parallax/marquee), reveal-on-scroll forced to its final state (AOS, Elementor
+    `.elementor-invisible`, WOW, Salient `has-animation`/split headings, and any opacity-0 element
+    with a transition outside menus and carousels), `element.animate()` finished or parked,
+    rotating words stopped on the first. `FREEZE_LIST` in `match.mjs` is the documented list to
+    extend. A fixture page with a CSS marquee, a script-driven parallax layer, an AOS element and
+    a Web Animation, against the same page at another phase: 33–43% before, 0% now.
+  - **Interaction states are compared.** On the first route, per width: the header scrolled 600px,
+    the menu toggle opened, and on desktop each top-level item with a submenu hovered — reported
+    as `state: header scrolled`, `state: menu open`, `state: dropdown "Services"` under the same
+    thresholds. Each side's toggle is found on its own; a state the old site has and the rebuild
+    does not fails as 100%, one only the rebuild has is named. `--no-states` skips them. Menu
+    toggle and header selectors now live in `lib/capture-rules.mjs`, shared with `design`. Clicks
+    and hovers are read-only: every non-GET request and analytics beacon is aborted, as in `design`.
+  - **`--watch`** (with `--only`) re-measures the new side on every save under `src/`/`public/`
+    against the cached old side and prints each section's % and its change — for use beside
+    `astro dev`: `npm run match -- --old … --new http://localhost:4321 --only=/about/ --watch`.
+  - **`--only` could be silently ignored.** `--only` with no value after it (`--only --watch`)
+    read as "no filter", an unknown flag was ignored, and `npm run match --only=/x/ -- …` hands
+    `--only` to npm, which keeps it. Valueless and unknown flags are now usage errors, comma and
+    space lists both work, and the header line always says which routes the filter selected.
+  Paired cases in `test:gates` for each: the freeze, both states and their loss, the cache and
+  `--refresh-old`, both `--only` forms, and a budget that runs out.
+
 - **`recon` reported vendors that were never loaded.** Detection was a substring match on the
   vendor's NAME, and a name is a word: every WordPress block theme carries
   `--wp--preset--shadow--crisp` in its inline `theme.json`, so the inventory listed Crisp chat

@@ -84,6 +84,16 @@ const KNOWN_FAULTS = [
   'insert-section', // a new section added before the second one
   'flat-text', // no sections at all: one wrapper of headings and paragraphs
   'filename-alt', // an image whose alt text the CMS wrote from its filename
+  /* Not faults: MOTION, for match's freeze. A section that moves the way
+     builder sites move — a CSS marquee, a parallax layer whose inline
+     transform a script rewrites, an AOS-style element hidden until a script
+     reveals it, and an endless element.animate(). `motion-phase` is the SAME
+     page caught at a different moment: the marquee and the animation further
+     along, the layer elsewhere, the reveal not yet fired. Two captures of it
+     must still measure ~0%, or the freeze is not doing its job. */
+  'motion',
+  'motion-phase',
+  'no-menu', // with `branded`: no menu toggle and no submenu — the rebuild lost both interactions
   /* ── Not a fault: a site WITH a design, for `npm run design` ─────────────
    * The default fixture is deliberately unstyled, which gives a design capture
    * nothing to find — and a capture that finds nothing on a site with nothing
@@ -149,7 +159,43 @@ ${
   .ok { color: rgb(105, 105, 105); }
 }`
     : ''
+}${
+  FAULTS.has('motion')
+    ? `
+.marquee { overflow: hidden; white-space: nowrap; font-size: 40px; background: rgb(40, 40, 40); color: rgb(255, 255, 255); }
+.marquee-track { display: inline-block; animation: marquee-slide 6s linear infinite; }
+@keyframes marquee-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.parallax-band { position: relative; height: 220px; overflow: hidden; background: rgb(220, 220, 220); }
+.parallax-layer { position: absolute; left: 0; top: 0; width: 70%; height: 140px; background: rgb(60, 60, 60); color: rgb(255, 255, 255); font-size: 32px; }
+[data-aos] { opacity: 0; transform: translateY(60px); transition: opacity 600ms ease, transform 600ms ease;
+  height: 120px; background: rgb(90, 90, 90); color: rgb(255, 255, 255); font-size: 32px; }
+[data-aos].aos-animate { opacity: 1; transform: none; }
+.pulse { width: 120px; height: 80px; background: rgb(30, 30, 30); }`
+    : ''
 }`;
+
+/* `motion`: the section that moves, and the scripts that move it. Under
+   `motion-phase` every one of them starts somewhere else. */
+const PHASE = FAULTS.has('motion-phase');
+const MOTION_SECTION = `<section>
+<h2>Moving parts</h2>
+<div class="marquee"><span class="marquee-track" style="animation-delay: ${PHASE ? '-3.7s' : '0s'}">Words along a moving line · Words along a moving line · Words along a moving line · </span></div>
+<div class="parallax-band"><div class="parallax-layer" data-parallax="0.4" style="transform: translate3d(0px, ${PHASE ? 70 : 0}px, 0px)">A drifting layer</div></div>
+<div data-aos="fade-up">Revealed on scroll</div>
+<div class="pulse"></div>
+</section>`;
+const MOTION_SCRIPT = `<script>
+(() => {
+  const offset = ${PHASE ? 40 : 0};
+  const layer = document.querySelector('.parallax-layer');
+  const move = () => { layer.style.transform = 'translate3d(0px, ' + ((scrollY * 0.4 + offset + Date.now() / 20) % 80).toFixed(1) + 'px, 0px)'; };
+  addEventListener('scroll', move, { passive: true });
+  setInterval(move, 50);
+  ${PHASE ? '/* the reveal has not fired yet */' : "document.querySelector('[data-aos]').classList.add('aos-animate');"}
+  const a = document.querySelector('.pulse').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(240px)' }], { duration: 2000, iterations: Infinity });
+  a.currentTime = ${PHASE ? 1300 : 0};
+})();
+</script>`;
 
 /**
  * A page that passes every per-page check verify makes, unless a fault says otherwise.
@@ -208,8 +254,10 @@ ${
 }
 ${FAULTS.has('filename-alt') ? '<img src="/hero.png" width="80" height="60" alt="IMG 20231028 133434">' : ''}
 ${FAULTS.has('sr-ui-label') ? '<label><span class="screen-reader-text">Search for:</span><input type="search" name="s"></label>' : ''}
-</section>`)}
+</section>
+${FAULTS.has('motion') ? MOTION_SECTION : ''}`)}
 </main>
+${FAULTS.has('motion') ? MOTION_SCRIPT : ''}
 ${FAULTS.has('console-error') ? '<script>notAFunctionAnywhere();</script>' : ''}
 ${
   FAULTS.has('renderer-hang') && path === '/'
@@ -294,7 +342,7 @@ addEventListener('scroll', () => header.classList.toggle('scrolled', scrollY > 1
 const toggle = document.querySelector('.menu-toggle');
 const menu = document.getElementById('site-menu');
 const set = (open) => { menu.classList.toggle('is-open', open); toggle.setAttribute('aria-expanded', String(open)); };
-toggle.addEventListener('click', () => set(toggle.getAttribute('aria-expanded') !== 'true'));
+toggle?.addEventListener('click', () => set(toggle.getAttribute('aria-expanded') !== 'true'));
 addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
 const track = document.querySelector('.swiper-wrapper');
 let slide = 0;
@@ -316,12 +364,12 @@ function brandedPage({ path, title, description }) {
 <body>
 <header class="site-header">
   <a href="/" class="logo">Fixture</a>
-  <button class="menu-toggle" aria-controls="site-menu" aria-expanded="false" aria-label="Menu">Menu</button>
+  ${FAULTS.has('no-menu') ? '' : '<button class="menu-toggle" aria-controls="site-menu" aria-expanded="false" aria-label="Menu">Menu</button>'}
   <nav id="site-menu" aria-label="Primary">
     <ul>
       <li><a href="/about/">About</a></li>
-      <li><a href="/services/">Services</a>
-        <ul class="sub-menu"><li><a href="/services/one/">Service one</a></li><li><a href="/services/two/">Service two</a></li></ul>
+      <li><a href="/services/">Services</a>${FAULTS.has('no-menu') ? '' : `
+        <ul class="sub-menu"><li><a href="/services/one/">Service one</a></li><li><a href="/services/two/">Service two</a></li></ul>`}
       </li>
       <li><a href="/work/">Work</a></li>
       <li><a href="/contact/">Contact</a></li>
