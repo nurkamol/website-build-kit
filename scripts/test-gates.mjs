@@ -83,7 +83,7 @@ function fixture(files) {
  * 1 means it must refuse. `contains` additionally pins the reason, so a gate
  * that fails for an unrelated reason is not counted as catching the bug.
  */
-function gate(label, { script, files, env = {}, args = [], expect, contains, then, setup, from }) {
+function gate(label, { script, files, env = {}, args = [], expect, contains, then, setup, from, timeout }) {
   const dir = fixture(files);
   try {
     /* `setup` prepares state the file map cannot express — a real git history
@@ -96,6 +96,8 @@ function gate(label, { script, files, env = {}, args = [], expect, contains, the
       cwd: dir,
       encoding: 'utf8',
       env: { ...process.env, ...env },
+      /* A case that must never hang the suite says how long it may take; past it the run is killed and the case fails. */
+      ...(timeout ? { timeout, killSignal: 'SIGKILL' } : {}),
     });
     const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
     const codeOk = run.status === expect;
@@ -2348,6 +2350,202 @@ againstTwoSites('alt text written from a filename is not a word the new site los
   oldFaults: 'filename-alt',
   args: ['--text-only'],
   expect: 0,
+});
+
+/*
+ * ⚠ THE FREEZE IS ASSERTED AGAINST MOTION, NOT AGAINST A STILL PAGE. Both
+ *   sides carry a CSS marquee, a parallax layer whose inline transform a
+ *   script rewrites every 50ms, an AOS-style element hidden until a script
+ *   reveals it and an endless element.animate() — and the new side is the
+ *   same page caught at another moment. Before the strict freeze this pair
+ *   measured 33–43% different on the "Moving parts" section: a faithful
+ *   rebuild could never get under the threshold, and every real difference
+ *   hid in the noise. It must now measure as the same page.
+ */
+againstTwoSites('the same page with its motion at a different phase measures ~0% — the freeze holds', {
+  oldFaults: 'motion',
+  newFaults: 'motion,motion-phase',
+  args: ['--only=/about/', '--no-states'],
+  expect: 0,
+  timeout: 300000,
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    const vps = json.routes[0]?.viewports ?? [];
+    if (vps.length !== 3) return `compared ${vps.length} width(s)`;
+    const moving = vps.map((v) => v.sections.find((s) => s.title === 'Moving parts'));
+    if (moving.some((s) => !s)) return 'did not find the moving section at every width';
+    const worst = Math.max(...vps.flatMap((v) => v.sections.map((s) => s.percent ?? 0)));
+    return worst <= 0.5 ? null : `worst section ${worst}% — the motion was measured as drift`;
+  },
+});
+
+/*
+ * ⚠ INTERACTION STATES, BOTH DIRECTIONS. The branded fixture has a menu toggle
+ *   under 900px and a hover dropdown ("Services") above it. Against itself both
+ *   states must be found on each side and measure as equal; against a copy
+ *   with neither, each must be reported as lost — by name, not as a crash and
+ *   not as silence.
+ */
+againstTwoSites('the open menu and a hover dropdown are compared as states, and match themselves', {
+  oldFaults: 'branded',
+  newFaults: 'branded',
+  args: ['--only=/about/', '--viewports=mobile,desktop'],
+  expect: 0,
+  timeout: 300000,
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    const vp = (n) => json.routes[0]?.viewports.find((v) => v.name === n);
+    const menu = vp('mobile')?.sections.find((s) => s.label === 'state: menu open');
+    const dropdown = vp('desktop')?.sections.find((s) => s.label === 'state: dropdown "Services"');
+    const scrolled = vp('desktop')?.sections.find((s) => s.label === 'state: header scrolled');
+    if (!menu) return 'no "state: menu open" at mobile';
+    if (!dropdown) return 'no "state: dropdown "Services"" at desktop';
+    if (!scrolled) return 'no "state: header scrolled" at desktop';
+    for (const s of [menu, dropdown, scrolled]) if (s.percent === null || s.percent > 0.5) return `${s.label} measured ${s.percent}%`;
+    return null;
+  },
+});
+
+againstTwoSites('a rebuild without the menu and the dropdown is refused, state by state', {
+  oldFaults: 'branded',
+  newFaults: 'branded,no-menu',
+  args: ['--only=/about/', '--viewports=mobile,desktop'],
+  expect: 1,
+  timeout: 300000,
+  contains: '/about/ · mobile · state: menu open — visual: 100% different — found on the old site, not on the new one',
+  then: (_dir, out) => (out.includes('/about/ · desktop · state: dropdown "Services" — visual: 100%') ? null : 'did not name the lost dropdown'),
+});
+
+/*
+ * ⚠ THE OLD SIDE IS CACHED, AND A SECOND RUN MUST NOT RECAPTURE IT. Three runs
+ *   in ONE project directory: the first captures, the second reuses the cache
+ *   (and says so), --refresh-old captures again. Asserted on what each run
+ *   prints, because a cache that is written and never read looks identical in
+ *   the report.
+ */
+{
+  const label = 'the old side is captured once, reused on the next run, recaptured with --refresh-old';
+  let before;
+  let after;
+  let dir;
+  try {
+    before = startFixture('');
+    after = startFixture('');
+    dir = fixture(MATCH_FILES);
+    const run = (extra) => {
+      const r = spawnSync(
+        process.execPath,
+        [join(TEMPLATE_SCRIPTS, 'match.mjs'), '--old', before.origin, '--new', after.origin, '--only=/about/', '--viewports=mobile', ...extra],
+        { cwd: dir, encoding: 'utf8', timeout: 180000, killSignal: 'SIGKILL' },
+      );
+      return { status: r.status, out: plain(`${r.stdout ?? ''}${r.stderr ?? ''}`) };
+    };
+    /* The first run WITH states and the others without: a cached state the second run did
+       not ask for was once compared against nothing and failed a clean pair at 100%. */
+    const first = run([]);
+    const second = run(['--no-states']);
+    const third = run(['--refresh-old', '--no-states']);
+    const problem =
+      first.status !== 0 ? `first run exit ${first.status}`
+      : !/old: captured/.test(first.out) ? 'the first run did not capture the old side'
+      : second.status !== 0 ? `second run exit ${second.status}`
+      : !/old: cached \(\d+m\)/.test(second.out) ? 'the second run did not reuse the cached old side'
+      : !/old side: 1 cached[^,]*, 0 captured/.test(second.out) ? 'the second run captured the old side anyway'
+      : third.status !== 0 ? `--refresh-old run exit ${third.status}`
+      : !/old: recaptured — asked for with --refresh-old/.test(third.out) ? '--refresh-old reused the cache'
+      : null;
+    results.push({ gate: currentGate, label, ok: !problem, detail: problem ?? 'exit 0' });
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+  } finally {
+    before?.child.kill('SIGKILL');
+    after?.child.kill('SIGKILL');
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/*
+ * ⚠ --only, BOTH FORMS. A filter that is silently ignored compares every
+ *   route and looks like a run that worked — the owner saw exactly that. The
+ *   space form, the comma list, and a valueless --only (which used to mean "no
+ *   filter") are each pinned. --text-only: route selection needs no browser.
+ */
+againstTwoSites('--only /about/ (space form) selects only that route', {
+  args: ['--text-only', '--only', '/about/'],
+  expect: 0,
+  then: (dir) => {
+    const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
+    return routes.join() === '/about/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
+  },
+});
+
+againstTwoSites('--only=/about/,/contact/ selects both, and nothing else', {
+  files: { 'recon/urls.txt': '/\n/about/\n/contact/\n' },
+  args: ['--text-only', '--only=/about/,/contact/'],
+  expect: 0,
+  then: (dir) => {
+    const routes = matchJson(dir)?.routes.map((r) => r.route) ?? [];
+    return routes.join() === '/about/,/contact/' ? null : `compared ${routes.join(' ') || 'nothing'}`;
+  },
+});
+
+gate('match refuses --only with no value instead of comparing everything', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--only', '--text-only'],
+  expect: 1,
+  contains: '--only needs a value',
+});
+
+gate('match refuses an unknown flag instead of ignoring it', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--onyl=/about/'],
+  expect: 1,
+  contains: 'unknown flag --onyl',
+});
+
+/*
+ * ⚠ A RUN MUST NEVER SILENTLY HANG. The new home page locks its renderer, and
+ *   --timeout is a minute, so only the whole-run budget (6s here) can end it:
+ *   it must stop, name what did not finish, still write the report — and exit
+ *   1 even though nothing "failed", because an incomplete comparison is not a
+ *   pass. The spawn is capped too, so a budget that does not fire fails this
+ *   case instead of hanging the suite.
+ */
+againstTwoSites('a run past its --budget stops, names what did not finish, and exits 1', {
+  newFaults: 'renderer-hang',
+  args: ['--viewports=mobile', '--timeout=60', '--budget=0.1', '--no-states'],
+  expect: 1,
+  timeout: 120000,
+  contains: 'run budget of 0.1 min used up',
+  then: (dir, out) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json — what finished was lost';
+    if (!json.budget?.ranOut) return 'match.json does not record the budget running out';
+    if (json.passed) return 'recorded an incomplete run as passed';
+    if (!/not compared: \//.test(plain(out))) return 'did not name the route left unfinished';
+    const about = json.routes.find((r) => r.route === '/about/');
+    return about?.viewports.some((v) => !v.error) ? null : '/about/, which did not hang, was not compared';
+  },
+});
+
+gate('match refuses a budget that is not a number of minutes', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--budget=forever'],
+  expect: 1,
+  contains: '--budget is minutes',
+});
+
+gate('match --watch without --only is a usage error', {
+  script: 'match.mjs',
+  files: MATCH_FILES,
+  args: ['--old', 'http://127.0.0.1:9', '--new', 'http://127.0.0.1:10', '--watch'],
+  expect: 1,
+  contains: '--watch needs --only',
 });
 
 gate('match refuses a timeout that is not a number of seconds', {

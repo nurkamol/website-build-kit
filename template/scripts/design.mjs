@@ -74,6 +74,7 @@ import {
   whereToGet,
   writeTokens,
 } from './lib/design-tokens.mjs';
+import { COLLECTORS, HEADER_SEL, TOGGLES } from './lib/capture-rules.mjs';
 import { blockedReason } from './lib/hosts.mjs';
 import { readInventory } from './lib/inventory.mjs';
 
@@ -97,10 +98,6 @@ const DEFAULT_LIMIT = 6;
 const PAUSE_MS = 400;
 
 const NOT_A_PAGE = /\.(pdf|xml|txt|json|zip|gz|csv|ico|png|jpe?g|gif|webp|avif|svg|mp4|webm|woff2?)$/i;
-
-/* Collectors, not tag scripts: the tag may draw something; the beacon only counts a visit. */
-const COLLECTORS =
-  /google-analytics\.com|analytics\.google\.com|\/g\/collect|googletagmanager\.com\/gtag\/js|facebook\.com\/tr|connect\.facebook\.net|doubleclick\.net|clarity\.ms|hotjar\.(?:com|io)|stats\.wp\.com|plausible\.io\/api|\/wp-json\/.*\/(?:track|log)/i;
 
 /* Cookie banners from the common WordPress consent plugins and CMPs. Hidden so
    the menu capture sees the menu; never clicked, because accepting on the
@@ -570,28 +567,6 @@ function MOTION() {
     }, 1500);
   });
 }
-
-const TOGGLES = [
-  '.slide-out-widget-area-toggle a',
-  '.slide-out-widget-area-toggle',
-  '#mobile-toggle',
-  '.wp-block-navigation__responsive-container-open',
-  '.elementor-menu-toggle',
-  '.bricks-mobile-menu-toggle',
-  'button.brxe-toggle[aria-expanded]',
-  '.et_mobile_nav_menu .mobile_menu_bar',
-  '.mobile_menu_bar_toggle',
-  '.ast-mobile-menu-trigger-minimal',
-  '.menu-toggle',
-  '.mobile-menu-toggle',
-  'button[aria-controls][aria-expanded]',
-  '[aria-controls][aria-expanded]',
-  '.hamburger, [class*="hamburger"]',
-  '[class*="burger"]',
-  'a[aria-label*="menu" i], button[aria-label*="menu" i]',
-];
-
-const HEADER_SEL = '#header-outer, header, .site-header, #masthead, #main-header, #brx-header, .elementor-location-header, [role=banner]';
 
 /* ── Browser helpers ───────────────────────────────────────────────────── */
 
