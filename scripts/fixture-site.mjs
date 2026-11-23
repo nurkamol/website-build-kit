@@ -175,7 +175,13 @@ ${
 [data-aos] { opacity: 0; transform: translateY(60px); transition: opacity 600ms ease, transform 600ms ease;
   height: 120px; background: rgb(90, 90, 90); color: rgb(255, 255, 255); font-size: 32px; }
 [data-aos].aos-animate { opacity: 1; transform: none; }
-.pulse { width: 120px; height: 80px; background: rgb(30, 30, 30); }`
+.pulse { width: 120px; height: 80px; background: rgb(30, 30, 30); }
+/* Salient's scrolling text: centred by a transform, faded in by an opacity-only transition. The
+   transform is layout, not the reveal — a freeze that clears it moves the text by half its height. */
+.fade-band { position: relative; height: 200px; background: rgb(70, 70, 70); }
+.fade-centre { position: absolute; left: 0; top: 50%; transform: translateY(-50%); opacity: 0; transition: opacity 600ms;
+  font-size: 60px; line-height: 1; color: rgb(255, 255, 255); }
+.fade-centre.in { opacity: 1; }`
     : ''
 }`;
 
@@ -188,6 +194,7 @@ const MOTION_SECTION = `<section>
 <div class="parallax-band"><div class="parallax-layer" data-parallax="0.4" style="transform: translate3d(0px, ${PHASE ? 70 : 0}px, 0px)">A drifting layer</div></div>
 <div data-aos="fade-up">Revealed on scroll</div>
 <div class="pulse"></div>
+<div class="fade-band"><div class="fade-centre">Centred and faded in</div></div>
 </section>`;
 const MOTION_SCRIPT = `<script>
 (() => {
@@ -196,7 +203,7 @@ const MOTION_SCRIPT = `<script>
   const move = () => { layer.style.transform = 'translate3d(0px, ' + ((scrollY * 0.4 + offset + Date.now() / 20) % 80).toFixed(1) + 'px, 0px)'; };
   addEventListener('scroll', move, { passive: true });
   setInterval(move, 50);
-  ${PHASE ? '/* the reveal has not fired yet */' : "document.querySelector('[data-aos]').classList.add('aos-animate');"}
+  ${PHASE ? '/* the reveals have not fired yet */' : "document.querySelector('[data-aos]').classList.add('aos-animate'); document.querySelector('.fade-centre').classList.add('in');"}
   const a = document.querySelector('.pulse').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(240px)' }], { duration: 2000, iterations: Infinity });
   a.currentTime = ${PHASE ? 1300 : 0};
 })();

@@ -2,6 +2,14 @@
 
 ## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **`match` moved a faded-in element by clearing a transform that was layout, not motion.** The
+  freeze's catch-all reveal (opacity 0 with a transition) forced `transform: none` on everything it
+  revealed. Salient centres its scrolling text with `translateY(-50%)` and fades it in by opacity
+  alone, so on the old side the white copy dropped half its height while the dark copy stayed:
+  a section a rebuild had right measured as drift. An element whose transition is opacity only now
+  keeps its transform; only a reveal that also animates movement is reset. Fixture `motion` gained
+  that element; the old freeze measured the pair 4.1% different, the fixed one 0%. `HARNESS_VERSION`
+  is `match-4`, so cached old captures are retaken.
 - **`match` was too slow to run after each change, and too noisy to tune against.** A 6-page
   site took long enough that it stopped being run, and a rebuild could not get a moving section
   under 3% because the old site's motion was measured as drift. Now:

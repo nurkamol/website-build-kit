@@ -124,7 +124,7 @@ const VIEWPORTS = [
 const OUT = 'shots/match';
 const CACHE = join(OUT, '.cache', 'old');
 /* Part of every cache key. Bump it when capture() would photograph the same page differently. */
-const HARNESS_VERSION = 'match-3';
+const HARNESS_VERSION = 'match-4';
 const CACHE_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const DEFAULT_LIMIT = 40;
 const DEFAULT_THRESHOLD = 3; // % of a section's pixels
@@ -469,7 +469,8 @@ const FREEZE = `
 }
 /* FREEZE_LIST, applied by freezeInPage() through these attributes. */
 [data-wbk-still] { transform: none !important; translate: none !important; }
-[data-wbk-reveal] { opacity: 1 !important; visibility: visible !important; transform: none !important; translate: none !important; clip-path: none !important; }
+[data-wbk-reveal] { opacity: 1 !important; visibility: visible !important; clip-path: none !important; }
+[data-wbk-reveal]:not([data-wbk-reveal="fade"]) { transform: none !important; translate: none !important; }
 [data-wbk-first] > * { display: none !important; }
 [data-wbk-first] > :first-child { display: inline-block !important; opacity: 1 !important; visibility: visible !important; transform: none !important; position: relative !important; clip-path: none !important; }
 [data-wbk-hide] { visibility: hidden !important; }
@@ -519,6 +520,16 @@ function freezeInPage(list, notAReveal, when) {
       if (el.closest(notAReveal)) continue;
       if (!el.textContent.trim() && !el.querySelector('img, svg, video, picture')) continue;
       apply(el, generic);
+      /*
+       * ⚠ A FADE KEEPS ITS TRANSFORM. When only opacity is transitioned, the
+       *   element's transform is layout — Salient centres its scrolling text
+       *   with translateY(-50%) and fades it in — and clearing it moved that
+       *   text half its height down on the old side only, measured as drift.
+       *   Only a reveal that animates movement has its transform reset.
+       */
+      const props = cs.transitionProperty.split(',').map((t) => t.trim());
+      const movesToo = cs.animationName !== 'none' || props.some((t) => t === 'all' || t === 'transform' || t === 'translate');
+      if (!movesToo) el.setAttribute('data-wbk-reveal', 'fade');
       n++;
     }
   }
