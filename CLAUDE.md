@@ -134,6 +134,28 @@ The lesson is the method, not the list: **a denylist tests for the mistakes you 
 Ask instead what shape a client's data takes — a colour, a face, a place, a number, a claim, a
 clock — and grep for the shape.
 
+**And the names, by machine, on every commit — including the message.**
+
+```bash
+git config core.hooksPath .githooks     # once per clone: pre-commit + commit-msg
+npm run check:privacy                   # every tracked file + HEAD's message, as CI runs it
+```
+
+`scripts/check-privacy.mjs` reads the clients' names and domains from **`.privacy-patterns`** —
+untracked and gitignored, one regular expression per line, in the main checkout so every worktree
+shares it — and from the **`PRIVACY_PATTERNS`** environment variable, which `kit.yml` fills from
+the repository secret of the same name (and on a push refuses to run with none, because a clean
+result from zero patterns means nothing was looked for). It also refuses any email address
+outside the placeholder domains, and a `.privacy-patterns` that is tracked or not ignored. It
+prints the file, the line and the pattern's **number**, never the matched text — a CI log on a
+public repo is public.
+
+It is the floor, not the method. It is exactly the denylist the paragraph above warns about, and
+it is here for the two things the shape sweep cannot do: run unattended on every commit, and read
+the **commit message**, which is published too and which no grep over `src` and `scripts` ever
+sees. Never commit a real pattern, including into a test — the cases in `test:gates` use
+synthetic names.
+
 **A hardcoded route list is provenance too.** `check-reflow.mjs` carried one studio's routes
 and passed happily while testing pages that did not exist. Scripts discover routes through
 `scripts/lib/routes.mjs`; if you add one that needs a route list, use that.

@@ -1,0 +1,5 @@
+#!/bin/sh
+# This repository is public: refuse a staged client name, domain or email.
+# Patterns: .privacy-patterns (gitignored) and PRIVACY_PATTERNS. See scripts/check-privacy.mjs.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/check-privacy.mjs" --staged

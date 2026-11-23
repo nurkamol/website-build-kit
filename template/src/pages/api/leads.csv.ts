@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import type { LeadRecord } from '../../lib/lead';
 import { site } from '../../data/site';
 import { forms, DEFAULT_FORM } from '../../data/forms';
-import { kv, secret } from '../../lib/runtime';
+import { kv } from '../../lib/runtime';
+import { refuseWithoutToken } from '../../lib/export-token';
 
 export const prerender = false;
 
@@ -41,27 +42,8 @@ const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
  *        https://example.com/api/leads.csv -o leads.csv
  */
 export const GET: APIRoute = async ({ request }) => {
-  const expected = secret('LEADS_EXPORT_TOKEN');
-
-  if (!expected) {
-    return new Response('Export is not configured.\n', { status: 503 });
-  }
-
-  const url = new URL(request.url);
-  const presented =
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? url.searchParams.get('token') ?? '';
-
-  // Constant-time-ish: compare full length, never short-circuit on first byte.
-  const ok =
-    presented.length === expected.length &&
-    presented.split('').reduce((acc, char, i) => acc | (char.charCodeAt(0) ^ expected.charCodeAt(i)), 0) === 0;
-
-  if (!ok) {
-    return new Response('Unauthorized\n', {
-      status: 401,
-      headers: { 'www-authenticate': 'Bearer realm="leads"' },
-    });
-  }
+  const refused = refuseWithoutToken(request, 'leads');
+  if (refused) return refused;
 
   const store = kv(site.leadsBinding);
   if (!store) return new Response('Lead storage is not bound.\n', { status: 503 });

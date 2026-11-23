@@ -4763,6 +4763,374 @@ gate('a comments-only file is not a failure', {
 
 
 /* ────────────────────────────────────────────────────────────────────────
+ * Ported from a WordPress → EmDash migration kit: the old site changing under
+ * a build, the 404s after one, a runaway page, and the names this repo must
+ * never publish. Every case is paired with the run that must stay quiet.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* ── shots — a page that would take Chrome down, and the files that caused it ─
+ *
+ * ⚠ BEFORE THE GUARD THIS EXITED 0. Against this fixture the old shots filed
+ *   two 120,000px PNGs as successful captures at 1x and said nothing about the
+ *   stylesheet: Chrome aborts a CSS file answered with an HTML 404 page
+ *   (ERR_ABORTED), and the failed-request tally skipped every ERR_ABORTED. On a
+ *   real page-builder site the same capture took the browser and the rest of
+ *   the run down with it. */
+describe('shots — runaway height and own files');
+
+againstFixture('refuses a runaway-height page and names the stylesheet that broke it', {
+  script: 'shots.mjs',
+  faults: 'own-css-404,runaway-height',
+  args: ['--before', '--only=/about/'],
+  expect: 1,
+  timeout: 180000,
+  then: (dir, out) => {
+    const text = plain(out);
+    if (!/page is [\d,]+px tall \(cap 30,000\), not captured/.test(text)) return 'did not refuse the height';
+    if (!text.includes('/wp-content/cache/min/1/site.min.css')) return 'did not name the failing stylesheet';
+    const pngs = readdirSync(join(dir, 'shots', 'before')).filter((f) => f.endsWith('.png'));
+    return pngs.length ? `filed ${pngs.length} PNG(s) of a broken page` : null;
+  },
+});
+
+againstFixture('a failing stylesheet alone is named, and the page still captured', {
+  script: 'shots.mjs',
+  faults: 'own-css-404',
+  args: ['--before', '--only=/about/'],
+  expect: 0,
+  timeout: 180000,
+  contains: "The site's own stylesheets/scripts failed",
+});
+
+/* ── recon — the old site's own files, before anything photographs them ───── */
+describe('recon — own files');
+
+for (const [label, faults, wanted, unwanted] of [
+  ['names an own stylesheet that answers 404', 'own-css-404', '/wp-content/cache/min/1/site.min.css', null],
+  ['reports nothing failing on a clean site', '', null, 'fail to load'],
+]) {
+  let fx;
+  try {
+    fx = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    continue;
+  }
+  try {
+    gate(label, {
+      script: 'recon.mjs',
+      files: {},
+      args: [fx.origin, '--no-wayback', '--allow-internal'],
+      expect: 0,
+      then: (_dir, out) => {
+        const text = plain(out);
+        if (!text.includes('── Own files')) return 'printed no Own files section';
+        if (wanted && !text.includes(wanted)) return `did not name ${wanted}`;
+        if (unwanted && text.includes(unwanted)) return `reported ${JSON.stringify(unwanted)} on a clean site`;
+        return null;
+      },
+    });
+  } finally {
+    fx.child.kill('SIGKILL');
+  }
+}
+
+/* ── changes — the client keeps editing WordPress while you build ───────────
+ *
+ * Two fixtures: the site at baseline, and the same site weeks later. The
+ * first capture is taken in `setup`, the second is the case. */
+describe('changes');
+
+gate('no URL and no inventory is a usage error', {
+  script: 'changes.mjs',
+  files: {},
+  expect: 1,
+  contains: 'usage:',
+});
+
+gate('refuses an internal host without --allow-internal', {
+  script: 'changes.mjs',
+  files: {},
+  args: ['http://127.0.0.1:9'],
+  expect: 1,
+  contains: 'blocked internal host',
+});
+
+gate('nothing to capture is a failure, not a baseline', {
+  script: 'changes.mjs',
+  files: {},
+  args: ['http://127.0.0.1:9', '--allow-internal'],
+  expect: 1,
+  contains: 'nothing to capture',
+  then: (dir) => (existsSync(join(dir, 'recon', 'changes', 'latest.json')) ? 'wrote a capture of nothing' : null),
+});
+
+function changesPair(label, { first, second, files = {}, ...rest }) {
+  let a;
+  let b;
+  try {
+    a = startFixture(first);
+    b = startFixture(second);
+  } catch (err) {
+    results.push({ gate: currentGate, label, ok: false, detail: String(err.message) });
+    a?.child.kill('SIGKILL');
+    return;
+  }
+  try {
+    gate(label, {
+      script: 'changes.mjs',
+      files,
+      args: [b.origin, '--allow-internal'],
+      setup: (dir) => {
+        const r = spawnSync(process.execPath, [join(TEMPLATE_SCRIPTS, 'changes.mjs'), a.origin, '--allow-internal'], { cwd: dir, encoding: 'utf8' });
+        if (!/baseline captured/.test(r.stdout ?? '')) throw new Error(`baseline run failed: ${r.stdout}${r.stderr}`);
+      },
+      ...rest,
+    });
+  } finally {
+    a.child.kill('SIGKILL');
+    b.child.kill('SIGKILL');
+  }
+}
+
+changesPair('the same site twice reports no changes', {
+  first: 'wp-api',
+  second: 'wp-api',
+  expect: 0,
+  contains: 'no changes since the previous capture',
+});
+
+/* Every change the fixture makes, named — and the report writes nothing the
+   build reads. */
+changesPair('names every WordPress change: new, edited, moved, deleted, menu, media', {
+  first: 'wp-api',
+  second: 'wp-api,wp-edited',
+  files: { 'recon/urls.txt': '# Inventory of https://old.example.com\n/\n/about/\n', 'public/_redirects': '# empty\n' },
+  expect: 0,
+  then: (dir, out) => {
+    const text = plain(out);
+    for (const want of [
+      '/pricing/  "Pricing"',
+      '/about/  "About us"',
+      '/2026/01/opening-hours/ → /news/opening-hours/',
+      '/2026/01/winter-closure/  "Winter closure"  [post]',
+      'Pricing → /pricing/',
+      '1 new, 1 replaced, 0 removed',
+      'not in recon/urls.txt',
+      '6 change(s)',
+    ]) {
+      if (!text.includes(want)) return `did not report ${JSON.stringify(want)}`;
+    }
+    if (readFileSync(join(dir, 'public', '_redirects'), 'utf8') !== '# empty\n') return 'wrote public/_redirects';
+    if (!readFileSync(join(dir, 'recon', 'urls.txt'), 'utf8').endsWith('/about/\n')) return 'edited recon/urls.txt';
+    if (!existsSync(join(dir, 'recon', 'changes.md'))) return 'wrote no recon/changes.md';
+    return existsSync(join(dir, 'recon', 'changes', 'previous.json')) ? null : 'did not keep the previous capture';
+  },
+});
+
+/* No REST API: the sitemap alone still sees a page appear. */
+changesPair('without the REST API, a page new in the sitemap is still found', {
+  first: '',
+  second: 'orphan-route',
+  expect: 0,
+  then: (_dir, out) => {
+    const text = plain(out);
+    if (!text.includes('no public WordPress REST API')) return 'did not say the REST API was closed';
+    return text.includes('/pricing/') ? null : 'did not report /pricing/ as new';
+  },
+});
+
+/* ── misses — the 404s after launch ─────────────────────────────────────── */
+describe('misses');
+
+gate('no URL is a usage error', {
+  script: 'misses.mjs',
+  files: {},
+  env: { PUBLIC_SITE_URL: '' },
+  expect: 1,
+  contains: 'usage:',
+});
+
+againstFixture('a site without the watcher is a failure, not "nothing missed"', {
+  script: 'misses.mjs',
+  env: { LEADS_EXPORT_TOKEN: 'fixture-export-token' },
+  expect: 1,
+  contains: 'without the counts',
+});
+
+againstFixture('refuses the wrong token', {
+  script: 'misses.mjs',
+  faults: 'misses',
+  env: { LEADS_EXPORT_TOKEN: 'not-the-token' },
+  expect: 1,
+  contains: 'unauthorized',
+});
+
+againstFixture('ranks the misses, proposes a redirect, writes nothing', {
+  script: 'misses.mjs',
+  faults: 'misses',
+  env: { LEADS_EXPORT_TOKEN: 'fixture-export-token' },
+  files: {
+    'recon/urls.txt': '# Inventory of https://old.example.com\n/\n/about-us/\n',
+    'public/_redirects': '/legacy-about.html /about/ 301\n',
+  },
+  expect: 0,
+  then: (dir, out) => {
+    const text = plain(out);
+    /* Both trailing-slash spellings are one row: 9 + 2. */
+    if (!/11×\s+\/about-us\/\s+old URL/.test(text)) return 'did not rank /about-us/ as an old URL with both spellings counted';
+    if (!/\/about-us\/\s+\/about\/\s+301/.test(text)) return 'did not propose /about-us/ → /about/';
+    if (!text.includes('fix the link, not the address')) return 'did not call the internal broken link a link to fix';
+    if (!text.includes('that rule does not match')) return 'did not flag the _redirects rule that still 404s';
+    /* As a ROW — the summary line names wp-login.php as an example of what was left out. */
+    if (/×\s+\/(?:wp-login|contact\/jane)/.test(text)) return 'listed a bot probe or a personal-looking path';
+    if (!text.includes('2 bot probe(s) and junk path(s) left out')) return 'did not count what it left out';
+    return readFileSync(join(dir, 'public', '_redirects'), 'utf8') === '/legacy-about.html /about/ 301\n' ? null : 'wrote public/_redirects';
+  },
+});
+
+/* ── check:privacy — this repository is public ──────────────────────────────
+ *
+ * Synthetic names only. A real client in a test case is the leak the check
+ * exists for. The email is assembled at run time for the same reason: written
+ * out, it would make this file fail the check it tests. */
+describe('check:privacy');
+
+const NAME = 'Acme Plumbing';
+const REAL_EMAIL = ['jane', 'acme-plumbing.co'].join('@');
+const privacyRepo = (opts = {}) => (dir) => {
+  initRepo(dir);
+  const git = (...args) =>
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8' });
+  git('commit', '-q', '--no-verify', '-m', opts.message ?? 'a commit');
+  if (opts.patterns !== undefined) writeFileSync(join(dir, '.privacy-patterns'), opts.patterns);
+  if (opts.stage) {
+    for (const [f, body] of Object.entries(opts.stage)) writeFileSync(join(dir, f), body);
+    git('add', ...Object.keys(opts.stage));
+  }
+  if (opts.after) opts.after(dir);
+};
+const IGNORED = { '.gitignore': '.privacy-patterns\n' };
+const NO_ENV = { PRIVACY_PATTERNS: '' };
+
+gate('a clean tree passes against a pattern', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# A studio site\n' },
+  setup: privacyRepo({ patterns: '# clients\nacme\\s*plumbing\n' }),
+  env: NO_ENV,
+  expect: 0,
+  contains: 'clean against 1 private pattern',
+});
+
+gate('refuses a tracked file naming a client — and does not print the name', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'notes.md': `Built for ${NAME} last spring.\n` },
+  setup: privacyRepo({ patterns: 'acme\\s*plumbing\n' }),
+  env: NO_ENV,
+  expect: 1,
+  then: (_dir, out) => {
+    if (!out.includes('notes.md:1 — private pattern #1')) return 'did not name the file, line and pattern';
+    return /acme/i.test(out) ? 'printed the private text it found' : null;
+  },
+});
+
+gate('patterns from PRIVACY_PATTERNS, as CI passes them', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'notes.md': `Built for ${NAME}.\n` },
+  setup: privacyRepo(),
+  env: { PRIVACY_PATTERNS: 'nothing-here\nacme\\s*plumbing' },
+  expect: 1,
+  contains: 'private pattern #2',
+});
+
+gate('refuses the name in a commit message being written', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# a\n', 'MSG': `Fix the form for ${NAME}\n# Please enter the commit message\n` },
+  setup: privacyRepo({ patterns: 'acme\\s*plumbing\n' }),
+  args: ['--message', 'MSG'],
+  env: NO_ENV,
+  expect: 1,
+  contains: 'commit message:1',
+});
+
+gate("refuses the name in HEAD's message, which CI reads", {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# a\n' },
+  setup: privacyRepo({ patterns: 'acme\\s*plumbing\n', message: `Launch ${NAME}` }),
+  env: NO_ENV,
+  expect: 1,
+  contains: 'HEAD commit message:1',
+});
+
+gate('refuses a real email address with no list at all', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': `Write to ${REAL_EMAIL} or hello@example.com\n` },
+  setup: privacyRepo(),
+  env: NO_ENV,
+  expect: 1,
+  contains: 'a.md:1 — an email address outside the placeholder domains',
+});
+
+gate('placeholder addresses and package versions are not emails', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': 'hello@example.com, astro@7.1.6, @scope/pkg@4.2.0, user@site.test\n' },
+  setup: privacyRepo(),
+  env: NO_ENV,
+  expect: 0,
+});
+
+gate('refuses a pattern file that is not gitignored', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { 'a.md': '# a\n' },
+  setup: privacyRepo({ patterns: 'acme\n' }),
+  env: NO_ENV,
+  expect: 1,
+  contains: 'NOT gitignored',
+});
+
+gate('--require-patterns refuses to call zero patterns clean', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# a\n' },
+  setup: privacyRepo(),
+  args: ['--require-patterns'],
+  env: NO_ENV,
+  expect: 1,
+  contains: 'no private patterns loaded',
+});
+
+/* --staged reads the INDEX: an edit not yet staged is not what is being committed. */
+gate('--staged refuses a staged file naming a client', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# a\n' },
+  setup: privacyRepo({ patterns: 'acme\\s*plumbing\n', stage: { 'new.md': `For ${NAME}\n` } }),
+  args: ['--staged'],
+  env: NO_ENV,
+  expect: 1,
+  contains: 'new.md:1',
+});
+
+gate('--staged ignores an unstaged edit', {
+  script: 'check-privacy.mjs',
+  from: KIT_SCRIPTS,
+  files: { ...IGNORED, 'a.md': '# a\n' },
+  setup: privacyRepo({ patterns: 'acme\\s*plumbing\n', after: (dir) => writeFileSync(join(dir, 'a.md'), `For ${NAME}\n`) }),
+  args: ['--staged'],
+  env: NO_ENV,
+  expect: 0,
+});
+
+
+/* ────────────────────────────────────────────────────────────────────────
  * Report
  * ──────────────────────────────────────────────────────────────────────── */
 

@@ -28,3 +28,7 @@ dist/
 # `scripts`, so a whole directory sitting beside them was invisible to it.
 template/recon/
 template/shots/
+
+# Client names and domains for scripts/check-privacy.mjs — the list itself is
+# the leak it guards against, so it never enters this public repo.
+.privacy-patterns

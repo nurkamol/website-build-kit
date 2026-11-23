@@ -69,6 +69,17 @@ jobs:
       - name: No source file hides from review
         run: npm run check:binary
 
+      # This repository is public. Client names and domains come from the
+      # PRIVACY_PATTERNS secret — never from a file in the repo, which would be
+      # the leak it guards against. A fork's pull request gets no secrets, so
+      # only a push REQUIRES patterns: a clean result from zero patterns means
+      # nothing was looked for. Prints file:line and a pattern number, never the
+      # matched text — this log is public.
+      - name: No client names, domains or emails
+        run: node scripts/check-privacy.mjs ${{ github.event_name == 'push' && '--require-patterns' || '' }}
+        env:
+          PRIVACY_PATTERNS: ${{ secrets.PRIVACY_PATTERNS }}
+
       # The promise: the template builds green from a clean checkout with no
       # content, no images and no secrets.
       - name: Install the template from the lockfile

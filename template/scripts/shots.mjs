@@ -62,6 +62,17 @@ const VIEWPORTS = [
 
 const OUT = 'shots';
 const MAX_TEXTURE = 16384;
+/*
+ * ⚠ TALLEST PAGE CAPTURED, in CSS px — the same cap `match` uses (MAX_PAGE).
+ *   A page far taller is almost always broken: a stylesheet that failed to load
+ *   leaves a builder's full-height backgrounds unbounded, and the page measures
+ *   120,000px and keeps growing while it is scrolled. The lazy-image walk below
+ *   then never reaches the bottom, and a full-page capture of it takes Chrome
+ *   down — and every capture after it in the run. Found on a WordPress page
+ *   builder site whose page cache was serving a minified stylesheet it had
+ *   already deleted.
+ */
+const MAX_PAGE = 30000;
 const DEFAULT_LIMIT = 40;
 
 /* Paths in recon/urls.txt that are not pages. A PDF opens in a viewer and a
@@ -173,13 +184,15 @@ const FREEZE = `*, *::before, *::after {
 
 /* Lazy images load on approach, so a fullPage shot of a page never scrolled
    catches them blank. Walk it, then come back. */
-const SETTLE = async () => {
+const SETTLE = async (maxPage) => {
   await new Promise((resolve) => {
     let y = 0;
     const step = () => {
       window.scrollTo(0, y);
       y += window.innerHeight;
-      if (y < document.body.scrollHeight + window.innerHeight) setTimeout(step, 120);
+      /* Capped: a runaway page grows as it is scrolled, so "until the bottom"
+         is never. Past the cap the page is refused below anyway. */
+      if (y < Math.min(document.body.scrollHeight + window.innerHeight, maxPage)) setTimeout(step, 120);
       else {
         window.scrollTo(0, 0);
         setTimeout(resolve, 400);
@@ -209,6 +222,8 @@ const captured = [];
 const failures = [];
 const skipped = [];
 const downscaled = [];
+/* The site's OWN stylesheets and scripts that failed — `404 /wp-content/…/x.min.css`. */
+const ownFiles = new Map();
 
 try {
   for (const viewport of VIEWPORTS) {
@@ -230,13 +245,40 @@ try {
       const slug = SLUGS.get(route);
       const file = `${slug}--${viewport.name}.png`;
       const broken = [];
+      const own = new Set();
 
+      /*
+       * ── THE SITE'S OWN FILES ────────────────────────────────────────────
+       * A same-origin stylesheet or script that answers 4xx/5xx, or that the
+       * browser aborts — Chrome drops a stylesheet served as an HTML error page
+       * with ERR_ABORTED, before any response event, which is why the generic
+       * tally below skips it. On an old site this is almost always a stale page
+       * cache naming a minified file that no longer exists: the page is broken
+       * for every visitor, and a "before" shot of it records the breakage as
+       * the original design.
+       */
+      const ownAsset = (req) => {
+        const type = req.resourceType();
+        if (type !== 'stylesheet' && type !== 'script') return null;
+        try {
+          const u = new URL(req.url());
+          return u.origin === new URL(BASE).origin ? u.pathname : null;
+        } catch {
+          return null;
+        }
+      };
       const onFailed = (req) => {
         const reason = req.failure()?.errorText ?? '';
+        const mine = ownAsset(req);
+        if (mine) own.add(`failed ${mine}`);
         if (!/ERR_ABORTED/.test(reason)) broken.push(`${reason} ${req.url()}`);
       };
       const onResponse = (res) => {
-        if (res.status() >= 400) broken.push(`${res.status()} ${res.url()}`);
+        if (res.status() >= 400) {
+          broken.push(`${res.status()} ${res.url()}`);
+          const mine = ownAsset(res.request());
+          if (mine) own.add(`${res.status()} ${mine}`);
+        }
       };
       page.on('requestfailed', onFailed);
       page.on('response', onResponse);
@@ -263,7 +305,22 @@ try {
           continue;
         }
 
-        const state = await page.evaluate(SETTLE);
+        const state = await page.evaluate(SETTLE, MAX_PAGE);
+        if (own.size) ownFiles.set(route, [...own]);
+
+        /*
+         * Refused before the shutter, never captured at a smaller size: what
+         * is wrong is the page, and a 30,000px slice of it filed as "before"
+         * would be evidence of a design that never existed.
+         */
+        if (state.height > MAX_PAGE) {
+          const why = own.size
+            ? ` — its own files are failing: ${[...own].slice(0, 3).join(', ')}`
+            : ' — usually a stylesheet that did not load';
+          throw new Error(
+            `page is ${state.height.toLocaleString('en-US')}px tall (cap ${MAX_PAGE.toLocaleString('en-US')}), not captured${why}`,
+          );
+        }
 
         /*
          * The cheap assertion that proves the stylesheet arrived. A transparent
@@ -319,6 +376,7 @@ writeFileSync(
       viewports: VIEWPORTS,
       captured,
       failures,
+      ownFiles: Object.fromEntries(ownFiles),
       skipped,
       notCaptured: dropped,
     },
@@ -337,6 +395,20 @@ if (skipped.length) {
     side === 'after'
       ? `  ${DIM}On the new site that means the URL did not survive. \`npm run verify\` is the gate for it.${RESET}`
       : `  ${DIM}Expected on a before pass — recon lists paths that were already dead. They still hold backlinks.${RESET}`,
+  );
+}
+
+if (ownFiles.size) {
+  const files = [...new Set([...ownFiles.values()].flat())];
+  console.log(
+    `\n  ${YELLOW}!${RESET} The site's own stylesheets/scripts failed on ${ownFiles.size} route(s) — ${files.length} file(s):`,
+  );
+  for (const f of files.slice(0, 5)) console.log(`      ${DIM}${f}${RESET}`);
+  console.log(
+    side === 'before'
+      ? `  ${DIM}The old site is broken for its visitors too, so these shots are not the design. Usually a\n` +
+          `  stale page cache naming a deleted minified file: ask for the cache to be cleared, then re-run.${RESET}`
+      : `  ${DIM}The new build references a file it does not serve. \`npm run console\` names every request.${RESET}`,
   );
 }
 

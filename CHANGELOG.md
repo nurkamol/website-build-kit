@@ -2,6 +2,54 @@
 
 ## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **`npm run changes` — what the client changed on the old site while you were building.** A
+  migration takes weeks and the client keeps editing WordPress; the rebuild launched with the
+  copy from the day `recon` ran, and nothing said so. It captures the sitemap (with `lastmod`),
+  WordPress's public REST API where it is open (every page, post and public custom type by ID,
+  and the media library) and the links in the home page's `<nav>`, keeps the last two captures
+  in `recon/changes/`, and reports new, edited, moved and deleted pages, menu links added or
+  removed, and media added or replaced — in `recon/changes.md`. By ID, a renamed page reads as a
+  **move** with a proposed `_redirects` line rather than one page deleted and one added. Reports,
+  never applies: nothing in `src/`, `public/_redirects` or `recon/urls.txt` is touched, and a new
+  page missing from the inventory is flagged because `redirects` and `verify` never check it.
+  Fixture faults `wp-api` and `wp-edited` are the same site weeks apart; 7 cases.
+- **`npm run misses` — the 404 log the runbook asked for in week one, and the template did not
+  have.** Its pages are static files, so nothing on the request path sees a miss and Cloudflare's
+  analytics show the status without the path. The 404 page now reports itself on production
+  (`sendBeacon` to `/api/missed/`: the path, and the referring **host** decided in the browser),
+  counted in an optional `MISSES` KV namespace — absent, every report is a no-op. Kept per path:
+  a count, the day, up to five referring hosts; no IP, user agent, query string or anything per
+  visit; a path with an `@` or a long number is dropped. Each miss renews a 90-day expiry
+  (`site.missRetentionDays`). The counts live in KV metadata so one `list()` reads them. `misses`
+  ranks them, separates an old URL the redirect map missed, a broken link on the site itself and
+  a `_redirects` rule that does not match, and proposes lines with the same scorer as
+  `redirects` (moved to `lib/path-match.mjs`) — never writing them. Bot probes are left out, and
+  most never arrive: a scanner runs no JavaScript. Checked in `wrangler dev` with a local
+  namespace (204 counted, 403 cross-origin, 401 without the token). The export-token check is
+  now one function, `src/lib/export-token.ts`, shared with `/api/leads.csv`. 4 cases.
+- **`shots` filed a 120,000px page as a successful capture.** A stylesheet that fails to load
+  leaves a page builder's full-height rows unbounded; the page grows as it is scrolled, the
+  lazy-image walk chased it, and on a real site the full-page capture took Chrome down with the
+  rest of the run. On the fixture the old script exited 0 with two such PNGs. Pages over 30,000px
+  (`match`'s cap) are now refused before the shutter, naming the page and the site's own failing
+  files. Those are tracked separately too: a same-origin stylesheet or script that answers 4xx or
+  is aborted — Chrome aborts CSS served as an HTML error page, and the failed-request tally
+  skipped every `ERR_ABORTED`. Fixture faults `own-css-404` and `runaway-height`; 2 cases.
+- **`recon` checks the old site's own stylesheets and scripts.** One answering 404, or an HTML
+  page where CSS should be, means the old site is already broken for its visitors — usually a
+  page cache naming a minified file it deleted — and every before-shot, `design` and `match`
+  after it records the breakage as the original. Named in a new "Own files" section and in the
+  closing notes, on day one, when asking for the cache to be cleared is cheap. 2 cases.
+- **`npm run check:privacy`, a pre-commit and a commit-msg hook, and a CI step: this repository
+  is public.** Client names and domains come from an untracked, gitignored `.privacy-patterns`
+  (read from the main checkout, so every worktree shares it) and the `PRIVACY_PATTERNS` secret;
+  any email outside the placeholder domains is refused with no list at all. Output names the
+  file, line and pattern number, never the matched text — a CI log on a public repo is public.
+  It reads the **commit message**, which no other check here does, and refuses a pattern file
+  that is tracked or not ignored. On a push CI requires at least one pattern; a fork's pull
+  request has no secrets and runs the email rule alone. CLAUDE.md places it next to the
+  provenance sweep as the floor, not the method. 11 cases.
+
 - **`match` moved a faded-in element by clearing a transform that was layout, not motion.** The
   freeze's catch-all reveal (opacity 0 with a transition) forced `transform: none` on everything it
   revealed. Salient centres its scrolling text with `translateY(-50%)` and fades it in by opacity

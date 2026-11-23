@@ -70,6 +70,28 @@ const KNOWN_FAULTS = [
   'dark-only-contrast', // AA contrast that passes in light and fails in dark
   'no-stylesheet', // a page that arrives with no CSS at all
   'orphan-route', // a page in the sitemap that no other page links to
+  /* A stale page cache: the page names a minified stylesheet the server has
+     already deleted, answered with an HTML 404 page. The page still renders —
+     only worse — which is why it reads as the old site's design. */
+  'own-css-404',
+  /* What that does to a page builder's full-height rows: a page 120,000px tall.
+     A full-page capture of it is what took Chrome down. */
+  'runaway-height',
+
+  /* ── An old site that keeps changing, for `changes` ──────────────────────
+   * `wp-api` serves WordPress's public REST API — types, pages, posts and the
+   * media library — and puts a <nav> on every page. `wp-edited` is the SAME
+   * site a few weeks later: one page edited, one post moved to a new address,
+   * one post deleted, one page added, one image added and one replaced, and a
+   * menu link added. `changes` run against the first and then the second must
+   * name every one of them, and nothing else. */
+  'wp-api',
+  'wp-edited',
+  /* The new site after launch, with its 404 watcher holding counts: an old
+     URL the redirect map missed, a broken internal link, a rule already in
+     _redirects that does not match, and the bot probes and personal-looking
+     paths that must never be listed. GET /api/missed/ with the token below. */
+  'misses',
 
   /* ── Faults only a comparison can see ────────────────────────────────────
    * `match` reads two sites, so these run as the NEW side against a clean
@@ -232,10 +254,12 @@ function page({ path, title, description, h1 = 'Heading', canonical = `${BASE}${
 <meta name="description" content="${description}">
 <link rel="canonical" href="${canonical}">
 ${FAULTS.has('no-stylesheet') ? '' : `<style>${STYLE}</style>`}
+${FAULTS.has('own-css-404') ? '<link rel="stylesheet" href="/wp-content/cache/min/1/site.min.css?ver=3">' : ''}
 ${FAULTS.has('vendor-words') ? '<style id="global-styles-inline-css">:root{--wp--preset--shadow--crisp: 6px 6px 0 #000;}</style>' : ''}
 ${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" async></script>' : ''}
 </head>
 <body>
+${FAULTS.has('wp-api') ? `<nav><a href="/">Home</a> <a href="/about/">About us</a>${FAULTS.has('wp-edited') ? ' <a href="/pricing/">Pricing</a>' : ''}</nav>` : ''}
 <main>
 ${content(`<section>
 <h1>${h1}</h1>
@@ -247,6 +271,7 @@ and back to <a href="/">home</a>.</p>
 ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
+${FAULTS.has('runaway-height') ? '<div style="height: 120000px">A full-height row with nothing left to bound it.</div>' : ''}
 </section>
 ${FAULTS.has('insert-section') ? '<section><h2>A section the rebuild added</h2><p>Opening hours are posted by the door.</p></section>' : ''}
 <section${FAULTS.has('section-drift') ? ' style="background: rgb(200, 200, 200); padding: 6rem 0"' : ''}>
@@ -621,6 +646,42 @@ const sitemap = () =>
     .join('') +
   `</urlset>`;
 
+/* WordPress's REST API, as a public site serves it to anyone. Two states of
+   the same site: the baseline, and `wp-edited` weeks later. */
+const LATER = FAULTS.has('wp-edited');
+const wpItem = (id, path, title, modified) => ({ id, link: `${BASE}${path}`, modified_gmt: modified, status: 'publish', title: { rendered: title } });
+function wpRest(path) {
+  if (path === '/wp-json/wp/v2/types') {
+    return {
+      page: { slug: 'page', rest_base: 'pages', rest_namespace: 'wp/v2' },
+      post: { slug: 'post', rest_base: 'posts', rest_namespace: 'wp/v2' },
+      attachment: { slug: 'attachment', rest_base: 'media', rest_namespace: 'wp/v2' },
+      wp_block: { slug: 'wp_block', rest_base: 'blocks', rest_namespace: 'wp/v2' },
+    };
+  }
+  if (path === '/wp-json/wp/v2/pages') {
+    return [
+      wpItem(2, '/', 'Home', '2026-01-10T09:00:00'),
+      wpItem(5, '/about/', 'About us', LATER ? '2026-03-02T14:30:00' : '2026-01-12T09:00:00'),
+      ...(LATER ? [wpItem(9, '/pricing/', 'Pricing', '2026-03-01T10:00:00')] : []),
+    ];
+  }
+  if (path === '/wp-json/wp/v2/posts') {
+    return [
+      wpItem(11, LATER ? '/news/opening-hours/' : '/2026/01/opening-hours/', 'Opening hours', '2026-01-20T09:00:00'),
+      ...(LATER ? [] : [wpItem(12, '/2026/01/winter-closure/', 'Winter closure', '2026-01-21T09:00:00')]),
+    ];
+  }
+  if (path === '/wp-json/wp/v2/media') {
+    return [
+      { id: 30, source_url: `${BASE}/wp-content/uploads/2026/01/front.jpg`, modified_gmt: '2026-01-05T09:00:00' },
+      { id: 31, source_url: `${BASE}/wp-content/uploads/2026/01/team.jpg`, modified_gmt: LATER ? '2026-03-03T09:00:00' : '2026-01-05T09:00:00' },
+      ...(LATER ? [{ id: 32, source_url: `${BASE}/wp-content/uploads/2026/03/price-list.jpg`, modified_gmt: '2026-03-01T09:00:00' }] : []),
+    ];
+  }
+  return null;
+}
+
 const server = createServer((req, res) => {
   const path = req.url.split('?')[0];
   const send = (code, type, body) => {
@@ -769,6 +830,34 @@ const server = createServer((req, res) => {
       res.end('{"ok":true}');
     });
     return;
+  }
+
+  if (FAULTS.has('wp-api') && path.startsWith('/wp-json/')) {
+    const data = wpRest(path);
+    if (data) {
+      res.writeHead(200, { 'content-type': 'application/json', 'x-wp-total': String(data.length ?? 0), 'x-wp-totalpages': '1' });
+      return res.end(JSON.stringify(data));
+    }
+    return send(404, 'application/json', '{"code":"rest_no_route"}');
+  }
+
+  if (path === '/api/missed/' && FAULTS.has('misses')) {
+    if (req.headers.authorization !== 'Bearer fixture-export-token') return send(401, 'text/plain', 'Unauthorized\n');
+    return send(
+      200,
+      'application/json',
+      JSON.stringify({
+        retentionDays: 90,
+        misses: [
+          { path: '/about-us/', hits: 9, last: '2026-03-04', from: { 'news.example.org': 3 } },
+          { path: '/about-us', hits: 2, last: '2026-03-01', from: {} },
+          { path: '/wp-login.php', hits: 50, last: '2026-03-04', from: {} },
+          { path: '/contact/jane@example.com/', hits: 4, last: '2026-03-02', from: {} },
+          { path: '/abuot/', hits: 2, last: '2026-03-03', from: { '127.0.0.1': 2 } },
+          { path: '/legacy-about.html', hits: 3, last: '2026-03-03', from: {} },
+        ],
+      }),
+    );
   }
 
   const body = ROUTES[path];

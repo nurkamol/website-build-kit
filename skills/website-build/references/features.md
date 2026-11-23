@@ -33,7 +33,11 @@ What it must do, in order of value:
 
 **Watch the 404 log in week one.** Real 404s are URLs the migration inventory missed, and each
 one is a redirect you owe. This is the single cheapest source of recovered traffic after a
-rebuild.
+rebuild. ⚠ **On this stack there is no 404 log to watch unless you bind one.** The 404 page is
+a static asset, so no middleware sees the miss and Cloudflare's analytics show the status without
+the path. The template's 404 page reports itself to `/api/missed/` on production; bind the
+`MISSES` KV namespace before launch and read it with `npm run misses` (runbook §4). Bound after
+launch, the first weeks — the ones that matter — were never counted.
 
 ---
 

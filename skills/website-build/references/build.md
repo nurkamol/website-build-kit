@@ -241,6 +241,7 @@ re-read of the whole repo.
 ### 0 · Recon
 ```bash
 npm run recon -- https://old-site.com     # → recon/urls.txt, preserved.md, integrations.md
+npm run changes -- https://old-site.com   # baseline now; weekly until go-live → recon/changes.md
 npm run dns   -- old-site.com             # → recon/dns.md + dns.json. THE ROLLBACK ARTEFACT
 npm run seo   -- https://old-site.com --json recon/seo-before.json --fail-on never
 npm run design -- https://old-site.com    # → recon/design.md, tokens.proposed.css, blueprint.md. Phase 3 reads them
@@ -507,7 +508,7 @@ them are silent.
 | Day 1 | The ten highest-traffic legacy URLs, by hand | A 301 that lands on a 404 is invisible until traffic drops |
 | Day 2–3 | Search Console → Pages, and → Sitemaps | A "not indexed" spike is a canonical or redirect fault; "couldn't fetch" is a changed sitemap filename |
 | Week 1 | Is analytics recording anything at all | A missing tag and a quiet week look the same in the dashboard |
-| Week 1 | The 404 log | Real 404s are URLs the inventory missed. They become redirects |
+| Week 1 | The 404 log — `npm run misses` | Real 404s are URLs the inventory missed. They become redirects. The page is static, so it reports itself; bind the `MISSES` KV namespace before launch or there is nothing to read (runbook §4) |
 | Week 2–4 | Search Performance versus the old site | Some movement is normal; a sustained drop is a redirect problem |
 | Week 4 | Core Web Vitals **field** data | Lab numbers are a proxy. This is the real one |
 

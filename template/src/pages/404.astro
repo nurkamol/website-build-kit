@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { business } from '../data/business';
 import { nav } from '../data/nav';
+import { site } from '../data/site';
 
 /**
  * A real 404 — the worker returns status 404 for this route, not 200.
@@ -10,7 +11,14 @@ import { nav } from '../data/nav';
  * that has since been removed. Offer SPECIFIC routes, not "go home": someone
  * who landed on a dead link wanted something particular, and a link back to
  * the homepage asks them to start the search again.
+ *
+ * On production it also reports itself to /api/missed/ — the path and the
+ * referring HOST only — which is how `npm run misses` knows what visitors are
+ * still asking for after launch. This page is static, so nothing else on the
+ * request path can see the miss. Off staging, and a no-op until the MISSES KV
+ * binding exists. See src/pages/api/missed.ts.
  */
+const reportMiss = site.env === 'production';
 ---
 
 <Base
@@ -34,6 +42,19 @@ import { nav } from '../data/nav';
     </div>
   </section>
 </Base>
+
+{
+  reportMiss && (
+    <script>
+      try {
+        const from = document.referrer ? new URL(document.referrer).host : '';
+        navigator.sendBeacon('/api/missed/', JSON.stringify({ p: location.pathname, r: from }));
+      } catch {
+        /* a 404 page must never fail because its report did */
+      }
+    </script>
+  )
+}
 
 <style>
   .notfound__lede {

@@ -99,7 +99,14 @@ diff after cutover rather than an argument. Optional — see §7.
 `recon/preserved.md` and `recon/integrations.md`. It resolves which sitemap filename is canonical, pulls URLs the
 current sitemap has forgotten out of the Wayback Machine, and detects the analytics IDs and
 vendors in §1b below. **It never reports a failed archive lookup as "no archived URLs"** —
-that distinction is the whole point of consulting it.
+that distinction is the whole point of consulting it. It also fetches the old site's own
+stylesheets and scripts: one that 404s means the old site is already broken (usually a stale
+page cache), and every capture after it would record the breakage as the design.
+
+**The client keeps editing the old site while you build.** `npm run changes` records a baseline
+the day recon runs and, on every later run, reports what was added, edited, moved or deleted —
+by WordPress ID through the public REST API where it is open, so a renamed page reads as a move.
+Run it weekly and the day before go-live; it reports, never applies.
 
 Then take the rest of the inventory by hand: template families, forms, media assets, and
 anything a crawl cannot see. Then check the client's folders for **finished work never shipped** — drafted posts, a

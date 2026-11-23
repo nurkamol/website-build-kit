@@ -133,7 +133,8 @@ which is what `check-env.mjs` was for a whole client project.
 It must build green from a clean clone with no content, no images and no secrets.
 
 **Then the provenance sweep in `CLAUDE.md`, which is the authority — run it, do not
-approximate it.** It checks first that every file is *readable* by the sweep (a single NUL byte
+approximate it.** `npm run check:privacy` (and the `.githooks` it ships with) runs the
+name-based half on every commit; it does not replace the sweep. It checks first that every file is *readable* by the sweep (a single NUL byte
 makes a source file binary, and `grep -I` skips those — that is how a script full of a client's
 brand stayed invisible for two commits), then greps for the shapes client data takes rather
 than for a list of names. A denylist only tests for the mistakes you already made.
