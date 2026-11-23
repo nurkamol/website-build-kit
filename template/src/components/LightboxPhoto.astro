@@ -1,0 +1,59 @@
+---
+/**
+ * One photo that opens in the full-screen viewer (`Lightbox.astro`).
+ *
+ * Behaviour only: a link around an `<Img>`. No grid, no crop, no hover — how a
+ * gallery LOOKS is the project's, in `project.css` or the page's own styles.
+ *
+ *   <section data-lightbox-group aria-labelledby="interiors">
+ *     <h2 id="interiors">Interiors</h2>
+ *     <ul role="list" class="gallery">
+ *       {photos.map((p) => <li><LightboxPhoto name={p.image} alt={p.alt} sizes="…" /></li>)}
+ *     </ul>
+ *   </section>
+ *   <Lightbox />            once per page, anywhere in it
+ *
+ * Three things it does that are easy to get wrong:
+ *
+ * 1. **The link goes to the LARGEST rendition**, so without JavaScript a photo
+ *    still opens big — the viewer is an enhancement of a link that works. That
+ *    is the manifest's `src`, and deliberately not what `<Img>` puts in its own
+ *    `src`, which is capped at 1024px for crawlers.
+ * 2. **`data-astro-reload`.** The ClientRouter listens for clicks on every
+ *    same-origin link and gets there before the viewer's listener, so without
+ *    it a click navigates to the bare image file. Nothing errors; the viewer
+ *    just never opens. See docs/traps.md.
+ * 3. **The alt text travels on the link** (`data-alt`), so the viewer's image
+ *    is described exactly as the thumbnail is.
+ *
+ * Groups: each `[data-lightbox-group]` ancestor is its own set, and the counter
+ * reads "2 / 8" within it. Without one, every photo on the page is one set.
+ */
+import Img from './Img.astro';
+import manifest from '../data/image-manifest.json';
+import { toImageKey } from '../lib/image-key';
+
+interface Props {
+  /** Manifest key, e.g. "gallery/interior-01" — or a CMS picker path. */
+  name: string;
+  alt: string;
+  /** How wide the THUMBNAIL renders — measure the real slot, not the viewport. */
+  sizes?: string;
+  /** On the link — the project's hook for the tile. Style it with `:global()` from a parent. */
+  class?: string;
+  /** Crop the thumbnail via CSS, e.g. "3/2". The viewer always shows the whole photo. */
+  ratio?: string;
+}
+
+const { name, alt, sizes = '100vw', class: className, ratio } = Astro.props;
+
+const key = toImageKey(name, manifest as Record<string, unknown>);
+const entry = (manifest as Record<string, { src: string }>)[key];
+/* A missing entry is <Img>'s to report — it throws with the fix in the message.
+   Falling back to '' here only keeps this line from throwing first, less helpfully. */
+const largest = entry?.src ?? '';
+---
+
+<a class={className} href={largest} data-lightbox-item data-alt={alt} data-astro-reload>
+  <Img name={name} alt={alt} sizes={sizes} ratio={ratio} />
+</a>

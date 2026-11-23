@@ -183,6 +183,8 @@ earns it with real choreography.
 - **Persistent mobile CTA?** — a sticky call or book bar is the single highest-impact mobile
   feature for a services business, and the single most annoying if done badly
 - **What must be visible without scrolling on a phone** — usually the offer and the CTA
+- **Header on scroll** — fixed ✅, or hiding on the way down and back on the way up. Five rules
+  if yes: [`features.md`](features.md) §8
 - **Light / dark / auto?** — real cost, real audience for some sectors, none for others. If yes it is
   **three** states, not two, and the flash on load is the thing to get right: [`features.md`](features.md) §3
 
@@ -232,7 +234,8 @@ Offer as a checklist. Everything here is implementable inside the stack profile 
 ### Trust and conversion
 - Credential / accreditation strip
 - Testimonials, with Review schema only if they are real and attributable
-- Case studies or project gallery
+- Case studies or project gallery — the full-screen photo viewer ships in the template
+  (`Lightbox.astro`); the grid is the project's
 - FAQ with FAQPage schema
 - Pricing or package tables
 - Booking embed (Calendly, Cal.com) — check the payload before committing

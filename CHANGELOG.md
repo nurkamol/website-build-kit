@@ -59,6 +59,40 @@
   names each dynamic route file it cannot date, and verify reports coverage first ("1 of 3 carry
   none: /pricing/", a warning) and words the variance row for the URLs it is about — still a
   failure when every URL carries the same date. Fixture faults `lastmod-same`, `lastmod-partial`.
+- **A photo viewer ships in the template, as behaviour with no look.** `Lightbox.astro` (a
+  `<dialog>` opened with `showModal()`: "n / total" per `[data-lightbox-group]`, previous / next
+  buttons, ← →, swipe, a zoom toggle, full screen hidden where `document.fullscreenEnabled` is
+  false, a click on the dark area closes, Escape closes, focus returns to the photo) and
+  `LightboxPhoto.astro` (the link that opens it). From an event-venue rebuild, where three things
+  in it each went wrong once: the link must point at the **largest** rendition so it works without
+  JavaScript — the manifest's `src`, not `<Img>`'s 1024px-capped one; the link must carry
+  **`data-astro-reload`**, or the ClientRouter takes the click first and navigates to the bare
+  `.webp`; and the script sets up on `astro:page-load` with one document-level click listener, so
+  it never drives the previous page's detached dialog. The photo is sized to the screen in pixels,
+  not `object-fit`, which would swallow the click around it. Grey ramp and tokens only — `tells`
+  still says "fresh template". The grid stays the project's; `docs/the-template.md` says how to
+  use it. `test:gates` builds a copy of the template with it on a page and drives it in Chrome,
+  including the refusal: the same link without the attribute really is taken to the image file by
+  the router, so the positive cases are known to exercise it.
+- **`Header.astro`: `transitionend` from a child could end the menu's close early.** It waited
+  with `{ once: true }`, and `transitionend` bubbles — the first button or link to finish a
+  transition of its own set `hidden` on the panel mid-animation. Found on the same rebuild with a
+  `clip-path` wipe; the template now filters on `event.target === panel`.
+- **Three traps** (`traps.md`): the ClientRouter claiming a same-origin link click before a
+  delegated handler; `transitionend` bubbling from children, plus keeping the fixed bar until a
+  wipe has covered it; and a parallax layer 137–157% of its window rendering its photo wider than
+  `sizes` says, so it is soft on a 2× screen — worse with a density cap. The count on the landing
+  page and both share cards is 42.
+- **`features.md` §8 — a header that hides on scroll.** Default no; if yes, five rules: never
+  hidden near the top, with the menu open, or with focus inside it; shown on `focusin`; a few
+  pixels of slack; no transition under reduced motion. Plus clearing the state on `astro:page-load`
+  for a persisted header. "Adjacent, and quickly" is now §9.
+- **`build.md`, reading `match`:** two causes of "everything is a little off" — a fluid bottom of
+  the type scale against an original that sets fixed 16px body and 13px small type (one pixel
+  rewraps every paragraph), and a title block offset for the fixed header by padding, which starts
+  at y=0 and is compared shifted by the bar's height. **`stacks.md` §4:** a gallery's crop as a
+  per-section `shape` select (3:2 / 9:8), with the field config.
+
 - **`match` moved a faded-in element by clearing a transform that was layout, not motion.** The
   freeze's catch-all reveal (opacity 0 with a transition) forced `transform: none` on everything it
   revealed. Salient centres its scrolling text with `translateY(-50%)` and fades it in by opacity

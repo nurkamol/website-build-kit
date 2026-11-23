@@ -549,6 +549,24 @@ A field is part of the deliverable, not a wrapper around a key name.
   alt text from the filename** — `DSC_0481` and `hero-final-v3-USE-THIS` are what filenames
   actually look like, and a plausible-looking wrong alt is worse than none because a reviewer
   scrolls past it.
+- **A gallery's crop is a property of the section, not of each photo.** On an event-venue
+  rebuild the old theme cropped per gallery — one set at 3:2, another nearly square — so it
+  migrated as a `shape` select on the section (`wide` 3:2 ✅ default, `square` 9:8), applied as a
+  class on the grid, with the full photo stored and the crop done in CSS. Per-photo crops become a field nobody fills
+  in consistently; no field at all means the client cannot fix the one section that looks wrong.
+  ⚠ **A theme's masonry of its own pre-cut thumbnails does not survive the move**: rebuilt from the
+  full photos, an even 3:2 grid measured closer to the original (`npm run match`) than a masonry
+  did. The viewer for a gallery ships in the template — `Lightbox.astro` and `LightboxPhoto.astro`
+
+  ```yaml
+  - name: shape
+    label: Photo shape
+    type: select
+    options:
+      values:
+        - { value: wide, label: "Landscape 3:2, all the same (default)" }
+        - { value: square, label: "Nearly square 9:8, all the same" }
+  ```
 
 ### What the CMS may edit, and what it must never see
 

@@ -1,0 +1,324 @@
+---
+/**
+ * The full-screen photo viewer. Once per page, on any page that has a
+ * `<LightboxPhoto>`; it does nothing on a page without one.
+ *
+ * Behaviour and plumbing only. The styling below is the grey ramp and the
+ * tokens — legible and deliberately plain. Restyle it per project; keep the
+ * mechanics, which are the part that is easy to get wrong:
+ *
+ * - A `<dialog>` opened with `showModal()`: focus stays inside, Escape closes,
+ *   the page behind is inert, and focus goes back to the photo that opened it.
+ * - "n / total" per group, previous / next as buttons, ← → keys and a swipe.
+ * - Zoom toggle (the photo at its own size, panned by scrolling) and full
+ *   screen — the latter hidden where `document.fullscreenEnabled` is false,
+ *   which is every iPhone. A control that does nothing is worse than none.
+ * - A click on the dark area around the photo closes it. The photo is sized
+ *   in PIXELS to fit, not with `object-fit`, because an object-fit box fills
+ *   the stage and swallows that click.
+ * - Without JavaScript every photo is a plain link to its largest rendition.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  /** The dialog's accessible name. */
+  label?: string;
+}
+
+const { label = 'Photo viewer' } = Astro.props;
+---
+
+<dialog class="lightbox" aria-label={label} data-lightbox>
+  <div class="lightbox__bar">
+    <p class="lightbox__count" aria-live="polite" data-lightbox-count></p>
+    <div class="lightbox__tools">
+      <button type="button" class="lightbox__btn" data-lightbox-fullscreen aria-label="Full screen">
+        <Icon name="expand" size={20} />
+      </button>
+      <button type="button" class="lightbox__btn" data-lightbox-zoom aria-label="Zoom in" aria-pressed="false">
+        <Icon name="zoom" size={20} />
+      </button>
+      <button type="button" class="lightbox__btn" data-lightbox-close aria-label="Close" autofocus>
+        <Icon name="close" size={20} />
+      </button>
+    </div>
+  </div>
+  <div class="lightbox__stage" data-lightbox-stage>
+    <img class="lightbox__img" alt="" data-lightbox-img />
+  </div>
+  <button type="button" class="lightbox__nav lightbox__nav--prev" data-lightbox-prev aria-label="Previous photo">
+    <Icon name="arrowLeft" size={20} />
+  </button>
+  <button type="button" class="lightbox__nav lightbox__nav--next" data-lightbox-next aria-label="Next photo">
+    <Icon name="arrowRight" size={20} />
+  </button>
+</dialog>
+
+<style>
+  /* Placeholder look: ink and white from the tokens. The layout is the part
+     worth keeping — a bar, then a stage that takes the rest of the screen. */
+  .lightbox {
+    inline-size: 100vw;
+    max-inline-size: none;
+    /* dvh, not vh: on a phone 100vh is taller than what is visible. */
+    block-size: 100dvh;
+    max-block-size: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--white);
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .lightbox::backdrop {
+    background: color-mix(in oklab, var(--ink-900) 92%, transparent);
+  }
+
+  .lightbox[open] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .lightbox__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline-start: var(--space-s);
+  }
+
+  .lightbox__count {
+    margin: 0;
+    font-size: var(--step--1);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lightbox__tools {
+    display: flex;
+  }
+
+  .lightbox__btn,
+  .lightbox__nav {
+    display: grid;
+    place-items: center;
+    /* 44px — the WCAG 2.5.5 target, on a screen people use with a thumb. */
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    padding: 0;
+    color: var(--white);
+    background: color-mix(in oklab, var(--ink-900) 60%, transparent);
+  }
+
+  .lightbox__btn[hidden],
+  .lightbox__nav[hidden] {
+    display: none;
+  }
+
+  .lightbox__btn:focus-visible,
+  .lightbox__nav:focus-visible {
+    outline: 2px solid var(--white);
+    outline-offset: -4px;
+  }
+
+  .lightbox__stage {
+    display: grid;
+    place-items: center;
+    min-block-size: 0;
+    padding: 0 3.5rem var(--space-l);
+    overflow: hidden;
+    /* Horizontal swipes are ours; vertical ones still scroll nothing, harmlessly. */
+    touch-action: pan-y;
+  }
+
+  .lightbox__img {
+    max-inline-size: none;
+    cursor: zoom-in;
+  }
+
+  /* Zoomed: the photo at its own size or larger, panned by scrolling. */
+  .lightbox__stage[data-zoomed] {
+    place-items: start;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 0;
+    touch-action: auto;
+  }
+
+  .lightbox__stage[data-zoomed] .lightbox__img {
+    margin: auto;
+    cursor: zoom-out;
+  }
+
+  .lightbox__nav {
+    position: absolute;
+    inset-block-start: 50%;
+    translate: 0 -50%;
+  }
+
+  .lightbox__nav--prev {
+    inset-inline-start: var(--space-s);
+  }
+
+  .lightbox__nav--next {
+    inset-inline-end: var(--space-s);
+  }
+
+  /* On a phone the arrows move under the photo, out of its way. */
+  @media (max-width: 40rem) {
+    .lightbox__stage {
+      padding: 0 0 3.75rem;
+    }
+
+    .lightbox__nav {
+      inset-block-start: auto;
+      inset-block-end: var(--space-xs);
+      translate: none;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * ⚠ TWO THINGS MAKE THIS HARDER THAN IT LOOKS, BOTH FROM THE CLIENTROUTER.
+   *
+   * 1. A module script runs ONCE per visit, not once per page. A viewer that
+   *    captured the dialog at module load would, after one client-side
+   *    navigation, be driving the previous page's DETACHED dialog — open() on a
+   *    node nobody can see, and no error. So everything per-page is looked up
+   *    on `astro:page-load`, and only listeners that hold no element are
+   *    registered at module level.
+   * 2. The router claims same-origin link clicks before this listener sees
+   *    them, and navigates — to the image file. The links carry
+   *    `data-astro-reload` (LightboxPhoto does it) so the router leaves them
+   *    alone and this click handler gets them.
+   */
+  type Viewer = { open: (link: HTMLAnchorElement) => void; fit: () => void; dialog: HTMLDialogElement };
+  let viewer: Viewer | null = null;
+
+  /* Registered once, for whichever page is current. A modified click (new tab,
+     download) is left to the browser — the link is real. */
+  document.addEventListener('click', (event) => {
+    if (!viewer || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = (event.target as Element).closest<HTMLAnchorElement>('a[data-lightbox-item]');
+    if (!link) return;
+    event.preventDefault();
+    viewer.open(link);
+  });
+
+  window.addEventListener('resize', () => viewer?.dialog.open && viewer.fit());
+
+  /* Leaving the page with the viewer open: close it, so full screen and the
+     opener's focus are released rather than carried into the next page. */
+  document.addEventListener('astro:before-preparation', () => viewer?.dialog.open && viewer.dialog.close());
+
+  function setup(): Viewer | null {
+    const dialog = document.querySelector<HTMLDialogElement>('[data-lightbox]');
+    if (!dialog) return null;
+    const $ = <T extends Element>(sel: string) => dialog.querySelector<T>(sel)!;
+    const img = $<HTMLImageElement>('[data-lightbox-img]');
+    const stage = $<HTMLElement>('[data-lightbox-stage]');
+    const count = $<HTMLElement>('[data-lightbox-count]');
+    const zoom = $<HTMLButtonElement>('[data-lightbox-zoom]');
+    const full = $<HTMLButtonElement>('[data-lightbox-fullscreen]');
+    const prev = $<HTMLButtonElement>('[data-lightbox-prev]');
+    const next = $<HTMLButtonElement>('[data-lightbox-next]');
+
+    let items: HTMLAnchorElement[] = [];
+    let index = 0;
+    let opener: HTMLElement | null = null;
+    const zoomed = () => stage.hasAttribute('data-zoomed');
+
+    /* Fitted to the stage — small photos enlarged to fit too. Zoomed: its own
+       size, or twice the fitted size, whichever is larger. In pixels, so the
+       stage around the photo stays a clickable "close" area. */
+    const fit = () => {
+      if (!img.naturalWidth) return;
+      const cs = getComputedStyle(stage);
+      const w = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const h = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      let scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+      if (zoomed()) scale = Math.max(1, scale * 2);
+      img.style.inlineSize = `${Math.round(img.naturalWidth * scale)}px`;
+      img.style.blockSize = `${Math.round(img.naturalHeight * scale)}px`;
+    };
+    img.addEventListener('load', fit);
+
+    const setZoom = (on: boolean) => {
+      stage.toggleAttribute('data-zoomed', on);
+      zoom.setAttribute('aria-pressed', String(on));
+      zoom.setAttribute('aria-label', on ? 'Zoom out' : 'Zoom in');
+      fit();
+    };
+
+    const show = (i: number) => {
+      index = (i + items.length) % items.length;
+      const item = items[index];
+      setZoom(false);
+      img.src = item.href;
+      img.alt = item.dataset.alt ?? '';
+      count.textContent = `${index + 1} / ${items.length}`;
+      /* The neighbours, so the next press is instant. */
+      if (items.length > 1) {
+        for (const n of [index - 1, index + 1]) new Image().src = items[(n + items.length) % items.length].href;
+      }
+    };
+
+    const open = (link: HTMLAnchorElement) => {
+      const scope = link.closest('[data-lightbox-group]') ?? document;
+      items = Array.from(scope.querySelectorAll<HTMLAnchorElement>('a[data-lightbox-item]'));
+      opener = link;
+      prev.hidden = next.hidden = items.length < 2;
+      show(Math.max(0, items.indexOf(link)));
+      dialog.showModal();
+    };
+
+    prev.addEventListener('click', () => show(index - 1));
+    next.addEventListener('click', () => show(index + 1));
+    $('[data-lightbox-close]').addEventListener('click', () => dialog.close());
+    zoom.addEventListener('click', () => setZoom(!zoomed()));
+    img.addEventListener('click', () => setZoom(!zoomed()));
+
+    full.hidden = !document.fullscreenEnabled;
+    full.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else dialog.requestFullscreen?.();
+    });
+
+    stage.addEventListener('click', (event) => {
+      if (event.target === stage && !zoomed()) dialog.close();
+    });
+
+    /* Zoomed, the arrow keys pan the photo instead. */
+    dialog.addEventListener('keydown', (event) => {
+      if (zoomed() || items.length < 2) return;
+      if (event.key === 'ArrowLeft') show(index - 1);
+      if (event.key === 'ArrowRight') show(index + 1);
+    });
+
+    /* Swipe — touch and pen only; a mouse drag is not a gesture here. */
+    let startX: number | null = null;
+    stage.addEventListener('pointerdown', (event) => {
+      startX = event.pointerType !== 'mouse' && !zoomed() ? event.clientX : null;
+    });
+    stage.addEventListener('pointerup', (event) => {
+      if (startX === null) return;
+      const dx = event.clientX - startX;
+      startX = null;
+      if (Math.abs(dx) > 50 && items.length > 1) show(index + (dx < 0 ? 1 : -1));
+    });
+
+    dialog.addEventListener('close', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      setZoom(false);
+      img.removeAttribute('src');
+      opener?.focus();
+      opener = null;
+    });
+
+    return { open, fit, dialog };
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    viewer = setup();
+  });
+</script>
