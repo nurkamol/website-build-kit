@@ -30,9 +30,12 @@
 
 # ── Security headers ─────────────────────────────────────────────────────────
 #
-# HSTS and X-Content-Type-Options already arrive from the Cloudflare zone, not
-# from here — check both are still present after any SSL/TLS settings change,
-# because nothing in this repo would notice them disappearing.
+# ⚠ KEEP IN STEP WITH src/lib/security-headers.ts. This file covers everything
+# served as a file; a page the Worker renders (prerender = false) and /api/* get
+# the same list from src/middleware.ts, because _headers never reaches them.
+# HSTS and nosniff used to be left to the Cloudflare zone — but a workers.dev
+# address has no zone settings, and a zone's defaults are not something this
+# repo can see. HSTS here is this host only: no includeSubDomains, no preload.
 #
 # ⚠ WHAT THIS CSP DELIBERATELY DOES NOT DO: restrict scripts.
 # `script-src` is absent on purpose. Google Tag Manager exists to inject
@@ -59,3 +62,5 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
   Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000

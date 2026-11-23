@@ -353,9 +353,75 @@ if (process.platform === 'win32') {
     contains: 'BREVO_API_KEY',
   });
 
-  for (const d of [bothSet, oneSet, notDeployed, loggedOut, demandsJsonFlag, prettyTable, noneSet, tooOldForFlag]) {
+  /*
+   * ⚠ TURNSTILE IS DECLARED IN site.ts, so .dev.vars.example cannot say whether its secret is
+   *   needed. Both directions: a declared key with no secret is a spam check that checks nothing
+   *   (must fail); a secret with no key is ignored by the endpoint (must say so, not fail).
+   */
+  const SITE_WITH_KEY = "export const TURNSTILE_SITE_KEY: string = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '0x4AAAAAAAexampleKey';\n";
+  const SITE_NO_KEY = "export const TURNSTILE_SITE_KEY: string = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '';\n";
+  const withTurnstile = npxStub(`echo '[{"name":"BREVO_API_KEY"},{"name":"LEADS_EXPORT_TOKEN"},{"name":"TURNSTILE_SECRET"}]'`);
+
+  gate('a declared Turnstile key with no TURNSTILE_SECRET on the worker — must refuse', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE, 'src/data/site.ts': SITE_WITH_KEY },
+    env: { PATH: `${bothSet}:${process.env.PATH}` },
+    expect: 1,
+    contains: 'TURNSTILE_SECRET',
+  });
+
+  gate('a declared Turnstile key with its secret set', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE, 'src/data/site.ts': SITE_WITH_KEY },
+    env: { PATH: `${withTurnstile}:${process.env.PATH}` },
+    expect: 0,
+  });
+
+  gate('TURNSTILE_SECRET with no site key is said to be unenforced, not failed', {
+    script: 'check-secrets.mjs',
+    files: { '.dev.vars.example': EXAMPLE, 'src/data/site.ts': SITE_NO_KEY },
+    env: { PATH: `${withTurnstile}:${process.env.PATH}` },
+    expect: 0,
+    contains: 'NOT enforced',
+  });
+
+  for (const d of [bothSet, oneSet, notDeployed, loggedOut, demandsJsonFlag, prettyTable, noneSet, tooOldForFlag, withTurnstile]) {
     rmSync(d, { recursive: true, force: true });
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Security headers — two places send them, and they must agree
+ *
+ * public/_headers never reaches a page the Worker renders (prerender = false) or /api/*; the
+ * middleware adds src/lib/security-headers.ts there. A header in one list and not the other is a
+ * page shipped without it, and nothing at runtime would say so.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('security headers');
+
+{
+  const ts = readFileSync(join(KIT, 'template', 'src', 'lib', 'security-headers.ts'), 'utf8');
+  const block = /export const SECURITY_HEADERS[^{]*\{([\s\S]*?)\n\};/.exec(ts)?.[1] ?? '';
+  /* Each value is read as the string literal it is — double-quoted when it contains single quotes
+     (the CSP), single-quoted otherwise — so its last character is compared too. */
+  const fromTs = [...block.matchAll(/'([^']+)':\s*(?:"([^"]*)"|'([^']*)')/g)].map((m) => [m[1], m[2] ?? m[3]]);
+  const headersFile = readFileSync(join(KIT, 'template', 'public', '_headers'), 'utf8');
+  const star = headersFile.split(/\n(?=\S)/).find((b) => b.startsWith('/*\n')) ?? '';
+  const missing = fromTs.filter(([name, value]) => !star.includes(`${name}: ${value}`)).map(([n]) => n);
+  results.push({
+    gate: currentGate,
+    label: 'every header the middleware adds is in public/_headers too, with the same value',
+    ok: fromTs.length >= 5 && missing.length === 0,
+    detail: fromTs.length < 5 ? `read only ${fromTs.length} header(s) from security-headers.ts` : `missing or different in _headers: ${missing.join(', ')}`,
+  });
+  const mw = readFileSync(join(KIT, 'template', 'src', 'middleware.ts'), 'utf8');
+  results.push({
+    gate: currentGate,
+    label: 'the middleware applies the list and the staging noindex to every non-prerendered response',
+    ok: /isPrerendered\) return/.test(mw) && mw.includes('SECURITY_HEADERS') && mw.includes('STAGING_ROBOTS') && mw.includes('site.indexable'),
+    detail: 'src/middleware.ts no longer skips prerendered responses, or stopped adding the headers / the staging noindex',
+  });
 }
 
 /* ────────────────────────────────────────────────────────────────────────

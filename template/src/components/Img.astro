@@ -24,6 +24,14 @@ interface Props {
   ratio?: string;
   loading?: 'lazy' | 'eager';
   style?: string;
+  /**
+   * Cap the pixel density served on 3× phones (e.g. 2). Off by default. A 3× phone otherwise takes
+   * a 1200px file for a 343px slot; past 2× the difference is invisible on a phone and the bytes are
+   * not (a photo gallery: 2.9 MB → 1.9 MB). Photo grids and sliders — not the hero, and not a photo
+   * drawn wider than its slot (object-fit: cover on a tall box, a parallax layer), where `sizes`
+   * already undersells what is needed.
+   */
+  maxDensity?: number;
 }
 
 const {
@@ -35,6 +43,7 @@ const {
   ratio,
   loading,
   style,
+  maxDensity,
 } = Astro.props;
 
 /* A CMS picker returns `/img/photos/hero-1200.webp`, never `photos/hero`.
@@ -64,6 +73,27 @@ if (!entry) {
 }
 
 const eager = priority || loading === 'eager';
+
+/*
+ * maxDensity: one extra <source> per format for screens of 2.5dppx and up, every length in `sizes`
+ * scaled by maxDensity/3, so a 3× phone asks for the file a 2× screen would. Placed first: the
+ * browser takes the first <source> whose media AND type it accepts. ⚠ `sizes` must be the slot's
+ * real width (88vw, not 100vw, for a full-width item inside gutters): scaled from 100vw, a 3× phone
+ * wanted 780px, just past the 768 file, and took the 1200 anyway.
+ */
+const HIGH_DPR = '(min-resolution: 2.5dppx)';
+const scaleSizes = (value: string, factor: number) =>
+  value
+    .split(',')
+    .map((part) => {
+      const entry = part.trim();
+      const match = entry.match(/^(\(.*\))\s+(.+)$/);
+      const [media, length] = match ? [match[1], match[2]] : [null, entry];
+      const scaled = `calc(${length} * ${factor.toFixed(3)})`;
+      return media ? `${media} ${scaled}` : scaled;
+    })
+    .join(', ');
+const cappedSizes = maxDensity ? scaleSizes(sizes, maxDensity / 3) : null;
 const objectStyle = ratio ? `aspect-ratio:${ratio};object-fit:cover;` : '';
 
 /*
@@ -110,6 +140,8 @@ const fallbackSrc =
 ---
 
 <picture>
+  {cappedSizes && entry.avifSrcset && <source type="image/avif" media={HIGH_DPR} srcset={entry.avifSrcset} sizes={cappedSizes} />}
+  {cappedSizes && <source type="image/webp" media={HIGH_DPR} srcset={entry.srcset} sizes={cappedSizes} />}
   {entry.avifSrcset && <source type="image/avif" srcset={entry.avifSrcset} sizes={sizes} />}
   <img
     src={fallbackSrc}

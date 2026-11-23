@@ -360,7 +360,7 @@ function parseFluent(list) {
         return;
       }
       if (['recaptcha', 'hcaptcha', 'turnstile'].includes(el)) {
-        form.changed.push(`${el}: not imported — the rebuilt form has a honeypot, and Turnstile when PUBLIC_TURNSTILE_SITE_KEY is set`);
+        form.changed.push(`${el}: not imported — the rebuilt form has a honeypot, and Turnstile when TURNSTILE_SITE_KEY is set`);
         return;
       }
       if (['custom_html', 'section_break', 'shortcode', 'form_step'].includes(el)) {
@@ -551,7 +551,7 @@ function parseGravity(list) {
         continue;
       }
       if (t === 'captcha') {
-        form.changed.push('captcha: not imported — the rebuilt form has a honeypot, and Turnstile when PUBLIC_TURNSTILE_SITE_KEY is set');
+        form.changed.push('captcha: not imported — the rebuilt form has a honeypot, and Turnstile when TURNSTILE_SITE_KEY is set');
         continue;
       }
       const type = GRAVITY_TYPE[t];
@@ -686,7 +686,7 @@ function parseCf7Template(template, { id, title, conditions = {}, mail, messages
     }
     const rawName = toks[0]?.bare;
     if (['recaptcha', 'quiz', 'hidden', 'response', 'multistep', 'step'].includes(type)) {
-      if (type === 'quiz' || type === 'recaptcha') form.changed.push(`[${type}]: not imported — the rebuilt form has a honeypot, and Turnstile when PUBLIC_TURNSTILE_SITE_KEY is set`);
+      if (type === 'quiz' || type === 'recaptcha') form.changed.push(`[${type}]: not imported — the rebuilt form has a honeypot, and Turnstile when TURNSTILE_SITE_KEY is set`);
       else if (type === 'multistep' || type === 'step') form.notImported.push(`[${type}]: the rebuilt form is one step`);
       else if (type === 'hidden') form.notImported.push(`[hidden ${rawName ?? ''}]: a hidden value — add it to the page as a hidden input if something downstream needs it`);
       continue;

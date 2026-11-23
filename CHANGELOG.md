@@ -2,6 +2,27 @@
 
 ## Unreleased — three silent failures from a WordPress → Astro + Pages CMS rebuild
 
+- **Pages the Worker renders shipped with no security headers, and on staging without noindex.**
+  `public/_headers` applies to static assets only; the contact page (`prerender = false`) and
+  `/api/*` are built by the Worker and never see it. An SEO audit of a real launch found the form
+  page carrying neither the CSP nor the staging `X-Robots-Tag`. New `src/middleware.ts` adds the
+  list in `src/lib/security-headers.ts` — and the staging noindex — to every response that is not
+  prerendered; `_headers` carries the same list, and `test:gates` fails if they disagree. Both now
+  include `X-Content-Type-Options: nosniff` and `Strict-Transport-Security` (this host only, no
+  `includeSubDomains`): they had been left to the Cloudflare zone, which a workers.dev address does
+  not have.
+- **The Turnstile site key moved from a build variable to `src/data/site.ts`.** It is public, and
+  a key kept only in a gitignored `.env` is missing on the next machine and in a Git-connected
+  dashboard build — the form then ships with no widget. `PUBLIC_TURNSTILE_SITE_KEY` still overrides
+  it. `check:secrets` now requires `TURNSTILE_SECRET` once a key is declared, and warns about a
+  secret with no key (the endpoint ignores it, so the spam check is not enforced).
+- **`/llms.txt`**, generated from `business.ts`, the navigation and the legal pages — the summary
+  AI assistants read. On staging robots.txt still turns every crawler away.
+- **`<Img maxDensity={2}>`** caps what a 3× phone downloads for photo grids and sliders: a
+  high-density `<source>` asks for the file a 2× screen would. A real gallery went from 2.9 MB to
+  1.9 MB on a phone, desktop unchanged. Not for the hero or any photo drawn wider than its slot.
+  Traps: a full-screen cover photo on a portrait phone needs `sizes` from the screen's height, or
+  the browser sends the 480px file and stretches it.
 - **`match` moved a faded-in element by clearing a transform that was layout, not motion.** The
   freeze's catch-all reveal (opacity 0 with a transition) forced `transform: none` on everything it
   revealed. Salient centres its scrolling text with `translateY(-50%)` and fades it in by opacity

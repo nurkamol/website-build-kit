@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { validateLead, leadKey, displayName, type LeadInput, type LeadRecord } from '../../lib/lead';
 import { forms, formById, DEFAULT_FORM, type FormDef } from '../../data/forms';
 import { notifyTeam } from '../../lib/brevo';
-import { site } from '../../data/site';
+import { site, TURNSTILE_SITE_KEY } from '../../data/site';
 import { kv, secret } from '../../lib/runtime';
 import { business } from '../../data/business';
 
@@ -21,7 +21,8 @@ const DEFAULT = forms[DEFAULT_FORM];
 /**
  * Cloudflare Turnstile — optional, and OFF unless BOTH halves exist.
  *
- * The widget renders only when PUBLIC_TURNSTILE_SITE_KEY was set at build; the
+ * The widget renders only when a site key is declared (TURNSTILE_SITE_KEY in src/data/site.ts, or
+ * PUBLIC_TURNSTILE_SITE_KEY at build); the
  * token is checked only when the TURNSTILE_SECRET secret is set. ⚠ REQUIRING
  * BOTH IS THE POINT. A secret with no widget refuses every submission — no
  * token can ever arrive — which is total lead loss behind a polite error. So a
@@ -29,13 +30,13 @@ const DEFAULT = forms[DEFAULT_FORM];
  *
  * Fails closed on a bad or missing token once both are present.
  */
-const TURNSTILE_BUILT = Boolean(import.meta.env.PUBLIC_TURNSTILE_SITE_KEY);
+const TURNSTILE_BUILT = Boolean(TURNSTILE_SITE_KEY);
 
 async function turnstileOk(token: string, ip: string): Promise<boolean> {
   const secretKey = secret('TURNSTILE_SECRET');
   if (!secretKey) return true;
   if (!TURNSTILE_BUILT) {
-    console.error('TURNSTILE_SECRET is set but this build has no PUBLIC_TURNSTILE_SITE_KEY — not enforced');
+    console.error('TURNSTILE_SECRET is set but this build has no Turnstile site key — not enforced');
     return true;
   }
   if (!token) return false;

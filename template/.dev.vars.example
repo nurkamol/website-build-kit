@@ -1,5 +1,5 @@
 # Copy to .dev.vars for local `wrangler dev`. Never commit the real values.
 BREVO_API_KEY="xkeysib-..."
 LEADS_EXPORT_TOKEN="a long random string"
-# Optional. Only checked when the build also had PUBLIC_TURNSTILE_SITE_KEY set.
+# Optional. Only checked when TURNSTILE_SITE_KEY is declared in src/data/site.ts.
 # TURNSTILE_SECRET="0x..."

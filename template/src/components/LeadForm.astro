@@ -1,4 +1,5 @@
 ---
+import { TURNSTILE_SITE_KEY } from '../data/site';
 import { business } from '../data/business';
 import type { FieldDef, FormDef } from '../data/forms';
 
@@ -47,8 +48,9 @@ const whenNote = (f: FieldDef) => {
   return `Only if “${controller?.label ?? f.showWhen.field}” is ${values}.`;
 };
 
-/* Set at BUILD time. Empty means no widget and nothing loaded from Cloudflare. */
-const turnstileKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+/* Declared in src/data/site.ts (or PUBLIC_TURNSTILE_SITE_KEY). Empty means no widget and nothing
+   loaded from Cloudflare. */
+const turnstileKey = TURNSTILE_SITE_KEY;
 ---
 
 <!--
