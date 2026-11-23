@@ -15,6 +15,8 @@ import { env } from 'cloudflare:workers';
 type Bindings = {
   LEADS?: KVNamespace;
   LEADS_STAGING?: KVNamespace;
+  /** The 404 watcher's counts — optional. Absent, src/pages/api/missed.ts records nothing. */
+  MISSES?: KVNamespace;
   BREVO_API_KEY?: string;
   LEADS_EXPORT_TOKEN?: string;
   /** Cloudflare Turnstile secret. The form checks a token only when this is set AND a site key is
@@ -26,7 +28,7 @@ export function bindings(): Bindings {
   return env as unknown as Bindings;
 }
 
-export function kv(name: 'LEADS' | 'LEADS_STAGING'): KVNamespace | undefined {
+export function kv(name: 'LEADS' | 'LEADS_STAGING' | 'MISSES'): KVNamespace | undefined {
   return bindings()[name];
 }
 

@@ -61,6 +61,13 @@
       "binding": "LEADS_STAGING",
       "id": "REPLACE-WITH-YOUR-KV-ID"
     }
+    // The 404 watcher (`npm run misses`) — optional, off until this exists.
+    // Production only; no staging twin, because staging records nothing.
+    //   wrangler kv namespace create "<site>-misses"
+    // ,{
+    //   "binding": "MISSES",
+    //   "id": "REPLACE-WITH-YOUR-KV-ID"
+    // }
   ],
 
   // Custom domains create their own DNS records. Staging is listed first and

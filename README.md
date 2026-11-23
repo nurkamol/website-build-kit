@@ -165,6 +165,16 @@ does ship is the skeleton of the parts that take longest to get right:
   routes, and **never writes `public/_redirects`**. Slug similarity is a guess, and a wrong 301
   is worse than a 404: the 404 turns up in the log and gets fixed, the wrong redirect looks
   like it works
+- **`npm run changes`** — what the client changed on the OLD site since you last looked: pages
+  new, edited, moved and deleted, menu links, and the media library, from the sitemap's
+  `lastmod` and WordPress's public REST API. A migration takes weeks and the client keeps
+  editing; without this the rebuild launches with the copy from the day recon ran. Reports
+  only — a deleted page is a conversation, and a moved one gets a proposed redirect line
+- **`npm run misses`** — after launch, the addresses visitors asked for that the new site does
+  not have, most-missed first, each marked as an old URL the redirect map missed, a broken
+  link on the site itself, or a rule in `_redirects` that does not match. The 404 page is a
+  static file, so it reports itself (path and referring host, no personal data, a 90-day
+  expiry) into an optional KV namespace. Proposes redirect lines; never writes them
 - **`npm run verify`** — the runbook's verification matrix as a gate that exits non-zero, run
   against the **deployed** site. Routes, a real 404, every redirect rule and whether its target
   resolves, security headers, the form submissions the API is meant to refuse, plus page weight
@@ -264,7 +274,9 @@ does ship is the skeleton of the parts that take longest to get right:
 - **`npm run shots`** — before/after screenshots of a migration at a mobile and a desktop width,
   paired into one page. Both sides read the same URL inventory, so a page that did not survive
   shows as a 404 beside its old screenshot. Take the before pass while the old site is still up;
-  once DNS moves it is gone
+  once DNS moves it is gone. A page over 30,000px tall is refused, not captured — that is a
+  broken page (usually the site's own stylesheet failing to load), and capturing it took Chrome
+  down — and the site's own failing stylesheets and scripts are named, as `recon` names them
 - **`npm run match`** — the same pairs, measured. Each top-level section of the old page is
   diffed against the one in the same position on the new page at 390, 768 and 1440px, and each
   page's words and h1–h3 are checked as kept; it exits 1 past 3% of a section's pixels or under

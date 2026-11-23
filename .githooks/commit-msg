@@ -1,0 +1,4 @@
+#!/bin/sh
+# The commit message is published too, and no other check reads it.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/check-privacy.mjs" --message "$1"

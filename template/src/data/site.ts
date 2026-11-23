@@ -116,6 +116,15 @@ export const site = {
   leadRetentionDays: isProduction ? 180 : 30,
 
   /**
+   * How long the 404 watcher remembers a missed address after its LAST miss,
+   * in days — a KV `expirationTtl`, renewed on every miss. It stores no
+   * personal data (a path, a count, a day and referring hosts; see
+   * src/pages/api/missed.ts), but nothing is kept without an end date, and 90
+   * days covers the months after a launch when old links are still arriving.
+   */
+  missRetentionDays: 90,
+
+  /**
    * Who gets the new-lead notification. Off production it goes to the
    * developer, not the client — a verification run should never land in the
    * inbox someone answers real enquiries from.

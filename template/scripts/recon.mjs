@@ -588,6 +588,69 @@ writeFileSync(
 );
 console.log(`\n  ${GREEN}✓${RESET} ${OUT}/integrations.md`);
 
+/* ── 5. The old site's own files ─────────────────────────────────────────
+ *
+ * Every same-origin stylesheet and script the sampled pages name, fetched once.
+ * One answering 4xx/5xx — or answering with an HTML page where CSS or
+ * JavaScript should be — means the old site is ALREADY broken for its visitors,
+ * almost always a page cache (WP Rocket, LiteSpeed, Autoptimize) naming a
+ * minified file it has since deleted.
+ *
+ * ⚠ IT MATTERS BEFORE ANYTHING IS CAPTURED. `shots --before`, `design` and
+ *   `match` would all photograph and measure the broken page as "the
+ *   original", and a page builder's full-height rows with no stylesheet to
+ *   bound them run to 100,000px+ — the page that took Chrome down. Clearing the
+ *   cache on the old site is a client request, so it is worth asking on day one.
+ */
+section('Own files');
+
+const ownAssets = [
+  ...new Set(
+    pages.flatMap(({ html }) =>
+      [
+        ...html.matchAll(/<link\b[^>]*rel=["']?stylesheet[^>]*>/gi),
+        ...html.matchAll(/<script\b[^>]*\bsrc=[^>]*>/gi),
+      ].flatMap((m) => {
+        const ref = /(?:href|src)=["']?([^"'\s>]+)/i.exec(m[0])?.[1];
+        if (!ref) return [];
+        try {
+          const u = new URL(ref.replace(/&amp;/g, '&'), `${ORIGIN}/`);
+          return u.hostname.replace(/^www\./, '') === HOST.replace(/^www\./, '') ? [u.toString()] : [];
+        } catch {
+          return [];
+        }
+      }),
+    ),
+  ),
+].slice(0, 60);
+
+const ownChecked = await pool(ownAssets, async (url) => {
+  const r = await req(url);
+  const type = r?.headers.get('content-type') ?? '';
+  if (r) await r.body?.cancel().catch(() => {});
+  return { path: new URL(url).pathname, status: r?.status ?? 0, html: /text\/html/i.test(type) };
+});
+const ownBroken = ownChecked.filter((a) => a.status >= 400 || a.status === 0 || a.html);
+
+if (!ownAssets.length) console.log(`  ${DIM}no same-origin stylesheets or scripts in the sampled pages${RESET}`);
+else if (!ownBroken.length) console.log(`  ${GREEN}✓${RESET} ${ownAssets.length} stylesheet(s)/script(s) of its own, all loading`);
+for (const a of ownBroken) {
+  const what = a.status === 0 ? 'no answer' : a.html && a.status < 400 ? `${a.status}, but an HTML page` : String(a.status);
+  console.log(`  ${RED}✗${RESET} ${a.path}  ${DIM}${what}${RESET}`);
+}
+if (ownBroken.length) {
+  console.log(
+    `  ${DIM}The old site is broken for its own visitors. Before/after shots, \`design\` and \`match\`\n` +
+      `  would record this as the original. Ask for its page cache to be cleared, then re-run.${RESET}`,
+  );
+  notes.push(
+    `${ownBroken.length} of the old site's own stylesheet(s)/script(s) fail to load (${ownBroken
+      .slice(0, 3)
+      .map((a) => a.path)
+      .join(', ')}) — usually a stale page cache. Clear it before any screenshot or design capture`,
+  );
+}
+
 /* ── What this cannot see ─────────────────────────────────────────────── */
 console.log(`\n${BOLD}── What this cannot see ${'─'.repeat(34)}${RESET}`);
 for (const line of [

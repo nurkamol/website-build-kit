@@ -330,6 +330,25 @@ curl -sIL "https://$STAGING/old-path/" | grep -E '^(HTTP|location)'
 | Canonicals | Point at the host actually being served |
 | Trailing slashes | Consistent, and form actions include the slash — a 308 drops the POST body |
 
+### The old site keeps changing
+
+A migration takes weeks, and the client does not stop editing WordPress because a rebuild has
+started. Run this the day recon runs, weekly after, and once more the day before go-live:
+
+```bash
+npm run changes -- https://old-site.com     # first run: a baseline. After: what changed since
+```
+
+It reads the sitemap's `lastmod` and, when the site leaves it public, WordPress's REST API —
+every page, post and public custom type by ID, so a renamed page shows as **moved** rather than
+as one deleted and one new — plus the media library and the links in the home page's `<nav>`.
+It keeps the last two captures in `recon/changes/` and writes `recon/changes.md`.
+
+**It reports and never applies.** A deleted page is a conversation with the client, not a sync;
+a moved one gets a proposed `_redirects` line to copy; a new one is flagged if `recon/urls.txt`
+does not hold it, because then `redirects` and `verify` never check it either. Without the REST
+API, edits come from `lastmod` alone and a move reads as delete + new.
+
 ### Preserved paths
 
 Other systems point at these. Changing them breaks the link silently.
@@ -444,6 +463,14 @@ npm run extract                                      # captured HTML → markdow
 npm run shots -- --before https://old-site.com       # BEFORE you switch DNS
 npm run shots -- --after  https://new.example.com    # staging, then again after cutover
 ```
+
+**`recon` checks the old site's own stylesheets and scripts first.** One answering 404, or an
+HTML page where CSS should be, means the old site is already broken for its visitors — almost
+always a page cache naming a minified file it deleted. Ask for the cache to be cleared before any
+before-shot, `design` or `match`, or all three record the breakage as the original. `shots`
+names the same files, and refuses a page over 30,000px tall rather than capturing it: a page
+builder's full-height rows with no stylesheet run to 100,000px+, and capturing that took Chrome
+— and the rest of the run — down.
 
 Full-page captures at 390px and 1440px, then `shots/index.html` puts the pairs side by side.
 **Take the before pass while the old site is still up** — once DNS moves, it is gone, and the
@@ -668,9 +695,37 @@ expression matched too broadly and the site is in a redirect loop.
 | Day 2–3 | Search Console → Pages → "Not indexed" | A spike means a redirect or canonical is wrong |
 | Day 2–3 | Search Console → Sitemaps | "Couldn't fetch" means the filename changed |
 | Week 1 | Analytics: is anything recording at all? | A missing tag looks identical to a quiet week |
-| Week 1 | 404 log | Real 404s are URLs you missed in the inventory. Add redirects |
+| Week 1 | `npm run misses` — the 404 log | Real 404s are URLs you missed in the inventory. Add redirects |
 | Week 2–4 | Search Console → Performance, versus the old site | Some ranking movement is normal. A sustained drop is a redirect problem |
 | Week 4 | Core Web Vitals field data (CrUX) | Lab numbers are a proxy; this is the real one |
+
+### The 404 watcher
+
+The 404 page is a static file, so nothing on the request path sees a miss. On production builds
+it reports itself — `sendBeacon` to `/api/missed/` with the path and the referring **host** —
+and the endpoint counts it in KV. Off until a `MISSES` namespace is bound (the commented block in
+`wrangler.jsonc`); without it every report is a no-op.
+
+```bash
+wrangler kv namespace create "<site>-misses"     # paste the id into wrangler.jsonc, deploy production
+LEADS_EXPORT_TOKEN=… npm run misses -- https://example.com          # most-missed first
+LEADS_EXPORT_TOKEN=… npm run misses -- https://example.com --min=3  # only what keeps happening
+```
+
+| Row | Means | Do |
+| --- | --- | --- |
+| old URL | in `recon/urls.txt` — the redirect map missed it | paste the proposed line, after opening both pages |
+| own link | the referrer is this site | fix the link; a redirect would hide it |
+| already in `_redirects` | the rule exists and still 404s | the rule does not match — check its spelling and slash |
+| new | neither | a redirect only if the count says it matters. Gone is a legitimate answer |
+
+**What it keeps:** per path, a count, the day last seen and up to five referring hosts — no IP,
+no user agent, no query string, nothing per visit. A path with an `@` or a long number is
+dropped, since a mistyped link from an email can carry an address. Each miss renews a KV
+expiry of `site.missRetentionDays` (90), so a path nobody misses for that long disappears by
+itself. Counts are approximate: KV has no transaction, and a write refused on the free plan's
+1,000 a day is dropped in silence — the visitor's 404 never waits on it. Scanners fetching
+`wp-login.php` run no JavaScript and are never counted, which is most of the noise gone.
 
 **Export the leads on a schedule.** The repo is the backup for content and code; leads in KV
 are the one thing not in git.

@@ -16,6 +16,8 @@ npm run tells                                # what is undecided, and the design
 npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
 #   --allow-internal                         # ...if the old site is on a VPN or a private address
+npm run changes -- https://old-site.com      # what the client changed since the last run. Weekly
+#                                            # until go-live; reports, never applies
 npm run design -- https://old-site.com       # measure its design → recon/design.md, tokens.proposed.css, blueprint.md
 #   --apply                                  # ...and write the tokens (faithful rebuild only)
 #   --only=/about/                           # ...re-measure one page; the rest from recon/.cache
@@ -32,6 +34,8 @@ npm run match -- --old https://old-site.com --new https://staging.example.com
 npm run match -- --old https://old-site.com --new http://localhost:4321 --only=/about/ --watch
 #                                            # tuning loop beside `astro dev`: re-measures on save
 npm run extract                              # captured HTML → recon/extracted/*.md
+npm run misses -- https://example.com        # after launch: top 404s + proposed redirects (needs the
+#                                            # MISSES KV binding and LEADS_EXPORT_TOKEN in the shell)
 npm run forms:import -- export.json          # a Fluent / CF7 / Gravity form → src/data/forms.ts
 #   --print                                  # ...show the snippet, write nothing
 npm run deploy:staging                       # or deploy:production
