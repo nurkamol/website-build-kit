@@ -1,0 +1,8 @@
+/* Order matters: Kumo's @theme tokens must register before Tailwind.
+   Without the @source line Tailwind never scans Kumo's compiled JS and its
+   components render unstyled — no error, just wrong. */
+@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+@import "@cloudflare/kumo/styles";
+@import "tailwindcss";
+
+body { margin: 0; }

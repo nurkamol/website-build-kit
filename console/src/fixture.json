@@ -1,0 +1,42 @@
+{
+  "_comment": "SKETCH DATA. The shape is the proposed kit_status contract for the MCP server; every value is invented. No real client, domain or number belongs in this file.",
+  "site": {
+    "name": "Example Site",
+    "origin": "https://staging.example.com",
+    "kitVersion": "0.1.24",
+    "head": { "sha": "a90f2c1", "subject": "Services page: copy from the client's 18 Nov review", "at": "2026-11-25T09:12:00Z" },
+    "commitsSince": { "a90f2c1": 0, "7d3b604": 2, "e2c8d19": 6, "51fa0be": 11 }
+  },
+  "phases": [
+    { "id": "recon", "label": "Recon", "state": "done", "gatedAt": "2026-11-12T16:40:00Z" },
+    { "id": "build", "label": "Build", "state": "done", "gatedAt": "2026-11-20T11:05:00Z" },
+    { "id": "verify", "label": "Verify", "state": "active" },
+    { "id": "handover", "label": "Handover", "state": "pending" }
+  ],
+  "gates": [
+    { "script": "check", "phase": "build", "result": "pass", "sha": "a90f2c1", "at": "2026-11-25T09:20:00Z", "summary": "0 errors, 0 warnings across 41 files", "durationMs": 18400 },
+    { "script": "tells", "phase": "build", "result": "pass", "sha": "a90f2c1", "at": "2026-11-25T09:21:00Z", "summary": "1 tell (under three)", "durationMs": 1200 },
+    { "script": "check:contact", "phase": "build", "result": "fail", "sha": "a90f2c1", "at": "2026-11-25T09:21:30Z", "summary": "tel: href and visible number disagree on 2 pages", "durationMs": 900 },
+    { "script": "check:alt", "phase": "build", "result": "warn", "sha": "7d3b604", "at": "2026-11-24T17:02:00Z", "summary": "3 alt values name a file, not a subject", "durationMs": 2100 },
+    { "script": "verify", "phase": "verify", "result": "pass", "sha": "e2c8d19", "at": "2026-11-22T14:48:00Z", "summary": "212 links, 0 broken · 1 orphan route (warn)", "durationMs": 96000 },
+    { "script": "a11y", "phase": "verify", "result": "pass", "sha": "51fa0be", "at": "2026-11-19T10:15:00Z", "summary": "clean in light and dark, 14 routes", "durationMs": 74000 },
+    { "script": "check:sitemap", "phase": "verify", "result": "never", "summary": "Never run" },
+    { "script": "a11y:evidence", "phase": "handover", "result": "never", "summary": "Never run" }
+  ],
+  "blockers": [
+    { "kind": "blocking", "text": "Client has not confirmed who owns the analytics property", "since": "2026-11-18" },
+    { "kind": "question", "text": "Keep the old /blog URLs as redirects, or let them 404?", "since": "2026-11-21" }
+  ],
+  "integrations": [
+    { "name": "Analytics", "id": "G-XXXXXXXXXX", "state": "verified", "note": "Realtime shows staging hits", "date": "2026-11-21" },
+    { "name": "Turnstile", "id": "site key", "state": "verified", "note": "Widget renders, siteverify passes", "date": "2026-11-20" },
+    { "name": "Transactional email", "id": "Brevo", "state": "verified", "note": "Delivered in provider log", "date": "2026-11-20" },
+    { "name": "Booking widget", "id": "detected in markup", "state": "dropped", "note": "Client confirmed unused", "date": "2026-11-15" },
+    { "name": "Ad conversion tag", "id": "detected in markup", "state": "open", "note": "Owner unknown", "date": null }
+  ],
+  "output": {
+    "check:contact": "› check:contact\n\nbusiness.phone      +1 555 0100\n\n✗ /contact/   visible \"555 0100\"  tel:+15550199\n✗ /services/  visible \"555 0100\"  tel:+15550199\n\n2 pages dial a number the page does not show.\nThe tel: href is derived — find where the old number is hardcoded.\n\nexit 1",
+    "check": "› astro check\n\nResult (41 files):\n- 0 errors\n- 0 warnings\n- 0 hints\n\nexit 0",
+    "verify": "› verify https://staging.example.com\n\nlinks      212 checked, 0 broken\nsitemap    38 urls, all 200\nlastmod    38/38 present\n⚠ orphan   /spring-offer/ — in the sitemap, linked from nowhere\n\nexit 0"
+  }
+}

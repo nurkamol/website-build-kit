@@ -131,6 +131,14 @@ jobs:
       - name: Gates still refuse
         run: npm run test:gates
 
+      # The build console's MCP server. Its claim is that a pass on an older
+      # tree reads as STALE — a status server that only ever says "pass" looks
+      # exactly like a working one, so each rule is tested by its refusal.
+      # On Windows too: it spawns `npm`, which is npm.cmd there.
+      - name: Console server still refuses
+        working-directory: console
+        run: npm ci && npm test
+
       # workerd ships as a per-platform optional dependency. npm reports success
       # when an optional dep fails to install, so a missing binary surfaces much
       # later as a confusing wrangler error.

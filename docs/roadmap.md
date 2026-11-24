@@ -14,7 +14,13 @@ If it does not catch a failure, it is a preference.
 
 ## Open
 
-Nothing. Every ranked item has shipped — see **Done** below, and `CHANGELOG.md` for the detail.
+| | Catches | State |
+| --- | --- | --- |
+| **Build console** — `console/`: an MCP server Claude Code calls, and a local page over the same data | **A gate tick that predates the code it vouches for, and a build resumed from a misremembered state.** Gate results exist only as scrollback, so "verify passed" survives six commits and an uncommitted edit, and nothing says so. A session resumed after a week re-derives where the build is from `git log` and chat history — `BUILD-STATE.md` is hand-written at gates and says what was true *then*. The server fingerprints the working tree (HEAD plus every changed or untracked file) and records each run against it, so a pass on any other tree reads **stale**, never passed. A gate that reads `dist/` rebuilds first unless a staging build passed on the same tree, because `dist/` is gitignored and no fingerprint can see it | Server shipped with refusal tests in CI on both runners. ⚠ The page is still a **sketch on fixture data** — it does not read the server yet. Not yet tried on a real build; until it has been, it has not met the provider rule and stays here rather than in **Done** |
+
+⚠ **What it deliberately cannot do:** deploy, `indexnow`, `dns`, or crawl a live site. Those are
+excluded from the server's allowlist rather than gated behind a confirmation, because a button
+that ships is the one that gets clicked to see what it does.
 
 ---
 
