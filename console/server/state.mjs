@@ -22,7 +22,9 @@ import { dirname, join, resolve } from 'node:path';
 // `phase` is the build.md §3 phase whose gate the script belongs to.
 // `readsDist` means the script measures dist/, which git cannot fingerprint —
 // so the result only counts if a staging build ran on the same tree first.
-// `url` is 'required', 'optional' or absent.
+// `url` is 'required', 'optional' or absent. `params` names required --flag
+// urls (match takes --old and --new). `report` is where the script writes an
+// HTML report the page can link to.
 export const GATES = {
   tells: { phase: 3, readsDist: true },
   check: { phase: 4 },
@@ -36,6 +38,10 @@ export const GATES = {
   'check:redirects': { phase: 7 },
   'check:sitemap': { phase: 7, readsDist: true },
   verify: { phase: 7, url: 'required' },
+  // Reads both sites, writes only shots/match/ — gitignored in every site, so
+  // it cannot change the tree it is measured against. Minutes, not seconds:
+  // it drives a browser across every route at two widths.
+  match: { phase: 7, params: ['old', 'new'], report: 'shots/match' },
   a11y: { phase: 8, url: 'optional' },
   reflow: { phase: 8, url: 'optional' },
   console: { phase: 8, url: 'optional' },
@@ -270,8 +276,12 @@ export function kitStatus(siteDir) {
       durationMs: record?.durationMs ?? null,
       summary: record?.summary ?? 'Never run',
       changedTree: record?.changedTree ?? false,
-      url: record?.args?.[0] ?? null,
+      url: GATES[script].url ? record?.args?.[0] ?? null : null,
       needsUrl: GATES[script].url ?? null,
+      params: GATES[script].params ?? null,
+      lastParams: record?.params ?? null,
+      parity: record?.parity ?? null,
+      report: GATES[script].report && record ? GATES[script].report : null,
       readsDist: !!GATES[script].readsDist,
       status: statusOf(record, fp, site),
     };

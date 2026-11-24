@@ -11,10 +11,10 @@ export const api = {
   status: () => call('/api/status'),
   gate: (script) => call(`/api/gates/${encodeURIComponent(script)}`),
   running: () => call('/api/running'),
-  run: (script, url) =>
+  run: (script, opts = {}) =>
     call('/api/run', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-kit-console': '1' },
-      body: JSON.stringify({ script, url }),
+      body: JSON.stringify({ script, ...opts }),
     }),
 };

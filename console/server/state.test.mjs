@@ -80,8 +80,8 @@ describe('a site on disk', () => {
     return { dir, commit: (m) => { g('add', '-A'); g('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', m); } };
   }
 
-  async function run(dir, script, url) {
-    const s = startGate(dir, script, url);
+  async function run(dir, script, opts) {
+    const s = startGate(dir, script, opts);
     assert.ok(!s.error, s.error);
     const { job } = await waitFor(s.job.id, 50);
     assert.equal(job.state, 'done');
@@ -162,6 +162,60 @@ describe('a site on disk', () => {
     const g = kitStatus(dir).phaseGate;
     assert.equal(g.ready, null);
     assert.match(g.note, /judgement/);
+  });
+
+  it('refuses match without both sites, and anything that is not http(s)', () => {
+    const { dir } = site({ scripts: { match: 'echo' } });
+    assert.match(startGate(dir, 'match', {}).error, /needs --old/);
+    assert.match(startGate(dir, 'match', { old: 'https://old.example.com' }).error, /needs --new/);
+    assert.match(startGate(dir, 'match', { old: 'https://old.example.com', new: 'javascript:alert(1)' }).error, /Not an http/);
+  });
+
+  // A stand-in match: writes match.json the way the real one does, then exits.
+  // A file, not `node -e`: npm appends `--old …`, which node would take as its own flag.
+  const fakeMatch = (dir, passed) => {
+    writeFileSync(join(dir, 'fake-match.cjs'), `
+      const f = require('fs');
+      const a = process.argv;
+      f.mkdirSync('shots/match', { recursive: true });
+      f.writeFileSync('shots/match/match.json', JSON.stringify({
+        passed: ${passed}, old: a[a.indexOf('--old') + 1], new: a[a.indexOf('--new') + 1],
+        thresholds: { sectionPercent: 3, textRatio: 0.98 },
+        failures: ${passed} ? [] : [{ route: '/about/', viewport: 'desktop', section: 'hero', kind: 'pixels', detail: '7.4%' }],
+        routes: [
+          { route: '/', viewports: [{ sections: [{ percent: 1.2 }] }], text: { ratio: 0.99 } },
+          { route: '/about/', viewports: [{ sections: [{ percent: 7.4 }, { percent: 0.3 }] }], text: { ratio: 0.97 } },
+        ],
+      }));
+      process.exit(${passed} ? 0 : 1);`);
+    return 'node fake-match.cjs';
+  };
+
+  it('passes --old and --new through, and reads the parity the run wrote', async () => {
+    const { dir, commit } = site({ scripts: { match: 'node fake-match.cjs' } });
+    fakeMatch(dir, false);
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\nshots/\n');
+    commit('stand-in match');
+    const job = await run(dir, 'match', { old: 'https://old.example.com', new: 'http://localhost:4321' });
+    const p = job.result.parity;
+    assert.equal(job.result.result, 'fail');
+    assert.deepEqual(job.result.args, ['--old', 'https://old.example.com', '--new', 'http://localhost:4321']);
+    assert.equal(p.passed, false);
+    assert.equal(p.routes[0].route, '/about/', 'worst route first');
+    assert.equal(p.routes[0].worst, 7.4);
+    assert.equal(p.failures, 1);
+    assert.deepEqual(gate(dir, 'match').lastParams, { old: 'https://old.example.com', new: 'http://localhost:4321' });
+  });
+
+  it('does not present a report from an earlier run as this run\'s result', async () => {
+    const { dir } = site({ scripts: { match: 'node -e "process.exit(1)"' } });
+    mkdirSync(join(dir, 'shots/match'), { recursive: true });
+    writeFileSync(join(dir, 'shots/match/match.json'), JSON.stringify({ passed: true, routes: [] }));
+    const past = new Date(Date.now() - 60_000);
+    const { utimesSync } = await import('node:fs');
+    utimesSync(join(dir, 'shots/match/match.json'), past, past);
+    const job = await run(dir, 'match', { old: 'https://old.example.com', new: 'https://new.example.com' });
+    assert.equal(job.result.parity, null);
   });
 
   it('refuses to start a gate while another process is running one', () => {

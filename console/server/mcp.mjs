@@ -48,15 +48,19 @@ server.registerTool(
       `Runs one of the site's own gate scripts (npm run <script>) and records the result against the current tree. ` +
       `Allowed: ${Object.keys(GATES).join(', ')}. Gates that read dist/ rebuild first if dist/ was not built from this tree. ` +
       'Waits up to wait_seconds; if the gate is still running it returns a job id for gate_result. ' +
-      'Deploys, indexnow and live-site crawls are not available here by design.',
+      'match compares the old site with the rebuild section by section (pixels and words) and returns a parity summary — ' +
+      'it takes minutes, so expect a job id and poll gate_result. ' +
+      'Deploys, indexnow, dns and the crawls that copy a client\'s site to disk (recon, shots, changes) are not available here by design.',
     inputSchema: {
       script: z.enum(Object.keys(GATES)).describe('The npm script to run'),
       url: z.string().optional().describe('Origin to check — required by verify, optional for a11y, reflow and console'),
+      old: z.string().optional().describe('match only: the site being replaced'),
+      new: z.string().optional().describe('match only: the rebuild — staging, or http://localhost:4321 beside astro dev'),
       wait_seconds: z.number().min(0).max(50).default(40).describe('How long to wait before returning a job id'),
     },
   },
-  async ({ script, url, wait_seconds }) => {
-    const started = startGate(SITE, script, url, 'Claude Code');
+  async ({ script, url, old, new: next, wait_seconds }) => {
+    const started = startGate(SITE, script, { url, old, new: next }, 'Claude Code');
     if (started.error) return refuse(started.error);
     const { job } = await waitFor(started.job.id, wait_seconds);
     return json(view(job));

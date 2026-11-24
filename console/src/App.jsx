@@ -124,8 +124,8 @@ function useConsole() {
     return () => { stop = true; clearInterval(t); };
   }, [running, refresh]);
 
-  const run = useCallback(async (script, url) => {
-    const r = await api.run(script, url);
+  const run = useCallback(async (script, opts) => {
+    const r = await api.run(script, opts);
     setLive({ running: { script, by: 'the console', startedAt: r.startedAt, job: r.job }, output: '' });
     return r;
   }, []);
@@ -464,9 +464,71 @@ function Overview({ status, gates, now, open, runGate, running }) {
 
 // ── Gates ────────────────────────────────────────────────────────────────────
 
+const PARAM_LABEL = { old: 'Old site', new: 'New site' };
+// The hint carries the rest: staging for the verdict, localhost beside
+// `astro dev` for the tuning loop.
+const PARAM_HINT = { old: 'https://old-site.com', new: 'https://staging… or http://localhost:4321' };
+
+/**
+ * match's verdict, worst route first. The bar is drawn against the section
+ * threshold, so "how far over" reads at a glance — 3% and 30% are both red
+ * in a pass/fail, and they are not the same afternoon's work.
+ */
+function Parity({ parity, report }) {
+  const limit = parity.thresholds?.sectionPercent ?? 3;
+  const textLimit = parity.thresholds?.textRatio ?? 0.98;
+  const scale = Math.max(limit * 3, ...parity.routes.map((r) => r.worst));
+  return (
+    <div className="overflow-hidden rounded-lg ring-1 ring-kumo-hairline">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-kumo-elevated px-4 py-3">
+        <div className="flex items-center gap-2 text-[13px]">
+          {parity.passed
+            ? <CheckCircleIcon size={16} weight="fill" className="text-kumo-success" />
+            : <XCircleIcon size={16} weight="fill" className="text-kumo-danger" />}
+          <span className="font-medium text-kumo-default">{parity.passed ? 'Within tolerance' : `${parity.failures} difference${parity.failures === 1 ? '' : 's'} past tolerance`}</span>
+          <span className="tabular text-kumo-subtle">· {parity.compared} route{parity.compared === 1 ? '' : 's'}{parity.notCompared ? `, ${parity.notCompared} not compared` : ''}</span>
+        </div>
+        {report && (
+          <a href={report} target="_blank" rel="noreferrer" className="text-xs font-medium text-kumo-link hover:underline">
+            Open old | new | diff report ↗
+          </a>
+        )}
+      </div>
+      {parity.ranOutOfBudget && (
+        <div className="border-t border-kumo-hairline px-4 py-2 text-xs text-kumo-warning">The run hit its time budget — routes below are what finished, not the whole site.</div>
+      )}
+      <ul className="m-0 list-none divide-y divide-kumo-hairline p-0">
+        {parity.routes.map((r) => {
+          const over = r.worst > limit;
+          const textBad = r.text != null && r.text < textLimit;
+          return (
+            <li key={r.route} className="grid grid-cols-[minmax(0,1fr)_4rem_6.5rem] items-center gap-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1fr)_9rem_4rem_6.5rem]">
+              <span className="truncate font-mono text-[12px] text-kumo-default" title={r.route}>{r.route}</span>
+              <span className="relative hidden h-1.5 overflow-hidden rounded-full bg-kumo-fill sm:block" aria-hidden="true">
+                <span className={`absolute inset-y-0 left-0 rounded-full ${over ? 'bg-kumo-danger' : 'bg-kumo-success'}`} style={{ width: `${Math.min(100, (r.worst / scale) * 100)}%` }} />
+                <span className="absolute inset-y-0 w-px bg-kumo-default opacity-40" style={{ left: `${(limit / scale) * 100}%` }} />
+              </span>
+              <span className={`tabular text-right text-xs ${over ? 'text-kumo-danger' : 'text-kumo-strong'}`} title="Worst section, % of its pixels">
+                {r.error ? '—' : `${r.worst.toFixed(1)}%`}
+              </span>
+              <span className={`tabular whitespace-nowrap text-right text-xs ${textBad ? 'text-kumo-danger' : 'text-kumo-subtle'}`} title="Share of the old page's words kept">
+                {r.text == null ? '—' : `${(r.text * 100).toFixed(1)}% words`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="border-t border-kumo-hairline px-4 py-2 text-[11px] text-kumo-subtle">
+        Fails above {limit}% of a section's pixels, or under {(textLimit * 100).toFixed(0)}% of the old page's words. <Kbd>--threshold</Kbd> tightens it from the command line.
+      </div>
+    </div>
+  );
+}
+
 function GateDetail({ gate, now, onRun, running, onClose, runError }) {
   const [record, setRecord] = useState(null);
   const [url, setUrl] = useState(gate.url ?? '');
+  const [params, setParams] = useState(gate.lastParams ?? {});
   const busy = running?.script === gate.script;
 
   useEffect(() => {
@@ -476,6 +538,8 @@ function GateDetail({ gate, now, onRun, running, onClose, runError }) {
     return () => { stop = true; };
   }, [gate.script, gate.at]);
   useEffect(() => setUrl(gate.url ?? ''), [gate.script, gate.url]);
+  useEffect(() => setParams(gate.lastParams ?? {}), [gate.script, gate.lastParams]);
+  const paramsMissing = gate.params?.some((n) => !params[n]?.trim());
 
   const s = gate.status;
   const needsUrl = gate.needsUrl === 'required';
@@ -517,8 +581,21 @@ function GateDetail({ gate, now, onRun, running, onClose, runError }) {
 
         <form
           className="flex flex-wrap items-end gap-2"
-          onSubmit={(e) => { e.preventDefault(); onRun(gate, url.trim() || undefined); }}
+          onSubmit={(e) => { e.preventDefault(); onRun(gate, gate.params ? params : { url: url.trim() || undefined }); }}
         >
+          {gate.params?.map((name) => (
+            <div key={name} className="min-w-56 flex-1">
+              <Input
+                size="sm"
+                label={PARAM_LABEL[name] ?? name}
+                placeholder={PARAM_HINT[name] ?? 'https://'}
+                value={params[name] ?? ''}
+                onChange={(e) => setParams((p) => ({ ...p, [name]: e.target.value }))}
+                required
+                type="url"
+              />
+            </div>
+          ))}
           {gate.needsUrl && (
             <div className="min-w-56 flex-1">
               <Input
@@ -532,12 +609,14 @@ function GateDetail({ gate, now, onRun, running, onClose, runError }) {
               />
             </div>
           )}
-          <Button type="submit" variant="primary" size="sm" icon={<PlayIcon weight="fill" />} loading={busy} disabled={(!!running && !busy) || s.key === 'missing' || (needsUrl && !url.trim())}>
+          <Button type="submit" variant="primary" size="sm" icon={<PlayIcon weight="fill" />} loading={busy} disabled={(!!running && !busy) || s.key === 'missing' || (needsUrl && !url.trim()) || paramsMissing}>
             {busy ? 'Running' : 'Run on this tree'}
           </Button>
           {running && !busy && <span className="text-xs text-kumo-subtle"><Kbd>{running.script}</Kbd> is running — one gate at a time</span>}
         </form>
         {runError && <Banner size="sm" variant="error" icon={<XCircleIcon weight="fill" />} description={runError} />}
+
+        {gate.parity && <Parity parity={gate.parity} report={gate.report && `/report/${gate.script}/`} />}
 
         <div>
           <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">Summary</div>
@@ -670,15 +749,19 @@ export default function App() {
     preserve: (status?.preserve ?? []).filter((i) => i.state === 'open').length,
   }), [gates, status]);
 
-  const runGate = useCallback(async (gate, url) => {
+  // A row's play button reruns with what the gate ran with last time; a gate
+  // that needs urls and has never had them opens its panel to ask.
+  const runGate = useCallback(async (gate, opts) => {
     setRunError(null);
-    if (gate.needsUrl === 'required' && !url) {
+    opts ??= gate.params ? gate.lastParams ?? {} : { url: gate.url ?? undefined };
+    const missing = gate.params ? gate.params.some((n) => !opts[n]) : gate.needsUrl === 'required' && !opts.url;
+    if (missing) {
       setSelected(gate.script);
       setView('gates');
       return;
     }
     try {
-      await run(gate.script, url);
+      await run(gate.script, opts);
     } catch (e) {
       setRunError(e.message);
       setSelected(gate.script);

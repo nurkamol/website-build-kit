@@ -19,7 +19,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { kitStatus, liveLogPath, readLedger, readRunning } from './state.mjs';
+import { GATES, kitStatus, liveLogPath, readLedger, readRunning } from './state.mjs';
 import { startGate, view, waitFor } from './runner.mjs';
 
 const arg = (name, fallback) => {
@@ -31,7 +31,7 @@ const PORT = Number(arg('port', 4319));
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2' };
+const TYPES = { '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2' };
 
 function send(res, code, body, type = 'application/json') {
   res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -89,8 +89,8 @@ const server = createServer(async (req, res) => {
       }
 
       if (req.method === 'POST' && path === '/api/run') {
-        const { script, url: target } = await body(req);
-        const started = startGate(SITE, script, target || undefined, 'the console');
+        const { script, url: target, old, new: next } = await body(req);
+        const started = startGate(SITE, script, { url: target || undefined, old, new: next }, 'the console');
         if (started.error) return send(res, 409, { error: started.error });
         const { job } = await waitFor(started.job.id, 0);
         return send(res, 202, view(job));
@@ -106,6 +106,21 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method !== 'GET') return send(res, 405, { error: 'GET only' });
+
+    // A gate's own HTML report — match writes old | new | diff per section.
+    // Served from that one directory of the site and nothing above it.
+    const report = path.match(/^\/report\/([\w:-]+)\/(.*)$/);
+    if (report) {
+      const dir = GATES[report[1]]?.report;
+      if (!dir) return send(res, 404, { error: 'No report for that gate' });
+      const root = join(SITE, dir);
+      let file = normalize(join(root, decodeURIComponent(report[2]) || 'index.html'));
+      if (!file.startsWith(root)) return send(res, 400, { error: 'Bad path' });
+      if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
+      if (!existsSync(file)) return send(res, 404, 'No report yet — run the gate first.', 'text/plain; charset=utf-8');
+      res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
+      return createReadStream(file).pipe(res);
+    }
     if (!existsSync(DIST)) {
       return send(res, 503, 'The page is not built. Run `npm start` (builds, then serves) or `npm run build` first.', 'text/plain; charset=utf-8');
     }

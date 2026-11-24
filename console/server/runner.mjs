@@ -5,7 +5,8 @@
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   GATES, cacheDir, fingerprint, liveLogPath, readLedger, readRunning, readSite, runningPath, writeResult,
 } from './state.mjs';
@@ -57,24 +58,83 @@ export function classify(output, code) {
   return warned ? 'warn' : 'pass';
 }
 
-export function validate(site, script, url) {
+const URL_RE = /^https?:\/\/[^\s]+$/;
+
+/** The npm arguments for one run, or a refusal. */
+export function argsFor(script, opts = {}) {
+  const def = GATES[script];
+  const { url } = opts;
+  if (def.params) {
+    const args = [];
+    for (const name of def.params) {
+      const v = opts[name]?.trim();
+      if (!v) return { error: `\`${script}\` needs --${name}: ${name === 'old' ? 'the site being replaced' : name === 'new' ? 'the rebuild — staging, or http://localhost:4321 beside astro dev' : 'a url'}.` };
+      if (!URL_RE.test(v)) return { error: `Not an http(s) url for --${name}: ${v}` };
+      args.push(`--${name}`, v);
+    }
+    return { args, params: Object.fromEntries(def.params.map((n) => [n, opts[n].trim()])) };
+  }
+  if (def.url === 'required' && !url) return { error: `\`${script}\` needs a url — the staging or production origin to check.` };
+  if (url && !def.url) return { error: `\`${script}\` takes no url.` };
+  if (url && !URL_RE.test(url)) return { error: `Not an http(s) url: ${url}` };
+  return { args: url ? [url] : [], params: null };
+}
+
+/**
+ * What match.json says, small enough to show and to hand to Claude: the
+ * verdict, the worst routes, and the first failures. Read only if the run
+ * wrote it — an old report from a previous run is not this run's result.
+ */
+export function parityFrom(site, dir, since) {
+  const file = join(site, dir, 'match.json');
+  try {
+    if (!existsSync(file) || statSync(file).mtimeMs < since) return null;
+    const r = JSON.parse(readFileSync(file, 'utf8'));
+    const routes = (r.routes ?? []).map((row) => ({
+      route: row.route,
+      worst: Math.max(0, ...(row.viewports ?? []).flatMap((v) => (v.sections ?? []).map((x) => x.percent ?? 0))),
+      text: row.text?.ratio ?? null,
+      error: (row.viewports ?? []).find((v) => v.error)?.error ?? null,
+    })).sort((a, b) => b.worst - a.worst);
+    return {
+      passed: !!r.passed,
+      old: r.old,
+      new: r.new,
+      thresholds: r.thresholds,
+      compared: routes.length,
+      notCompared: r.notCompared?.length ?? 0,
+      ranOutOfBudget: !!r.budget?.ranOut,
+      failures: (r.failures ?? []).length,
+      firstFailures: (r.failures ?? []).slice(0, 8),
+      routes: routes.slice(0, 12),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function validate(site, script, opts = {}) {
   const def = GATES[script];
   if (!def) {
     return `\`${script}\` is not a gate this server runs. Allowed: ${Object.keys(GATES).join(', ')}. ` +
-      'Deploys, indexnow, dns and live-site crawls are excluded on purpose — run those yourself.';
+      'Deploys, indexnow, dns and the crawls that copy a client\'s site to disk (recon, shots, changes) are excluded on purpose — run those yourself.';
   }
   const { pkg, error } = readSite(site);
   if (error) return error;
   if (!pkg.scripts[script]) return `This site's package.json has no \`${script}\` script — it predates it. \`npm run check:drift\` reports what else is missing.`;
-  if (def.url === 'required' && !url) return `\`${script}\` needs a url — the staging or production origin to check.`;
-  if (url && !def.url) return `\`${script}\` takes no url.`;
-  if (url && !/^https?:\/\/[^\s]+$/.test(url)) return `Not an http(s) url: ${url}`;
-  return null;
+  return argsFor(script, opts).error ?? null;
 }
 
-export function startGate(site, script, url, by = 'unknown') {
-  const problem = validate(site, script, url);
+/**
+ * opts: { url } for verify and the browser gates, { old, new } for match.
+ * A bare string is taken as { url }, which is what every caller used to pass.
+ */
+export function startGate(site, script, opts = {}, by = 'unknown') {
+  if (typeof opts === 'string' || opts === undefined) opts = { url: opts };
+  const problem = validate(site, script, opts);
   if (problem) return { error: problem };
+  const { args, params } = argsFor(script, opts);
+  const url = opts.url ?? null;
 
   for (const job of jobs.values()) {
     if (job.site === site && job.state === 'running') {
@@ -86,7 +146,7 @@ export function startGate(site, script, url, by = 'unknown') {
     return { error: `\`${other.script}\` is running from ${other.by} (pid ${other.pid}). One gate at a time — two builds in one dist/ measure each other.` };
   }
 
-  const job = { id: randomUUID().slice(0, 8), site, script, url: url ?? null, by, state: 'running', output: '', startedAt: new Date().toISOString(), steps: [] };
+  const job = { id: randomUUID().slice(0, 8), site, script, url, params, by, state: 'running', output: '', startedAt: new Date().toISOString(), steps: [] };
   mkdirSync(cacheDir(site), { recursive: true });
   writeFileSync(runningPath(site), JSON.stringify({ job: job.id, script, by, pid: process.pid, startedAt: job.startedAt }));
   writeFileSync(liveLogPath(site), '');
@@ -116,7 +176,7 @@ export function startGate(site, script, url, by = 'unknown') {
       }
     }
     job.steps.push(script);
-    job.result = await record(site, script, url ? [url] : [], append);
+    job.result = await record(site, script, args, append, params);
     job.state = 'done';
   })().finally(() => {
     job.state = 'done';
@@ -126,8 +186,9 @@ export function startGate(site, script, url, by = 'unknown') {
   return { job };
 }
 
-async function record(site, script, args, append) {
+async function record(site, script, args, append, params = null) {
   const before = fingerprint(site);
+  const started = Date.now();
   let output = '';
   const { code, ms } = await npmRun(site, script, args, (s) => { output += s; append(s); });
   const after = fingerprint(site);
@@ -142,6 +203,8 @@ async function record(site, script, args, append) {
     at: new Date().toISOString(),
     durationMs: ms,
     args,
+    params,
+    parity: GATES[script].report ? parityFrom(site, GATES[script].report, started) : null,
     // A gate that edits tracked files has measured a tree that no longer exists.
     changedTree: !!before && !!after && before.id !== after.id,
     outputTail: output.slice(-4000),

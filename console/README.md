@@ -49,8 +49,15 @@ gone with a clean install. A result nobody can reproduce reads as **never**, whi
 rebuild first unless a staging build passed on the same tree. `dist/` is gitignored, so no
 fingerprint can tell a stale one from a fresh one.
 
+**`match` — how close the rebuild is to the old site.** It takes `old` and `new` (staging, or
+`http://localhost:4321` beside `astro dev`), compares every route section by section in pixels and
+in words, and takes minutes — over MCP it hands back a job id. The result carries a parity summary
+(worst routes first, the failures, the thresholds), and the page links the old | new | diff
+report it wrote to `shots/match/`, which every site ignores, so the run cannot change the tree
+it is recorded against. An older `match.json` is never shown as this run's result.
+
 **Not available, on purpose:** deploys, `indexnow`, `dns`, `recon`, `shots`, `changes`, `seo`.
-They ship, submit, or crawl a live site and write a client's material to disk. Run them yourself.
+They ship, submit, or copy a client's site into the project. Run them yourself.
 
 ## Work on it
 
