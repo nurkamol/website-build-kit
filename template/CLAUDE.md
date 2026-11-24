@@ -15,6 +15,7 @@ npx puppeteer browsers install chrome        # ...if that says Chrome is missing
 npm run tells                                # what is undecided, and the design tells
 npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
+#                                            # → recon/ask-client.md: optional asks for its owner
 #   --allow-internal                         # ...if the old site is on a VPN or a private address
 npm run changes -- https://old-site.com      # what the client changed since the last run. Weekly
 #                                            # until go-live; reports, never applies

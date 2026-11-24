@@ -62,6 +62,7 @@ const KNOWN_FAULTS = [
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
   'vendor-words', // vendor NAMES as ordinary words and a WordPress style preset — no vendor loaded
   'vendor-real', // a vendor actually loaded: Crisp chat's script
+  'platform-wp', // a WordPress + Elementor site: the generator meta and a builder class, as rendered
 
   /* ── Faults only a browser can see ───────────────────────────────────────
    * Everything above is visible to `fetch`. These five are not: the response
@@ -284,6 +285,7 @@ ${FAULTS.has('no-stylesheet') ? '' : `<style>${STYLE}</style>`}
 ${FAULTS.has('own-css-404') ? '<link rel="stylesheet" href="/wp-content/cache/min/1/site.min.css?ver=3">' : ''}
 ${FAULTS.has('vendor-words') ? '<style id="global-styles-inline-css">:root{--wp--preset--shadow--crisp: 6px 6px 0 #000;}</style>' : ''}
 ${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" async></script>' : ''}
+${FAULTS.has('platform-wp') ? '<meta name="generator" content="WordPress 6.6.2">' : ''}
 </head>
 <body>
 ${FAULTS.has('wp-api') ? `<nav><a href="/">Home</a> <a href="/about/">About us</a>${FAULTS.has('wp-edited') ? ' <a href="/pricing/">Pricing</a>' : ''}</nav>` : ''}
@@ -296,6 +298,7 @@ by anything measuring content length. It links onward to <a href="/about/">about
 and back to <a href="/">home</a>.</p>
 <img src="/hero.png" width="800" height="600" alt="A hero image">
 ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
+${FAULTS.has('platform-wp') ? '<div class="elementor-element elementor-widget-text-editor"><p>Built with a page builder.</p></div>' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
 ${FAULTS.has('turnstile-widget') && path === '/about/' ? '<form method="post" action="/api/contact/"><div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div></form>' : ''}

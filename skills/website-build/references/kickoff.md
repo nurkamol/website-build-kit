@@ -52,6 +52,22 @@ this-week problem. Ask it in the same breath as domain access.
 If a live site was given, **crawl it before Round 1** and arrive with the inventory already
 done — `npm run recon -- https://old-site.com` does the mechanical half in a minute.
 
+**Then ask for what the platform makes worth having — all of it optional.** `recon` names the
+platform with the evidence that gave it away and writes `recon/ask-client.md`: per platform, what
+to ask for, what each gives that a crawl cannot, and where the client finds it. A WordPress backup
+or WXR export carries drafts and full-size originals; Squarespace has no usable export, so the ask
+is the URL-mappings list and the source images. Send it as one message with the reason on every
+line — a client agrees to *"so your unpublished drafts are not lost"*, not to *"send me a
+backup"*. The crawl stays the source of truth for pages (`stacks.md` §1).
+
+⚠ **A full backup is credentials and other people's personal data, not content.** The config file
+holds the database password and the secrets that sign every login cookie; the users table holds
+every account's email and password hash; form entries are the client's customers. Keep it
+**outside the repository** — never in `recon/`, which is meant to be committed — take what you
+need, and delete your copy at handover. The template's `.gitignore` refuses the usual dump
+extensions as a belt, not as the plan. **Never ask for an admin password**: ask for the export,
+or for a separate editor account they delete after launch.
+
 "I found 15 URLs, 5 template families, a contact form posting to Brevo, and 3 of 5 template
 families failing contrast — confirm?" beats twenty questions.
 

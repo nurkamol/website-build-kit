@@ -33,3 +33,12 @@ shots/
 # `npm run design`'s per-page-and-width capture cache. Never history, even
 # when recon/ is: it is a cache, re-measured with --refresh.
 recon/.cache/
+
+# A client's backup or database dump, unpacked inside the project. It carries the
+# config file (database password, cookie-signing secrets) and the users table.
+# recon/ask-client.md says keep it outside the repository; this is the belt for the
+# day somebody does not — `recon/` is meant to be committed, so it is the likely spot.
+*.wpress
+*.sql
+*.sql.gz
+*.sql.zip

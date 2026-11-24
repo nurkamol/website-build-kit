@@ -2010,6 +2010,44 @@ for (const [label, faults, check] of [
   }
 }
 
+/* The platform decides what to ask the owner for. Paired: a WordPress + Elementor site is named
+   with its evidence and gets the backup-handling rules; a site with no tell is "not identified"
+   and is never guessed at — a wrong platform sends the client looking for an export that does
+   not exist. */
+for (const [label, faults, check] of [
+  ['names WordPress + Elementor and writes the backup-handling rules', 'platform-wp', (md) =>
+    !/Detected \*\*WordPress \+ Elementor\*\*/.test(md) ? 'did not name WordPress + Elementor'
+      : !/generator meta names WordPress/.test(md) ? 'named it without the evidence'
+        : !/Handling a backup/.test(md) ? 'asked for a backup without the handling rules'
+          : !/Never ask for their admin password/.test(md) ? 'dropped the no-passwords rule' : null],
+  ['does not guess a platform it cannot see', '', (md) =>
+    !/not identified/.test(md) ? 'claimed a platform on a site with no tell'
+      : /WordPress/.test(md) ? 'mentioned WordPress on a site with no tell' : null],
+]) {
+  let fixture;
+  try {
+    fixture = startFixture(faults);
+  } catch (err) {
+    results.push({ gate: currentGate, label: `recon ${label}`, ok: false, detail: String(err.message) });
+    continue;
+  }
+  try {
+    gate(`recon ${label}`, {
+      script: 'recon.mjs',
+      files: {},
+      args: [fixture.origin, '--no-wayback', '--allow-internal'],
+      expect: 0,
+      then: (dir) => {
+        const file = join(dir, 'recon/ask-client.md');
+        if (!existsSync(file)) return 'wrote no recon/ask-client.md';
+        return check(readFileSync(file, 'utf8'));
+      },
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
 /* Both reachable without a server at all. */
 gate('no origin argument is a usage error', {
   script: 'verify.mjs',

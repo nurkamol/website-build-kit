@@ -42,6 +42,9 @@ curl -s https://old-site.com/sitemap_index.xml           # or /sitemap.xml, /wp-
 - **Media library originals** — strip WordPress's `-300x200` size suffixes and Elementor's
   `/uploads/elementor/thumbs/` crops; you want the source file
 - **`/feed/`, `/wp-json/`, category and author URLs** — all need redirect decisions
+- **Optionally, a backup or a WXR export** — for what a crawl cannot see: drafts, scheduled
+  posts, originals at full size, form history. `recon/ask-client.md` words the ask;
+  `kickoff.md` Round 0 has the handling rule, because a backup carries `wp-config.php`
 
 **Strip on the way in:** lazy-load placeholders (`data-src`, base64 blur), tracking
 wrappers, `wp-block-*` and builder classes, hand-rolled tables of contents whose anchors you

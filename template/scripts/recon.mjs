@@ -27,6 +27,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
+import { askClientMarkdown, detectPlatform } from './lib/platform.mjs';
 import { blockedReason } from './lib/hosts.mjs';
 import { GONE_TAG } from './lib/inventory.mjs';
 import { PRESERVED } from './lib/preserved.mjs';
@@ -587,6 +588,21 @@ writeFileSync(
     `the difference between a decision and an omission.\n`,
 );
 console.log(`\n  ${GREEN}✓${RESET} ${OUT}/integrations.md`);
+
+/* ── What it is built on, and what to ask for because of it ────────────────
+ *
+ * The platform decides what is worth asking the owner for — a WordPress
+ * backup holds drafts and original media a crawl never sees; Squarespace has
+ * no usable export at all, so the ask is the redirect list and the source
+ * images. All optional, all written down with the reason, because a client
+ * agrees to "so your unpublished drafts are not lost" and not to "send me a
+ * backup". lib/platform.mjs carries the asks and the handling rules. */
+const platform = detectPlatform(corpus, headRes?.headers ?? null);
+writeFileSync(`${OUT}/ask-client.md`, askClientMarkdown(platform, ORIGIN));
+console.log(
+  `\n  ${BOLD}Platform${RESET} ${platform.name ? `${platform.name}${platform.builder ? ` + ${platform.builder}` : ''} ${DIM}(${platform.evidence.join('; ')})${RESET}` : `${DIM}not identified — ask${RESET}`}`,
+);
+console.log(`  ${GREEN}✓${RESET} ${OUT}/ask-client.md ${DIM}— optional asks for the owner, with the reason for each${RESET}`);
 
 /* ── 5. The old site's own files ─────────────────────────────────────────
  *
