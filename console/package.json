@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test server/state.test.mjs",
-    "mcp": "node server/mcp.mjs"
+    "mcp": "node server/mcp.mjs",
+    "start": "vite build && node server/http.mjs",
+    "serve": "node server/http.mjs"
   },
   "dependencies": {
     "@cloudflare/kumo": "2.19.1",

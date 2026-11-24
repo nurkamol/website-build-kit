@@ -5,4 +5,37 @@
 @import "@cloudflare/kumo/styles";
 @import "tailwindcss";
 
-body { margin: 0; }
+/* System faces only: a local tool should not phone a font CDN on every open,
+   and SF / Segoe are the faces the rest of the desktop is set in. */
+:root {
+  --console-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --console-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html, body { margin: 0; background: var(--color-kumo-canvas); }
+body {
+  font-family: var(--console-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.font-mono, code, pre, kbd { font-family: var(--console-mono); }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* The terminal is dark in both modes: output is read like a terminal, and a
+   light terminal is the tell of a dashboard that has never been used. */
+.terminal {
+  background: oklch(17% 0.005 260);
+  color: oklch(88% 0.005 260);
+  --term-dim: oklch(62% 0.01 260);
+}
+.terminal .ok { color: oklch(78% 0.15 150); }
+.terminal .bad { color: oklch(72% 0.17 25); }
+.terminal .warn { color: oklch(82% 0.14 80); }
+.terminal .dim { color: var(--term-dim); }
+
+@keyframes console-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.pulse { animation: console-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-kumo-line) transparent; }

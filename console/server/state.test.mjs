@@ -5,13 +5,14 @@
  *   npm test        (in console/)
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { request } from 'node:http';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { kitStatus, parseBuildState } from './state.mjs';
+import { cacheDir, kitStatus, parseBuildState, runningPath } from './state.mjs';
 import { classify, startGate, waitFor } from './runner.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -110,6 +111,22 @@ describe('a site on disk', () => {
     assert.equal(g.status.behind, 1);
   });
 
+  it('a commit outside the site directory does not stale the site', async () => {
+    const { dir, commit } = site();
+    const inner = join(dir, 'site');
+    mkdirSync(inner);
+    writeFileSync(join(inner, 'package.json'), readFileSync(join(dir, 'package.json')));
+    writeFileSync(join(inner, '.gitignore'), 'node_modules/\n');
+    commit('nest the site');
+    await run(inner, 'check');
+    writeFileSync(join(dir, 'sibling.md'), 'not part of the site');
+    commit('sibling only');
+    assert.equal(gate(inner, 'check').status.key, 'pass');
+    writeFileSync(join(inner, 'page.md'), 'part of the site');
+    commit('site change');
+    assert.equal(gate(inner, 'check').status.key, 'stale');
+  });
+
   it('a failure stays a failure on a newer tree — it is never laundered into stale', async () => {
     const { dir } = site({ scripts: { check: 'node -e "process.exit(1)"' } });
     await run(dir, 'check');
@@ -147,10 +164,72 @@ describe('a site on disk', () => {
     assert.match(g.note, /judgement/);
   });
 
+  it('refuses to start a gate while another process is running one', () => {
+    const { dir } = site();
+    mkdirSync(cacheDir(dir), { recursive: true });
+    // This process is alive, so its lock is live.
+    writeFileSync(runningPath(dir), JSON.stringify({ script: 'verify', by: 'Claude Code', pid: process.pid }));
+    assert.match(startGate(dir, 'check').error, /running from Claude Code/);
+    assert.equal(kitStatus(dir).running.script, 'verify');
+  });
+
+  it('ignores a lock left by a process that died mid-run', async () => {
+    const { dir } = site();
+    mkdirSync(cacheDir(dir), { recursive: true });
+    writeFileSync(runningPath(dir), JSON.stringify({ script: 'verify', by: 'Claude Code', pid: 2 ** 22 + 7 }));
+    assert.equal(kitStatus(dir).running, null);
+    await run(dir, 'check');
+    assert.equal(gate(dir, 'check').status.key, 'pass');
+  });
+
+  it('releases the lock when a run ends, failed or not', async () => {
+    const { dir } = site({ scripts: { check: 'node -e "process.exit(1)"' } });
+    await run(dir, 'check');
+    assert.equal(kitStatus(dir).running, null);
+  });
+
   it('refuses a directory that is not a kit site', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kit-console-'));
     dirs.push(dir);
     writeFileSync(join(dir, 'package.json'), '{"name":"x","scripts":{}}');
     assert.match(kitStatus(dir).error, /does not look like a site/);
+  });
+});
+
+describe('the page server', () => {
+  const dirs = [];
+  let child;
+  const port = 43000 + Math.floor(Math.random() * 2000);
+  after(() => { child?.kill(); dirs.forEach((d) => rmSync(d, { recursive: true, force: true, maxRetries: 5 })); });
+
+  const ask = (path, { method = 'GET', headers = {} } = {}) => new Promise((ok, bad) => {
+    const req = request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
+      let b = '';
+      res.on('data', (c) => { b += c; });
+      res.on('end', () => ok({ code: res.statusCode, body: b }));
+    });
+    req.on('error', bad);
+    req.end(method === 'POST' ? JSON.stringify({ script: 'check' }) : undefined);
+  });
+
+  it('starts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kit-console-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 's', scripts: { tells: 'echo', verify: 'echo', check: 'echo' } }));
+    child = spawn(process.execPath, [join(here, 'http.mjs'), '--site', dir, '--port', String(port)], { stdio: ['ignore', 'pipe', 'inherit'] });
+    await new Promise((ok) => child.stdout.once('data', ok));
+  });
+
+  it('answers a loopback Host', async () => {
+    assert.equal((await ask('/api/status')).code, 200);
+  });
+
+  it('refuses any other Host — a rebound DNS name is not loopback', async () => {
+    assert.equal((await ask('/api/status', { headers: { host: 'attacker.example:4319' } })).code, 421);
+  });
+
+  it('refuses a POST without the console header — what a drive-by form or fetch would send', async () => {
+    const r = await ask('/api/run', { method: 'POST', headers: { 'content-type': 'application/json' } });
+    assert.equal(r.code, 403);
   });
 });

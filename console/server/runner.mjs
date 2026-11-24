@@ -5,7 +5,10 @@
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { GATES, fingerprint, readLedger, readSite, writeResult } from './state.mjs';
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  GATES, cacheDir, fingerprint, liveLogPath, readLedger, readRunning, readSite, runningPath, writeResult,
+} from './state.mjs';
 
 const MAX_OUTPUT = 200_000; // characters kept per job; the tail is what matters
 const jobs = new Map();
@@ -69,7 +72,7 @@ export function validate(site, script, url) {
   return null;
 }
 
-export function startGate(site, script, url) {
+export function startGate(site, script, url, by = 'unknown') {
   const problem = validate(site, script, url);
   if (problem) return { error: problem };
 
@@ -78,9 +81,19 @@ export function startGate(site, script, url) {
       return { error: `\`${job.script}\` is still running (job ${job.id}). One gate at a time — two builds in one dist/ measure each other.` };
     }
   }
+  const other = readRunning(site);
+  if (other) {
+    return { error: `\`${other.script}\` is running from ${other.by} (pid ${other.pid}). One gate at a time — two builds in one dist/ measure each other.` };
+  }
 
-  const job = { id: randomUUID().slice(0, 8), site, script, url: url ?? null, state: 'running', output: '', startedAt: new Date().toISOString(), steps: [] };
-  const append = (s) => { job.output = (job.output + s).slice(-MAX_OUTPUT); };
+  const job = { id: randomUUID().slice(0, 8), site, script, url: url ?? null, by, state: 'running', output: '', startedAt: new Date().toISOString(), steps: [] };
+  mkdirSync(cacheDir(site), { recursive: true });
+  writeFileSync(runningPath(site), JSON.stringify({ job: job.id, script, by, pid: process.pid, startedAt: job.startedAt }));
+  writeFileSync(liveLogPath(site), '');
+  const append = (s) => {
+    job.output = (job.output + s).slice(-MAX_OUTPUT);
+    try { appendFileSync(liveLogPath(site), s); } catch { /* the log is a view; the ledger is the record */ }
+  };
   jobs.set(job.id, job);
 
   job.done = (async () => {
@@ -105,7 +118,10 @@ export function startGate(site, script, url) {
     job.steps.push(script);
     job.result = await record(site, script, url ? [url] : [], append);
     job.state = 'done';
-  })();
+  })().finally(() => {
+    job.state = 'done';
+    rmSync(runningPath(site), { force: true });
+  });
 
   return { job };
 }

@@ -66,9 +66,14 @@ function git(site, args) {
 export function fingerprint(site) {
   const head = git(site, ['rev-parse', 'HEAD']);
   if (!head) return null;
+  // The committed tree of the site's own directory, not HEAD: a site inside a
+  // larger repository (the kit's template/ is one) is not changed by a commit
+  // that touches only a sibling, and HEAD would call every gate stale for it.
+  // An amend that keeps the files keeps the tree, which is also right.
+  const tree = git(site, ['rev-parse', 'HEAD:./']) ?? head;
   const top = git(site, ['rev-parse', '--show-toplevel']);
   const status = git(site, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.']) ?? '';
-  const hash = createHash('sha256').update(head);
+  const hash = createHash('sha256').update(tree);
   const entries = status.split('\0').filter(Boolean);
   for (let i = 0; i < entries.length; i++) {
     const code = entries[i].slice(0, 2);
@@ -99,7 +104,34 @@ export function commitsBehind(site, sha) {
 // ── The ledger ───────────────────────────────────────────────────────────────
 
 export function ledgerPath(site) {
-  return join(site, 'node_modules', '.cache', 'website-build-kit', 'gates.json');
+  return join(cacheDir(site), 'gates.json');
+}
+
+export function cacheDir(site) {
+  return join(site, 'node_modules', '.cache', 'website-build-kit');
+}
+
+/**
+ * The lock and live log a run leaves while it is in flight. The MCP server and
+ * the page are separate processes — Claude Code spawns one, a person opens the
+ * other — so "is a gate running" has to live on disk, not in either's memory.
+ * Two builds in one dist/ measure each other.
+ */
+export function runningPath(site) { return join(cacheDir(site), 'running.json'); }
+export function liveLogPath(site) { return join(cacheDir(site), 'running.log'); }
+
+function alive(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
+export function readRunning(site) {
+  try {
+    const r = JSON.parse(readFileSync(runningPath(site), 'utf8'));
+    // A lock left by a process that died mid-run is not a running gate.
+    return r && alive(r.pid) ? r : null;
+  } catch {
+    return null;
+  }
 }
 
 export function readLedger(site) {
@@ -237,6 +269,10 @@ export function kitStatus(siteDir) {
       at: record?.at ?? null,
       durationMs: record?.durationMs ?? null,
       summary: record?.summary ?? 'Never run',
+      changedTree: record?.changedTree ?? false,
+      url: record?.args?.[0] ?? null,
+      needsUrl: GATES[script].url ?? null,
+      readsDist: !!GATES[script].readsDist,
       status: statusOf(record, fp, site),
     };
   });
@@ -255,6 +291,7 @@ export function kitStatus(siteDir) {
 
   const subject = git(site, ['log', '-1', '--format=%s']);
   return {
+    generatedAt: new Date().toISOString(),
     site: {
       name: pkg.name,
       path: site,
@@ -286,6 +323,7 @@ export function kitStatus(siteDir) {
     blockers: state.blockers,
     integrations: state.integrations,
     preserve: state.preserve,
+    running: readRunning(site),
     ledger: ledgerPath(site),
   };
 }

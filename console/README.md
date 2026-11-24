@@ -1,11 +1,21 @@
 # Build console
 
 Where a site build stands, read from the site rather than remembered — for Claude Code over MCP,
-and (next) for a person in a browser. Kit tooling, never part of `template/`: it is about a
-build, and nothing in it reaches a delivered site.
+and for a person in a browser. Kit tooling, never part of `template/`: it is about a build, and
+nothing in it reaches a delivered site.
 
-⚠ **Status:** the MCP server works and is tested. The page in `src/` is a **sketch on fixture
-data** — it does not talk to the server yet. See `docs/roadmap.md`.
+⚠ **Status:** working and tested, not yet used on a real build. See `docs/roadmap.md`.
+
+## Open the page
+
+```bash
+cd console && npm ci
+npm start -- --site /path/to/client-site     # builds the page, serves http://127.0.0.1:4319
+```
+
+Dark by default; the toggle in the sidebar remembers a choice. The page and the MCP server are
+separate processes sharing one ledger, lock and live log on disk — so a gate Claude Code runs
+shows up on the page while it runs, and the page refuses to start a second one alongside it.
 
 ## Connect it to Claude Code
 
@@ -45,9 +55,14 @@ They ship, submit, or crawl a live site and write a client's material to disk. R
 ## Work on it
 
 ```bash
-npm test          # the server's refusal cases — runs in kit.yml on ubuntu and windows
-npm run dev       # the page sketch, http://127.0.0.1:4319
+npm test                                # refusal cases — runs in kit.yml on ubuntu and windows
+node server/http.mjs --site ../template   # the API on 4319, without rebuilding the page
+npm run dev                             # the page with hot reload on 4318; /api goes to 4319
 ```
+
+The page server answers loopback `Host` names only (DNS rebinding) and refuses a POST without an
+`X-Kit-Console` header (a cross-origin request carrying one needs a preflight it never gets).
+Both have refusal cases.
 
 Kumo needs Tailwind v4 with the `@source` line in `src/styles.css`, before the Kumo import.
 Without it the components render unstyled and nothing reports an error. Kumo's standalone CSS

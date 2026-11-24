@@ -56,7 +56,7 @@ server.registerTool(
     },
   },
   async ({ script, url, wait_seconds }) => {
-    const started = startGate(SITE, script, url);
+    const started = startGate(SITE, script, url, 'Claude Code');
     if (started.error) return refuse(started.error);
     const { job } = await waitFor(started.job.id, wait_seconds);
     return json(view(job));

@@ -1,129 +1,315 @@
-import { useMemo, useState } from 'react';
-import { Badge, Banner, Button, LayerCard, Table, Tabs, Text } from '@cloudflare/kumo';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Badge, Banner, Button, Empty, Input, Loader, Tooltip } from '@cloudflare/kumo';
 import {
+  ArrowClockwiseIcon,
+  CaretRightIcon,
   CheckCircleIcon,
   CircleDashedIcon,
   ClockCounterClockwiseIcon,
+  GaugeIcon,
   GitCommitIcon,
+  LinkIcon,
+  ListChecksIcon,
+  MinusCircleIcon,
+  MoonIcon,
   PlayIcon,
+  PlugsConnectedIcon,
   QuestionIcon,
+  SunIcon,
+  TerminalWindowIcon,
   WarningIcon,
   XCircleIcon,
+  XIcon,
 } from '@phosphor-icons/react';
-import fixture from './fixture.json';
+import { api } from './api.js';
 
-/*
- * SKETCH. Every number comes from fixture.json, whose shape is the proposed
- * kit_status contract for the MCP server. "Run" plays back canned output.
- */
-
-// A result is only as good as the commit it ran on. A pass on an older commit
-// is reported as STALE, never as a pass — a tick that predates the code it
-// vouches for is the failure this console exists to show.
-function statusOf(gate, site) {
-  if (gate.result === 'never') return { key: 'never', behind: null };
-  const behind = site.commitsSince[gate.sha] ?? null;
-  if (gate.result === 'fail') return { key: 'fail', behind };
-  if (behind === null || behind > 0) return { key: 'stale', behind };
-  return { key: gate.result, behind };
-}
+// ── Vocabulary ───────────────────────────────────────────────────────────────
+// Full class names only: Tailwind compiles what it finds written out, so a
+// class assembled by interpolation silently does not exist.
 
 const STATUS = {
-  pass: { label: 'Passed', variant: 'success', icon: CheckCircleIcon },
-  warn: { label: 'Warnings', variant: 'warning', icon: WarningIcon },
-  fail: { label: 'Failed', variant: 'error', icon: XCircleIcon },
-  stale: { label: 'Stale', variant: 'orange', icon: ClockCounterClockwiseIcon },
-  never: { label: 'Never run', variant: 'neutral', icon: CircleDashedIcon },
+  fail: { label: 'Failed', icon: XCircleIcon, text: 'text-kumo-danger', dot: 'bg-kumo-danger', badge: 'error' },
+  stale: { label: 'Stale', icon: ClockCounterClockwiseIcon, text: 'text-kumo-warning', dot: 'bg-kumo-warning', badge: 'warning' },
+  warn: { label: 'Warnings', icon: WarningIcon, text: 'text-kumo-warning', dot: 'bg-kumo-warning', badge: 'warning' },
+  never: { label: 'Never run', icon: CircleDashedIcon, text: 'text-kumo-subtle', dot: 'bg-kumo-fill', badge: 'neutral' },
+  missing: { label: 'Not in site', icon: MinusCircleIcon, text: 'text-kumo-inactive', dot: 'bg-kumo-fill', badge: 'neutral' },
+  pass: { label: 'Passed', icon: CheckCircleIcon, text: 'text-kumo-success', dot: 'bg-kumo-success', badge: 'success' },
 };
-
-// Full class names, never built by interpolation: Tailwind only compiles what
-// it can find written out in the source.
-const ICON_TONE = {
-  pass: 'text-kumo-success',
-  warn: 'text-kumo-warning',
-  fail: 'text-kumo-danger',
-  stale: 'text-kumo-warning',
-  never: 'text-kumo-subtle',
-};
+const RANK = { fail: 0, stale: 1, never: 2, warn: 3, pass: 4, missing: 5 };
 
 const INTEGRATION = {
-  verified: { label: 'Verified', variant: 'success' },
-  dropped: { label: 'Dropped', variant: 'neutral' },
-  open: { label: 'Open', variant: 'error' },
+  verified: { label: 'Verified', badge: 'success' },
+  dropped: { label: 'Dropped', badge: 'neutral' },
+  open: { label: 'Open', badge: 'error' },
 };
 
-function ago(iso) {
+const VIEWS = [
+  { id: 'overview', label: 'Overview', icon: GaugeIcon },
+  { id: 'gates', label: 'Gates', icon: ListChecksIcon },
+  { id: 'integrations', label: 'Integrations', icon: PlugsConnectedIcon },
+  { id: 'preserve', label: 'Preserved paths', icon: LinkIcon },
+];
+
+// ── Time ─────────────────────────────────────────────────────────────────────
+
+function ago(iso, now) {
   if (!iso) return '—';
-  const now = new Date('2026-11-25T10:00:00Z'); // fixed so the sketch reads the same every day
-  const h = Math.round((now - new Date(iso)) / 36e5);
-  if (h < 1) return 'just now';
-  if (h < 48) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  const s = Math.max(0, Math.round((now - new Date(iso)) / 1000));
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 172800) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+function clock(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+function took(ms) {
+  if (ms == null) return '—';
+  return ms < 1000 ? `${ms}ms` : ms < 60000 ? `${(ms / 1000).toFixed(1)}s` : clock(ms);
 }
 
-function StatusBadge({ status }) {
-  const s = STATUS[status.key];
+function useNow(fast) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), fast ? 1000 : 15000);
+    return () => clearInterval(t);
+  }, [fast]);
+  return now;
+}
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+function useConsole() {
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState(null);
+  const [live, setLive] = useState({ running: null, output: '' });
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const running = live.running ?? status?.running ?? null;
+
+  const refresh = useCallback(async () => {
+    try {
+      const s = await api.status();
+      setStatus(s);
+      setError(null);
+      setUpdatedAt(Date.now());
+    } catch (e) {
+      setError(e.data?.error ?? (e.status ? e.message : 'The console server is not answering. Is `npm run serve` running?'));
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, running ? 2000 : 5000);
+    return () => clearInterval(t);
+  }, [refresh, running]);
+
+  // While anything runs — from this page or from Claude Code — follow its log.
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (!running) {
+      if (wasRunning.current) { wasRunning.current = false; refresh(); }
+      return undefined;
+    }
+    wasRunning.current = true;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const r = await api.running();
+        if (!stop) setLive(r);
+      } catch { /* the status poll reports the outage */ }
+    };
+    tick();
+    const t = setInterval(tick, 900);
+    return () => { stop = true; clearInterval(t); };
+  }, [running, refresh]);
+
+  const run = useCallback(async (script, url) => {
+    const r = await api.run(script, url);
+    setLive({ running: { script, by: 'the console', startedAt: r.startedAt, job: r.job }, output: '' });
+    return r;
+  }, []);
+
+  return { status, error, live, running, updatedAt, refresh, run };
+}
+
+// ── Atoms ────────────────────────────────────────────────────────────────────
+
+function Dot({ status, pulse }) {
+  return <span aria-hidden="true" className={`inline-block size-2 shrink-0 rounded-full ${STATUS[status].dot} ${pulse ? 'pulse' : ''}`} />;
+}
+
+function StatusPill({ status }) {
+  const s = STATUS[status];
   const Icon = s.icon;
   return (
-    <Badge variant={s.variant} icon={<Icon weight="fill" />}>
+    <Badge variant={s.badge} icon={<Icon weight="fill" />}>
       {s.label}
     </Badge>
   );
 }
 
-function Behind({ status }) {
-  if (status.behind === null) return <Text variant="secondary" size="sm">—</Text>;
-  if (status.behind === 0) return <Text variant="success" size="sm">at HEAD</Text>;
+function Kbd({ children }) {
+  return <span className="font-mono text-[12px] tracking-tight text-kumo-default">{children}</span>;
+}
+
+function Section({ title, aside, children, className = '' }) {
   return (
-    <Text variant="error" size="sm">
-      {status.behind} commit{status.behind === 1 ? '' : 's'} behind
-    </Text>
+    <section className={`overflow-hidden rounded-xl bg-kumo-base ring-1 ring-kumo-hairline ${className}`}>
+      {title && (
+        <header className="flex items-center justify-between gap-3 border-b border-kumo-hairline px-5 py-3">
+          <h2 className="m-0 text-[13px] font-medium tracking-tight text-kumo-default">{title}</h2>
+          {aside}
+        </header>
+      )}
+      {children}
+    </section>
   );
 }
 
-function Header({ site }) {
+function Metric({ label, value, tone = 'text-kumo-default', sub }) {
   return (
-    <header className="border-b border-kumo-hairline bg-kumo-base">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <div>
-          <Text variant="heading2" as="h1">{site.name}</Text>
-          <Text variant="secondary" size="sm">
-            {site.origin} · kit {site.kitVersion}
-          </Text>
+    <div className="min-w-0">
+      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">{label}</div>
+      <div className={`tabular mt-1 text-2xl font-semibold tracking-tight ${tone}`}>{value}</div>
+      {sub && <div className="mt-0.5 truncate text-xs text-kumo-subtle">{sub}</div>}
+    </div>
+  );
+}
+
+function Terminal({ text, title, meta, className = '' }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [text]);
+  const lines = (text || '').replace(/\s+$/, '').split('\n');
+  const tone = (l) =>
+    /^\s*(✗|✖|error|Error)|\bexit [1-9]/.test(l) ? 'bad'
+      : /^\s*(✓|✔)/.test(l) ? 'ok'
+        : /⚠|warn/i.test(l) ? 'warn'
+          : /^\s*›/.test(l) ? 'dim' : '';
+  return (
+    <div className={`terminal overflow-hidden rounded-lg ring-1 ring-black/40 ${className}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2 text-xs">
+        <span className="flex items-center gap-2 font-mono text-[12px]">
+          <TerminalWindowIcon size={14} className="dim" />
+          {title}
+        </span>
+        <span className="dim font-mono text-[11px]">{meta}</span>
+      </div>
+      <pre ref={ref} className="scroll-thin m-0 max-h-[26rem] overflow-auto px-4 py-3 text-[12.5px] leading-[1.6]">
+        {text ? lines.map((l, i) => <div key={i} className={tone(l)}>{l || ' '}</div>) : <span className="dim">No output yet.</span>}
+      </pre>
+    </div>
+  );
+}
+
+// ── Shell ────────────────────────────────────────────────────────────────────
+
+function ModeToggle() {
+  const [mode, setMode] = useState(() => document.documentElement.dataset.mode || 'dark');
+  const next = mode === 'dark' ? 'light' : 'dark';
+  const flip = () => {
+    document.documentElement.dataset.mode = next;
+    try { localStorage.setItem('kit-console-mode', next); } catch { /* a preference, not state */ }
+    setMode(next);
+  };
+  return (
+    <Button variant="ghost" size="sm" shape="square" aria-label={`Switch to ${next} mode`} onClick={flip}>
+      {mode === 'dark' ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+    </Button>
+  );
+}
+
+function Sidebar({ view, setView, status, counts, error, updatedAt, now }) {
+  return (
+    <aside className="flex shrink-0 flex-col border-kumo-hairline bg-kumo-elevated md:sticky md:top-0 md:h-screen md:w-64 md:border-r">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+        <div aria-hidden="true" className="grid size-8 place-items-center rounded-lg bg-kumo-contrast text-kumo-inverse">
+          <ListChecksIcon size={17} weight="bold" />
         </div>
-        <div className="flex items-center gap-2 text-kumo-subtle">
-          <GitCommitIcon size={18} />
-          <Text variant="mono" size="sm">{site.head.sha}</Text>
-          <Text variant="secondary" size="sm" className="hidden max-w-80 truncate md:block">
-            {site.head.subject}
-          </Text>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold tracking-tight text-kumo-default">{status?.site.name ?? 'Build console'}</div>
+          <div className="truncate text-[11px] text-kumo-subtle">
+            {status?.site.kitVersion ? `kit ${status.site.kitVersion}` : 'kit version unstamped'}
+          </div>
         </div>
       </div>
-    </header>
+
+      <nav aria-label="Views" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-visible">
+        {VIEWS.map((v) => {
+          const Icon = v.icon;
+          const current = v.id === view;
+          const n = counts[v.id];
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setView(v.id)}
+              aria-current={current ? 'page' : undefined}
+              className={`group flex shrink-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kumo-focus ${current ? 'bg-kumo-base font-medium text-kumo-default ring-1 ring-kumo-hairline' : 'text-kumo-strong hover:bg-kumo-tint'}`}
+            >
+              <Icon size={16} weight={current ? 'fill' : 'regular'} className={current ? 'text-kumo-default' : 'text-kumo-subtle'} />
+              <span className="flex-1 whitespace-nowrap">{v.label}</span>
+              {n > 0 && <span className="tabular rounded-full bg-kumo-danger-tint px-1.5 text-[11px] font-medium text-kumo-danger">{n}</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto hidden border-t border-kumo-hairline px-5 py-4 md:block">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-[11px] text-kumo-subtle">
+            <span className={`size-1.5 rounded-full ${error ? 'bg-kumo-danger' : 'bg-kumo-success pulse'}`} />
+            {error ? 'Disconnected' : `Live · ${ago(updatedAt, now)}`}
+          </span>
+          <ModeToggle />
+        </div>
+        {status && <div className="mt-2 truncate font-mono text-[10.5px] text-kumo-inactive" title={status.site.path}>{status.site.path}</div>}
+      </div>
+    </aside>
   );
 }
 
-function PhaseStrip({ phases }) {
+function TopBar({ title, status, running, now }) {
+  const head = status?.site.head;
   return (
-    <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {phases.map((p, i) => {
-        const tone =
-          p.state === 'done'
-            ? 'ring-kumo-hairline'
-            : p.state === 'active'
-              ? 'ring-2 ring-kumo-brand'
-              : 'ring-kumo-hairline opacity-60';
+    <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
+      <h1 className="m-0 text-xl font-semibold tracking-tight text-kumo-default">{title}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        {running && (
+          <span className="flex items-center gap-2 rounded-full bg-kumo-info-tint px-3 py-1 text-xs text-kumo-info">
+            <Loader size={12} />
+            <Kbd>{running.script}</Kbd>
+            <span className="opacity-80">· {running.by} · {clock(now - new Date(running.startedAt))}</span>
+          </span>
+        )}
+        {head && (
+          <Tooltip content={head.subject ?? ''}>
+            <span className="flex items-center gap-1.5 rounded-full bg-kumo-base px-3 py-1 text-xs text-kumo-strong ring-1 ring-kumo-hairline">
+              <GitCommitIcon size={14} />
+              <Kbd>{head.sha}</Kbd>
+              {head.dirty && <span className="text-kumo-warning">· uncommitted changes</span>}
+            </span>
+          </Tooltip>
+        )}
+        <span className="md:hidden"><ModeToggle /></span>
+      </div>
+    </div>
+  );
+}
+
+// ── Overview ─────────────────────────────────────────────────────────────────
+
+function PhaseTrack({ phases }) {
+  return (
+    <ol className="scroll-thin m-0 flex list-none gap-1.5 overflow-x-auto p-0 pb-1">
+      {phases.map((p) => {
+        const bar = p.state === 'done' ? 'bg-kumo-success' : p.state === 'active' ? 'bg-kumo-brand' : 'bg-kumo-fill';
         return (
-          <li key={p.id} className={`rounded-lg bg-kumo-base p-3 ring-1 ${tone}`}>
-            <Text variant="secondary" size="xs">Phase {i}</Text>
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <Text variant="heading3" as="span">{p.label}</Text>
-              {p.state === 'done' && <CheckCircleIcon weight="fill" className="text-kumo-success" size={18} />}
-              {p.state === 'active' && <Badge variant="primary">Active</Badge>}
+          <li key={p.id} className="min-w-[4.75rem] flex-1" aria-current={p.state === 'active' ? 'step' : undefined}>
+            <div className={`h-1.5 rounded-full ${bar}`} />
+            <div className={`mt-2 text-[11px] leading-tight ${p.state === 'active' ? 'font-medium text-kumo-default' : p.state === 'done' ? 'text-kumo-strong' : 'text-kumo-inactive'}`}>
+              <span className="tabular text-kumo-subtle">{p.id}</span> {p.label}
             </div>
-            <Text variant="secondary" size="xs">
-              {p.gatedAt ? `Gate passed ${ago(p.gatedAt)}` : p.state === 'active' ? 'In progress' : 'Not started'}
-            </Text>
           </li>
         );
       })}
@@ -131,290 +317,411 @@ function PhaseStrip({ phases }) {
   );
 }
 
-function Counts({ rows }) {
-  const order = ['fail', 'stale', 'warn', 'never', 'pass'];
-  return (
-    <div className="flex flex-wrap gap-2">
-      {order.map((k) => {
-        const n = rows.filter((r) => r.status.key === k).length;
-        if (!n) return null;
-        return (
-          <Badge key={k} variant={STATUS[k].variant} appearance="dot">
-            {n} {STATUS[k].label.toLowerCase()}
-          </Badge>
-        );
-      })}
-    </div>
-  );
-}
+function Hero({ status, gates }) {
+  const { buildState, phaseGate, phases } = status;
+  const active = phases.find((p) => p.state === 'active');
+  const real = gates.filter((g) => g.status.key !== 'missing');
+  const fresh = real.filter((g) => ['pass', 'warn'].includes(g.status.key)).length;
+  const problems = real.filter((g) => ['fail', 'stale'].includes(g.status.key)).length;
 
-function GateTable({ rows, onOpen }) {
-  return (
-    <LayerCard>
-      <LayerCard.Secondary className="flex flex-wrap items-center justify-between gap-2">
-        <span>Gates</span>
-        <Counts rows={rows} />
-      </LayerCard.Secondary>
-      <LayerCard.Primary className="overflow-x-auto p-0">
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.Head>Script</Table.Head>
-              <Table.Head>Phase</Table.Head>
-              <Table.Head>Status</Table.Head>
-              <Table.Head>Ran on</Table.Head>
-              <Table.Head>Summary</Table.Head>
-              <Table.Head className="sr-only">Open</Table.Head>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {rows.map(({ gate, status }) => (
-              <Table.Row key={gate.script}>
-                <Table.Cell><Text variant="mono" size="sm">npm run {gate.script}</Text></Table.Cell>
-                <Table.Cell><Text variant="secondary" size="sm">{gate.phase}</Text></Table.Cell>
-                <Table.Cell><StatusBadge status={status} /></Table.Cell>
-                <Table.Cell>
-                  <div className="flex flex-col">
-                    {gate.sha ? <Text variant="mono-secondary" size="xs">{gate.sha} · {ago(gate.at)}</Text> : null}
-                    <Behind status={status} />
-                  </div>
-                </Table.Cell>
-                <Table.Cell className="max-w-72"><Text size="sm">{gate.summary}</Text></Table.Cell>
-                <Table.Cell>
-                  <Button variant="ghost" size="sm" onClick={() => onOpen(gate.script)}>Details</Button>
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
-      </LayerCard.Primary>
-    </LayerCard>
-  );
-}
+  let verdict;
+  if (!phaseGate) verdict = { tone: 'text-kumo-subtle', icon: QuestionIcon, text: 'No phase recorded in BUILD-STATE.md' };
+  else if (phaseGate.ready === null) verdict = { tone: 'text-kumo-strong', icon: QuestionIcon, text: 'No script gates this phase — its gate is a judgement in build.md §3' };
+  else if (phaseGate.ready) verdict = { tone: 'text-kumo-success', icon: CheckCircleIcon, text: 'Every gate is green on this tree — the phase can close' };
+  else verdict = { tone: 'text-kumo-danger', icon: XCircleIcon, text: `Waiting on ${phaseGate.waitingOn.length} gate${phaseGate.waitingOn.length === 1 ? '' : 's'} before the phase can close` };
+  const V = verdict.icon;
 
-function Blockers({ blockers }) {
-  if (!blockers.length) return null;
   return (
-    <div className="space-y-3">
-      {blockers.map((b) =>
-        b.kind === 'blocking' ? (
-          <Banner key={b.text} variant="error" icon={<XCircleIcon weight="fill" />} title="Blocking" description={`${b.text} — open since ${b.since}`} />
-        ) : (
-          <Banner key={b.text} variant="alert" icon={<QuestionIcon weight="fill" />} title="Open question" description={`${b.text} — asked ${b.since}`} />
-        ),
-      )}
-    </div>
-  );
-}
-
-function Overview({ data, rows, onOpen }) {
-  const activeIndex = data.phases.findIndex((p) => p.state === 'active');
-  const active = data.phases[activeIndex];
-  const upTo = new Set(data.phases.slice(0, activeIndex + 1).map((p) => p.id));
-  // The gate for the active phase needs its own gates and every earlier phase's.
-  const phaseRows = rows.filter((r) => upTo.has(r.gate.phase));
-  const ready = phaseRows.every((r) => r.status.key === 'pass');
-  return (
-    <div className="space-y-6">
-      <PhaseStrip phases={data.phases} />
-      {!ready && (
-        <Banner
-          variant="secondary"
-          icon={<ClockCounterClockwiseIcon weight="fill" />}
-          title={`${active.label} gate cannot pass yet`}
-          description="Every gate must be green at HEAD. A pass on an older commit counts as stale, not passed."
-        />
-      )}
-      <Blockers blockers={data.blockers} />
-      <GateTable rows={rows} onOpen={onOpen} />
-    </div>
-  );
-}
-
-function GateDetail({ data, rows, selected, onSelect, onRun, running }) {
-  const row = rows.find((r) => r.gate.script === selected) ?? rows[0];
-  const output = data.output[row.gate.script];
-  return (
-    <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
-      <nav aria-label="Gates" className="flex flex-col gap-1">
-        {rows.map(({ gate, status }) => {
-          const Icon = STATUS[status.key].icon;
-          const current = gate.script === row.gate.script;
-          return (
-            <button
-              key={gate.script}
-              type="button"
-              aria-current={current ? 'true' : undefined}
-              onClick={() => onSelect(gate.script)}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-kumo-default hover:bg-kumo-tint focus-visible:outline-2 focus-visible:outline-kumo-brand ${current ? 'bg-kumo-tint font-medium' : ''}`}
-            >
-              <Icon weight="fill" size={16} className={`shrink-0 ${ICON_TONE[status.key]}`} />
-              <span className="truncate font-mono">{gate.script}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <LayerCard>
-        <LayerCard.Secondary className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Text variant="mono">npm run {row.gate.script}</Text>
-            <StatusBadge status={row.status} />
+    <Section>
+      <div className="grid gap-6 p-5 lg:grid-cols-[1.4fr_1fr] lg:p-6">
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">
+            {active ? `Phase ${active.id}` : 'Phase'}
+            {buildState.phaseState ? ` · ${buildState.phaseState}` : ''}
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={PlayIcon}
-            loading={running === row.gate.script}
-            onClick={() => onRun(row.gate.script)}
-          >
-            Run at {data.site.head.sha}
-          </Button>
-        </LayerCard.Secondary>
-        <LayerCard.Primary className="space-y-4">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-            <Fact term="Ran on" value={row.gate.sha ?? '—'} mono />
-            <Fact term="When" value={ago(row.gate.at)} />
-            <Fact term="Against HEAD" value={<Behind status={row.status} />} />
-            <Fact term="Took" value={row.gate.durationMs ? `${(row.gate.durationMs / 1000).toFixed(1)}s` : '—'} />
-          </dl>
-          <div>
-            <Text variant="secondary" size="sm">Summary</Text>
-            <Text>{row.gate.summary}</Text>
+          <div className="mt-1 text-3xl font-semibold tracking-tight text-kumo-default">{active?.label ?? 'Not started'}</div>
+          <div className={`mt-3 flex items-start gap-2 text-sm ${verdict.tone}`}>
+            <V size={18} weight="fill" className="mt-px shrink-0" />
+            <span>{verdict.text}</span>
           </div>
-          <div>
-            <Text variant="secondary" size="sm">Output</Text>
-            {output ? (
-              <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-kumo-recessed p-4 font-mono text-sm leading-relaxed text-kumo-default">
-                {output}
-              </pre>
+          {buildState.next && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-kumo-strong">
+              <CaretRightIcon size={14} className="text-kumo-subtle" />
+              <span className="text-kumo-subtle">Next</span> {buildState.next}
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-4 self-end rounded-lg bg-kumo-elevated p-4 ring-1 ring-kumo-hairline">
+          <Metric label="Green" value={`${fresh}/${real.length}`} sub="on this tree" />
+          <Metric label="Problems" value={problems} tone={problems ? 'text-kumo-danger' : 'text-kumo-default'} sub="failed or stale" />
+          <Metric label="Blockers" value={status.blockers.filter((b) => b.kind === 'blocking').length} tone={status.blockers.some((b) => b.kind === 'blocking') ? 'text-kumo-danger' : 'text-kumo-default'} sub="from BUILD-STATE" />
+        </div>
+      </div>
+      <div className="border-t border-kumo-hairline px-5 py-4 lg:px-6">
+        <PhaseTrack phases={phases} />
+      </div>
+    </Section>
+  );
+}
+
+function GateRow({ gate, now, onOpen, onRun, running, selected }) {
+  const s = gate.status;
+  const busy = running?.script === gate.script;
+  return (
+    <li className={`group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-kumo-tint ${selected ? 'bg-kumo-tint' : ''}`}>
+      <Dot status={busy ? 'never' : s.key} pulse={busy} />
+      <button type="button" onClick={() => onOpen(gate.script)} className="min-w-0 flex-1 text-left focus-visible:outline-2 focus-visible:outline-kumo-focus">
+        <div className="flex items-baseline gap-2">
+          <Kbd>{gate.script}</Kbd>
+          <span className={`text-xs ${STATUS[s.key].text}`}>{busy ? 'Running…' : STATUS[s.key].label}</span>
+          {s.key === 'stale' && s.behind > 0 && <span className="tabular text-xs text-kumo-subtle">· {s.behind} commit{s.behind === 1 ? '' : 's'} behind</span>}
+        </div>
+        <div className="mt-0.5 truncate text-xs text-kumo-subtle">{gate.summary}</div>
+      </button>
+      <span className="tabular hidden w-20 text-right text-xs text-kumo-subtle sm:block">{ago(gate.at, now)}</span>
+      {onRun && (
+        <Button
+          variant="ghost"
+          size="sm"
+          shape="square"
+          aria-label={`Run ${gate.script}`}
+          disabled={!!running || gate.status.key === 'missing'}
+          loading={busy}
+          onClick={() => onRun(gate)}
+        >
+          <PlayIcon size={14} weight="fill" />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function Overview({ status, gates, now, open, runGate, running }) {
+  const attention = gates
+    .filter((g) => status.phaseGate && g.phase <= status.phaseGate.phase && !['pass', 'warn', 'missing'].includes(g.status.key))
+    .sort((a, b) => RANK[a.status.key] - RANK[b.status.key]);
+  const ints = status.integrations;
+
+  return (
+    <div className="space-y-5">
+      {!status.buildState.exists && (
+        <Banner variant="alert" icon={<WarningIcon weight="fill" />} title="No BUILD-STATE.md" description="The phase, blockers and integrations come from it. The template ships a stub — build.md §3 says what goes in it." />
+      )}
+      {status.buildState.unfilled > 0 && status.buildState.exists && (
+        <Banner variant="secondary" icon={<QuestionIcon weight="fill" />} title={`${status.buildState.unfilled} line${status.buildState.unfilled === 1 ? '' : 's'} in BUILD-STATE.md still carry the stub's ⚠ placeholder`} description="They are reported as unfilled, never as data." />
+      )}
+      <Hero status={status} gates={gates} />
+
+      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <Section
+          title="Needs attention"
+          aside={<span className="tabular text-xs text-kumo-subtle">{attention.length ? `${attention.length} gate${attention.length === 1 ? '' : 's'}` : ''}</span>}
+        >
+          {attention.length ? (
+            <ul className="m-0 list-none divide-y divide-kumo-hairline p-0">
+              {attention.map((g) => (
+                <GateRow key={g.script} gate={g} now={now} onOpen={open} onRun={runGate} running={running} />
+              ))}
+            </ul>
+          ) : (
+            <div className="flex items-center gap-3 px-5 py-8 text-sm text-kumo-subtle">
+              <CheckCircleIcon size={20} weight="fill" className="text-kumo-success" />
+              Nothing due for this phase is failed, stale or unrun.
+            </div>
+          )}
+        </Section>
+
+        <div className="space-y-5">
+          <Section title="Open in BUILD-STATE">
+            {status.blockers.length ? (
+              <ul className="m-0 list-none divide-y divide-kumo-hairline p-0">
+                {status.blockers.map((b) => (
+                  <li key={b.text} className="flex gap-3 px-5 py-3 text-[13px]">
+                    {b.kind === 'blocking'
+                      ? <XCircleIcon size={16} weight="fill" className="mt-0.5 shrink-0 text-kumo-danger" />
+                      : <QuestionIcon size={16} weight="fill" className="mt-0.5 shrink-0 text-kumo-warning" />}
+                    <span className="text-kumo-default">{b.text}</span>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <Text variant="secondary" size="sm" className="mt-2 block">No output captured in the sketch for this gate.</Text>
+              <p className="m-0 px-5 py-6 text-sm text-kumo-subtle">No <Kbd>!</Kbd> blockers or <Kbd>?</Kbd> questions recorded.</p>
             )}
+          </Section>
+
+          <Section title="Integrations">
+            <div className="grid grid-cols-3 gap-4 px-5 py-4">
+              <Metric label="Verified" value={ints.filter((i) => i.state === 'verified').length} />
+              <Metric label="Dropped" value={ints.filter((i) => i.state === 'dropped').length} />
+              <Metric label="Open" value={ints.filter((i) => i.state === 'open').length} tone={ints.some((i) => i.state === 'open') ? 'text-kumo-danger' : 'text-kumo-default'} />
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Gates ────────────────────────────────────────────────────────────────────
+
+function GateDetail({ gate, now, onRun, running, onClose, runError }) {
+  const [record, setRecord] = useState(null);
+  const [url, setUrl] = useState(gate.url ?? '');
+  const busy = running?.script === gate.script;
+
+  useEffect(() => {
+    let stop = false;
+    setRecord(null);
+    api.gate(gate.script).then((r) => !stop && setRecord(r)).catch(() => !stop && setRecord(false));
+    return () => { stop = true; };
+  }, [gate.script, gate.at]);
+  useEffect(() => setUrl(gate.url ?? ''), [gate.script, gate.url]);
+
+  const s = gate.status;
+  const needsUrl = gate.needsUrl === 'required';
+  const facts = [
+    ['Ran on', gate.sha ? <Kbd key="sha">{gate.sha}</Kbd> : '—'],
+    ['When', ago(gate.at, now)],
+    ['Against this tree', s.fresh ? <span key="f" className="text-kumo-success">current</span> : gate.at ? <span key="f" className="text-kumo-warning">{s.behind ? `${s.behind} commit${s.behind === 1 ? '' : 's'} behind` : 'different tree'}</span> : '—'],
+    ['Took', took(gate.durationMs)],
+  ];
+
+  return (
+    <Section className="lg:sticky lg:top-6">
+      <header className="flex items-start justify-between gap-3 border-b border-kumo-hairline px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[15px] font-medium text-kumo-default">npm run {gate.script}</span>
+            <StatusPill status={s.key} />
           </div>
-        </LayerCard.Primary>
-      </LayerCard>
-    </div>
+          <div className="mt-1 text-xs text-kumo-subtle">
+            Phase {gate.phase}{gate.readsDist ? ' · reads dist/, rebuilds first if dist/ is not from this tree' : ''}
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" shape="square" aria-label="Close" onClick={onClose}><XIcon size={14} /></Button>
+      </header>
+
+      <div className="space-y-5 px-5 py-5">
+        <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          {facts.map(([k, v]) => (
+            <div key={k}>
+              <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">{k}</dt>
+              <dd className="tabular m-0 mt-1 text-[13px] text-kumo-default">{v}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {gate.changedTree && (
+          <Banner size="sm" variant="alert" icon={<WarningIcon weight="fill" />} description="This run edited tracked files, so it measured a tree that no longer exists." />
+        )}
+
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => { e.preventDefault(); onRun(gate, url.trim() || undefined); }}
+        >
+          {gate.needsUrl && (
+            <div className="min-w-56 flex-1">
+              <Input
+                size="sm"
+                label={needsUrl ? 'Origin to check' : 'Origin (optional — defaults to localhost)'}
+                placeholder="https://staging.example.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required={needsUrl}
+                type="url"
+              />
+            </div>
+          )}
+          <Button type="submit" variant="primary" size="sm" icon={<PlayIcon weight="fill" />} loading={busy} disabled={(!!running && !busy) || s.key === 'missing' || (needsUrl && !url.trim())}>
+            {busy ? 'Running' : 'Run on this tree'}
+          </Button>
+          {running && !busy && <span className="text-xs text-kumo-subtle"><Kbd>{running.script}</Kbd> is running — one gate at a time</span>}
+        </form>
+        {runError && <Banner size="sm" variant="error" icon={<XCircleIcon weight="fill" />} description={runError} />}
+
+        <div>
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">Summary</div>
+          <p className="m-0 text-[13px] text-kumo-default">{gate.summary}</p>
+        </div>
+
+        {record === null && gate.at ? (
+          <div className="flex items-center gap-2 text-xs text-kumo-subtle"><Loader size={12} /> Loading output</div>
+        ) : record ? (
+          <Terminal title={`npm run ${gate.script}${record.args?.length ? ` -- ${record.args.join(' ')}` : ''}`} meta={`exit ${record.exitCode} · ${took(record.durationMs)}`} text={record.outputTail} />
+        ) : null}
+      </div>
+    </Section>
   );
 }
 
-function Fact({ term, value, mono }) {
+function Gates({ status, gates, now, selected, setSelected, runGate, running, runError }) {
+  const byPhase = useMemo(() => {
+    const m = new Map();
+    for (const g of gates) m.set(g.phase, [...(m.get(g.phase) ?? []), g]);
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [gates]);
+  const gate = gates.find((g) => g.script === selected);
+  const current = status.phaseGate?.phase ?? null;
+
   return (
-    <div>
-      <dt><Text variant="secondary" size="xs">{term}</Text></dt>
-      <dd className="m-0">{typeof value === 'string' ? <Text variant={mono ? 'mono' : 'body'} size="sm">{value}</Text> : value}</dd>
+    <div className={`grid items-start gap-5 ${gate ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]' : ''}`}>
+      <Section>
+        {byPhase.map(([phase, list]) => (
+          <div key={phase} className="border-b border-kumo-hairline last:border-b-0">
+            <div className="flex items-center justify-between bg-kumo-elevated px-5 py-2">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-subtle">
+                Phase {phase} · {status.phases[phase]?.label}
+              </span>
+              {current !== null && phase > current && <span className="text-[11px] text-kumo-inactive">not due yet</span>}
+            </div>
+            <ul className="m-0 list-none divide-y divide-kumo-hairline p-0">
+              {list.map((g) => (
+                <GateRow key={g.script} gate={g} now={now} onOpen={setSelected} running={running} selected={g.script === selected} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </Section>
+      {gate && <GateDetail gate={gate} now={now} onRun={runGate} running={running} onClose={() => setSelected(null)} runError={runError} />}
     </div>
   );
 }
 
-function Integrations({ items }) {
+// ── Lists from BUILD-STATE ───────────────────────────────────────────────────
+
+function StateList({ items, kind }) {
   const open = items.filter((i) => i.state === 'open').length;
+  if (!items.length) {
+    return (
+      <Section>
+        <Empty
+          icon={kind === 'integrations' ? <PlugsConnectedIcon size={28} /> : <LinkIcon size={28} />}
+          title={`No ${kind === 'integrations' ? 'integrations' : 'preserved paths'} recorded yet`}
+          description={`One line each under “## ${kind === 'integrations' ? 'Integrations' : 'Preserve'}” in BUILD-STATE.md, ending verified or dropped on a date.`}
+        />
+      </Section>
+    );
+  }
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {open > 0 && (
         <Banner
           variant="error"
           icon={<WarningIcon weight="fill" />}
-          title={`${open} integration${open === 1 ? '' : 's'} in neither state`}
-          description="Every line ends verified in the provider's own dashboard, or dropped on a date. There is no third state — it is the one that silently ships at 80%."
+          title={`${open} line${open === 1 ? '' : 's'} in neither state`}
+          description="Every line ends verified, or dropped with a date. There is no third state — it is the one that silently ships at 80%."
         />
       )}
-      <LayerCard>
-        <LayerCard.Secondary>Integrations · from BUILD-STATE.md</LayerCard.Secondary>
-        <LayerCard.Primary className="overflow-x-auto p-0">
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.Head>Integration</Table.Head>
-                <Table.Head>Identifier</Table.Head>
-                <Table.Head>State</Table.Head>
-                <Table.Head>Evidence</Table.Head>
-                <Table.Head>Date</Table.Head>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {items.map((i) => (
-                <Table.Row key={i.name}>
-                  <Table.Cell><Text size="sm">{i.name}</Text></Table.Cell>
-                  <Table.Cell><Text variant="mono-secondary" size="sm">{i.id}</Text></Table.Cell>
-                  <Table.Cell><Badge variant={INTEGRATION[i.state].variant}>{INTEGRATION[i.state].label}</Badge></Table.Cell>
-                  <Table.Cell><Text variant="secondary" size="sm">{i.note}</Text></Table.Cell>
-                  <Table.Cell><Text variant={i.date ? 'secondary' : 'error'} size="sm">{i.date ?? 'missing'}</Text></Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
-        </LayerCard.Primary>
-      </LayerCard>
+      <Section>
+        <ul className="m-0 list-none divide-y divide-kumo-hairline p-0">
+          {items.map((i) => (
+            <li key={i.raw} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">
+              <span className="min-w-40 flex-1 text-[13px] font-medium text-kumo-default">{i.name}</span>
+              <span className="min-w-0 flex-[2] truncate text-xs text-kumo-subtle" title={i.detail}>{i.detail || '—'}</span>
+              <span className="tabular w-24 text-xs text-kumo-subtle">{i.date ?? (i.state === 'open' ? '' : '—')}</span>
+              <Badge variant={INTEGRATION[i.state].badge}>{INTEGRATION[i.state].label}</Badge>
+            </li>
+          ))}
+        </ul>
+      </Section>
     </div>
   );
 }
 
+// ── Live run dock ────────────────────────────────────────────────────────────
+
+function LiveDock({ live, now }) {
+  const [open, setOpen] = useState(true);
+  if (!live.running) return null;
+  const r = live.running;
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-4 md:left-64 md:px-8">
+      <div className="mx-auto max-w-6xl rounded-xl bg-kumo-base shadow-2xl ring-1 ring-kumo-line">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px]">
+          <Loader size={14} />
+          <span className="text-kumo-default">Running <Kbd>{r.script}</Kbd></span>
+          <span className="text-kumo-subtle">from {r.by}</span>
+          <span className="tabular ml-auto font-mono text-xs text-kumo-subtle">{clock(now - new Date(r.startedAt))}</span>
+          <CaretRightIcon size={14} className={`text-kumo-subtle transition-transform ${open ? 'rotate-90' : ''}`} />
+        </button>
+        {open && (
+          <div className="px-3 pb-3">
+            <Terminal title={`npm run ${r.script}`} meta="live" text={live.output} className="[&_pre]:max-h-64" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── App ──────────────────────────────────────────────────────────────────────
+
 export default function App() {
-  const [data, setData] = useState(fixture);
-  const [tab, setTab] = useState('overview');
-  const [selected, setSelected] = useState('check:contact');
-  const [running, setRunning] = useState(null);
+  const { status, error, live, running, updatedAt, refresh, run } = useConsole();
+  const [view, setView] = useState('overview');
+  const [selected, setSelected] = useState(null);
+  const [runError, setRunError] = useState(null);
+  const now = useNow(!!running);
 
-  const rows = useMemo(() => {
-    const rank = { fail: 0, stale: 1, warn: 2, never: 3, pass: 4 };
-    return data.gates
-      .map((gate) => ({ gate, status: statusOf(gate, data.site) }))
-      .sort((a, b) => rank[a.status.key] - rank[b.status.key]);
-  }, [data]);
+  const gates = useMemo(() => status?.gates ?? [], [status]);
+  const counts = useMemo(() => ({
+    gates: gates.filter((g) => ['fail', 'stale'].includes(g.status.key)).length,
+    integrations: (status?.integrations ?? []).filter((i) => i.state === 'open').length,
+    preserve: (status?.preserve ?? []).filter((i) => i.state === 'open').length,
+  }), [gates, status]);
 
-  const open = (script) => {
-    setSelected(script);
-    setTab('gates');
-  };
+  const runGate = useCallback(async (gate, url) => {
+    setRunError(null);
+    if (gate.needsUrl === 'required' && !url) {
+      setSelected(gate.script);
+      setView('gates');
+      return;
+    }
+    try {
+      await run(gate.script, url);
+    } catch (e) {
+      setRunError(e.message);
+      setSelected(gate.script);
+      setView('gates');
+    }
+  }, [run]);
 
-  // Sketch only: pretend the gate ran at HEAD. A stale pass becomes a fresh
-  // pass; a failure stays a failure — re-running does not fix anything.
-  const run = (script) => {
-    setRunning(script);
-    setTimeout(() => {
-      setData((d) => ({
-        ...d,
-        site: { ...d.site, commitsSince: { ...d.site.commitsSince, [d.site.head.sha]: 0 } },
-        gates: d.gates.map((g) =>
-          g.script !== script
-            ? g
-            : {
-                ...g,
-                sha: d.site.head.sha,
-                at: '2026-11-25T10:00:00Z',
-                result: g.result === 'never' ? 'pass' : g.result,
-                summary: g.result === 'never' ? 'Ran at HEAD (sketch)' : g.summary,
-              },
-        ),
-      }));
-      setRunning(null);
-    }, 1400);
-  };
+  const openGate = (script) => { setSelected(script); setView('gates'); };
+  const title = VIEWS.find((v) => v.id === view).label;
 
   return (
-    <div className="min-h-screen bg-kumo-canvas text-kumo-default">
-      <Header site={data.site} />
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
-        <Tabs
-          variant="underline"
-          value={tab}
-          onValueChange={setTab}
-          tabs={[
-            { value: 'overview', label: 'Overview' },
-            { value: 'gates', label: 'Gates' },
-            { value: 'integrations', label: 'Integrations' },
-          ]}
-        />
-        {tab === 'overview' && <Overview data={data} rows={rows} onOpen={open} />}
-        {tab === 'gates' && (
-          <GateDetail data={data} rows={rows} selected={selected} onSelect={setSelected} onRun={run} running={running} />
-        )}
-        {tab === 'integrations' && <Integrations items={data.integrations} />}
-        <Text variant="secondary" size="xs" className="block pt-4">
-          Sketch · fixture data · nothing here talks to a site or to Claude Code yet
-        </Text>
+    <div className="min-h-screen bg-kumo-canvas text-kumo-default md:flex">
+      <Sidebar view={view} setView={setView} status={status} counts={counts} error={error} updatedAt={updatedAt} now={now} />
+      <main className={`min-w-0 flex-1 px-4 py-6 sm:px-8 md:py-8 ${live.running ? 'pb-80' : ''}`}>
+        <div className="mx-auto max-w-6xl">
+          <TopBar title={title} status={status} running={running} now={now} />
+
+          {error && (
+            <div className="mb-5">
+              <Banner
+                variant="error"
+                icon={<XCircleIcon weight="fill" />}
+                title="Cannot read the site"
+                description={error}
+                action={<Button size="sm" variant="secondary" icon={<ArrowClockwiseIcon />} onClick={refresh}>Retry</Button>}
+              />
+            </div>
+          )}
+
+          {!status ? (
+            !error && <div className="flex items-center gap-2 py-24 text-sm text-kumo-subtle"><Loader size={16} /> Reading the site…</div>
+          ) : view === 'overview' ? (
+            <Overview status={status} gates={gates} now={now} open={openGate} runGate={runGate} running={running} />
+          ) : view === 'gates' ? (
+            <Gates status={status} gates={gates} now={now} selected={selected} setSelected={setSelected} runGate={runGate} running={running} runError={runError} />
+          ) : view === 'integrations' ? (
+            <StateList items={status.integrations} kind="integrations" />
+          ) : (
+            <StateList items={status.preserve} kind="preserve" />
+          )}
+        </div>
       </main>
+      <LiveDock live={live} now={now} />
     </div>
   );
 }

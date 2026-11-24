@@ -1,9 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-mode="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
     <title>Build Console</title>
+    <script>
+      // Dark first. A saved choice wins; set before paint so there is no flash.
+      try {
+        var m = localStorage.getItem('kit-console-mode');
+        if (m === 'light' || m === 'dark') document.documentElement.dataset.mode = m;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
