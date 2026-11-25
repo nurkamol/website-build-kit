@@ -177,6 +177,15 @@ while matching nothing, and `tells.mjs` counted `dist` CSS as well as source, so
 rule counted three times and a `> 2` threshold could never be cleared. Both were valid,
 importable, working-looking code, and both read as checks that ran.
 
+**A case that fails only on CI is a timing assumption — find it, never retry it away.** Two did in
+November 2026, and neither was a slow runner being slow. `match` read a headline that rewrites its
+own words at whatever second each side finished, so a Windows runner compared two different words;
+the lightbox driver clicked 300ms after a client-side navigation, and on a busy Ubuntu runner the view
+transition's overlay was still up and swallowed the click. `test:gates` now prints the lines a script
+flagged when a case exits wrong, which is what found the first; `KIT_SLOW=6` slows the lightbox
+driver's page — script and animations, view transitions included — which reproduced the second
+every time. CPU throttling alone did not: a view transition runs on the compositor's clock.
+
 **If you add a gate, add its refusal case.** A gate with only a passing test is the
 state this catches — and `test:gates` now *enforces* it: it enumerates every template script
 that can exit 1, subtracts the ones it covers, and fails if what remains is not listed in its

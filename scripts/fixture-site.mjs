@@ -129,6 +129,7 @@ const KNOWN_FAULTS = [
   'parallax-misplaced',
   'no-menu', // with `branded`: no menu toggle and no submenu — the rebuild lost both interactions
   'mega-changed', // with `branded`: the mega-menu panel lost its Featured column — only an OPENED panel shows it
+  'rotate-fast', // with `branded`: the rotating word runs through two changes at once and stops on one the old side never shows
   /* ── Not a fault: a site WITH a design, for `npm run design` ─────────────
    * The default fixture is deliberately unstyled, which gives a design capture
    * nothing to find — and a capture that finds nothing on a site with nothing
@@ -497,7 +498,9 @@ const rotate = document.querySelector('.rotate');
 if (rotate) {
   const words = ['fixture', 'sample', 'example'];
   let w = 0;
-  setInterval(() => { w = (w + 1) % words.length; rotate.textContent = words[w]; }, 1000);
+  ${FAULTS.has('rotate-fast')
+    ? "setTimeout(() => { rotate.textContent = 'sample'; }, 20); setTimeout(() => { rotate.textContent = 'demo'; }, 40);"
+    : 'setInterval(() => { w = (w + 1) % words.length; rotate.textContent = words[w]; }, 1000);'}
 }
 const layer = document.querySelector('.parallax-bg');
 if (layer) {

@@ -2711,6 +2711,27 @@ againstTwoSites('the open menu and a hover dropdown are compared as states, and 
   },
 });
 
+/*
+ * ⚠ A HEADLINE THAT REWRITES ITS OWN WORDS. The branded rotator sets textContent once a second, so
+ *   the words read depended on which second each side was read — on Windows CI the states case above
+ *   failed two runs in five on `headings: missing "A branded sample page"`, with nothing about menus.
+ *   Here the new side runs through two words at once and stops on one the old side never shows: unpinned,
+ *   its heading can never match; pinned to its first word, it always does.
+ */
+againstTwoSites('a headline that rewrites its own words is read at its first word on both sides', {
+  oldFaults: 'branded',
+  newFaults: 'branded,rotate-fast',
+  args: ['--only=/about/', '--viewports=desktop', '--no-states'],
+  expect: 0,
+  timeout: 300000,
+  then: (dir) => {
+    const json = matchJson(dir);
+    if (!json) return 'wrote no match.json';
+    const missing = json.routes[0]?.text?.headings?.missing ?? [];
+    return missing.length ? `headings reported missing: ${missing.join(' | ')}` : null;
+  },
+});
+
 againstTwoSites('a mega-menu that lost a column is refused — the panel is opened, not its toggle', {
   oldFaults: 'branded',
   newFaults: 'branded,mega-changed',

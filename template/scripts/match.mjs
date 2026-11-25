@@ -1009,6 +1009,54 @@ async function captureStates(page, viewport) {
   return states;
 }
 
+/*
+ * Runs in the page from its first byte. Text that REWRITES ITSELF — a rotating headline that
+ * sets textContent, a typed effect, a counting-up number — is pinned to the text it started
+ * with, the textual twin of FREEZE_LIST's `first-word`, which only stops rotators that toggle
+ * child elements.
+ *
+ * ⚠ WITHOUT IT, THE WORDS COMPARED DEPEND ON WHICH SECOND EACH SIDE WAS READ. A heading whose
+ *   word changed every second was read as "A branded sample page" on one side and "… example …"
+ *   on the other, and reported missing — on a slow Windows runner two runs in five, never on a
+ *   Mac under full load. A client's old site with the same effect fails the same way.
+ *
+ * Pinned: a leaf element of short text that changed twice, or changed again after the page
+ * settled. A page built by script once on load changes once and is never touched.
+ */
+function watchTextInPage() {
+  const first = new Map();
+  const count = new Map();
+  const pinned = new Set();
+  let settled = false;
+  const leaf = (el) => el && el.nodeType === 1 && [...el.childNodes].every((n) => n.nodeType === 3) && el.textContent.length <= 60;
+  const pin = (el) => {
+    pinned.add(el);
+    if (el.textContent !== first.get(el)) el.textContent = first.get(el);
+  };
+  new MutationObserver((records) => {
+    for (const r of records) {
+      const el = r.type === 'characterData' ? r.target.parentElement : r.target;
+      if (r.type === 'childList' && ![...r.addedNodes, ...r.removedNodes].every((n) => n.nodeType === 3)) continue;
+      if (!leaf(el)) continue;
+      if (pinned.has(el)) {
+        pin(el);
+        continue;
+      }
+      if (!first.has(el)) first.set(el, r.type === 'characterData' ? r.oldValue ?? '' : [...r.removedNodes].map((n) => n.textContent).join(''));
+      count.set(el, (count.get(el) ?? 0) + 1);
+      if (count.get(el) >= 2 || settled) pin(el);
+    }
+  }).observe(document, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+  /* Returns how many short texts changed exactly once and are not pinned: content a script
+     filled in on load, or a rotator caught between its first and second change. The caller
+     watches a little longer when there are any — a rotator changes again and is pinned. */
+  window.__wbkTextSettled = () => {
+    settled = true;
+    for (const [el, n] of count) if (n >= 2) pin(el);
+    return [...count.keys()].filter((el) => !pinned.has(el)).length;
+  };
+}
+
 /* ── the browser half: one capture ──────────────────────────────────────── */
 
 /*
@@ -1031,6 +1079,7 @@ async function capture(page, url, viewport, states) {
     isMobile: viewport.name === 'mobile',
     hasTouch: viewport.name === 'mobile',
   });
+  await page.evaluateOnNewDocument(watchTextInPage);
   const res = await page.goto(url, { waitUntil: 'networkidle2', timeout: timeoutSec * 1000 });
   const status = res?.status() ?? 0;
   const type = res?.headers()['content-type'] ?? '';
@@ -1042,6 +1091,8 @@ async function capture(page, url, viewport, states) {
   await page.addStyleTag({ content: FREEZE });
   await page.evaluate(settleInPage);
   await page.evaluate(freezeInPage, FREEZE_LIST, NOT_A_REVEAL, 'after');
+  const changedOnce = await page.evaluate(() => window.__wbkTextSettled?.() ?? 0).catch(() => 0);
+  if (changedOnce) await pause(1600);
   await page.evaluate(pinParallaxInPage, FREEZE_LIST, MAX_PINS);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const shape = await page.evaluate(sectionsInPage);

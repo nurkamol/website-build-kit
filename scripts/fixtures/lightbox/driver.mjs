@@ -54,6 +54,18 @@ const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] 
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
+  /* KIT_SLOW=6 runs the page six times slower — script AND animations, view transitions
+     included — which is a busy CI runner, on demand. A case that only fails on CI is a timing
+     assumption, and this is how to see it locally: the navigate-and-back case failed under
+     KIT_SLOW=6 every time while it waited a fixed 300ms. CPU throttling alone does not show it;
+     a view transition runs on the compositor's clock, not the main thread's. */
+  const slow = Number(process.env.KIT_SLOW ?? 1);
+  if (slow > 1) {
+    const cdp = await page.createCDPSession();
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: slow });
+    await cdp.send('Animation.enable');
+    await cdp.send('Animation.setPlaybackRate', { playbackRate: 1 / slow });
+  }
   await page.goto(`${origin}/lightbox-fixture/`, { waitUntil: 'networkidle0' });
   /* Survives a client-side navigation, not a page load — proof the router ran. */
   await page.evaluate(() => {
@@ -153,7 +165,18 @@ try {
   await settle();
   await page.evaluate(() => document.querySelector('#back').click());
   await until(() => location.pathname === '/lightbox-fixture/' && !!document.querySelector('[data-lightbox]'), 'the gallery page again');
-  await settle();
+  /* ⚠ ARRIVED IS NOT CLICKABLE. The page is swapped in while the view transition still runs, and
+     until it ends every point hit-tests to its overlay (<html>), so a real click is lost: the
+     viewer stays shut, the link is not followed, focus sits on <body>. A 300ms pause outlasted the
+     transition on a Mac and not on a busy CI runner — this case failed there with exactly that
+     state. Wait for the condition, not a duration. */
+  await until(() => {
+    if (document.getAnimations().some((a) => String(a.effect?.pseudoElement ?? '').startsWith('::view-transition'))) return false;
+    const link = document.querySelector('a[data-lightbox-item][data-astro-reload]');
+    const r = link?.getBoundingClientRect();
+    const hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !!hit && (hit === link || link.contains(hit));
+  }, 'the view transition to end and the photo link to take a click');
   s = await state();
   check('the navigation was client-side, so the case exercises the router', s.same, JSON.stringify(s));
   await (await page.$$('a[data-lightbox-item][data-astro-reload]'))[0].click();
