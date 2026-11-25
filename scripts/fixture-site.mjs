@@ -499,7 +499,7 @@ if (rotate) {
   const words = ['fixture', 'sample', 'example'];
   let w = 0;
   ${FAULTS.has('rotate-fast')
-    ? "setTimeout(() => { rotate.textContent = 'sample'; }, 20); setTimeout(() => { rotate.textContent = 'demo'; }, 40);"
+    ? "setTimeout(() => { rotate.textContent = 'sample'; }, 200); setTimeout(() => { rotate.textContent = 'demo'; }, 400);"
     : 'setInterval(() => { w = (w + 1) % words.length; rotate.textContent = words[w]; }, 1000);'}
 }
 const layer = document.querySelector('.parallax-bg');

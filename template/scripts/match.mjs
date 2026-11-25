@@ -1033,7 +1033,15 @@ function watchTextInPage() {
     pinned.add(el);
     if (el.textContent !== first.get(el)) el.textContent = first.get(el);
   };
+  /* ⚠ NOT BEFORE THE PARSER IS DONE. Observed from the first byte, the parser's own insertions
+     are mutations: every heading and link "changed once" from nothing — so every capture waited
+     the extra watch below, and a long text streamed in two chunks counted twice and was pinned
+     back to empty. So: only after DOMContentLoaded, and only a REPLACEMENT — text that had a value
+     and got a different one. Filling an empty element is content arriving, not a rotator. */
+  let parsed = false;
+  document.addEventListener('DOMContentLoaded', () => { parsed = true; }, { once: true });
   new MutationObserver((records) => {
+    if (!parsed) return;
     for (const r of records) {
       const el = r.type === 'characterData' ? r.target.parentElement : r.target;
       if (r.type === 'childList' && ![...r.addedNodes, ...r.removedNodes].every((n) => n.nodeType === 3)) continue;
@@ -1042,7 +1050,11 @@ function watchTextInPage() {
         pin(el);
         continue;
       }
-      if (!first.has(el)) first.set(el, r.type === 'characterData' ? r.oldValue ?? '' : [...r.removedNodes].map((n) => n.textContent).join(''));
+      const before = r.type === 'characterData' ? r.oldValue ?? '' : [...r.removedNodes].map((n) => n.textContent).join('');
+      if (!first.has(el)) {
+        if (!before.trim() || before === el.textContent) continue;
+        first.set(el, before);
+      }
       count.set(el, (count.get(el) ?? 0) + 1);
       if (count.get(el) >= 2 || settled) pin(el);
     }
