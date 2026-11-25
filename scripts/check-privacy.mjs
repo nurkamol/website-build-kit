@@ -113,9 +113,11 @@ for (const line of sources) {
   }
 }
 
-/* Placeholder domains (RFC 2606 / 6761) and the addresses git itself writes. */
+/* Placeholder domains (RFC 2606 / 6761) and the addresses git itself writes — plus
+   support@github.com, which Dependabot puts in a Signed-off-by trailer and a squash merge
+   copies into the message on master. Merging Dependabot #14 turned master red on it. */
 const ALLOWED_EMAIL =
-  /^(?:[^@]+@(?:[\w-]+\.)*(?:example\.(?:com|org|net)|example|test|invalid|localhost)|git@github\.com|[^@]+@users\.noreply\.github\.com|noreply@anthropic\.com)$/i;
+  /^(?:[^@]+@(?:[\w-]+\.)*(?:example\.(?:com|org|net)|example|test|invalid|localhost)|git@github\.com|support@github\.com|[^@]+@users\.noreply\.github\.com|noreply@anthropic\.com)$/i;
 const EMAIL = /[\w.+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi;
 
 /** Lockfiles carry package authors' addresses; they are the registry's data, not ours. */

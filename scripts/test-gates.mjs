@@ -5610,7 +5610,13 @@ gate('refuses a real email address with no list at all', {
 gate('placeholder addresses and package versions are not emails', {
   script: 'check-privacy.mjs',
   from: KIT_SCRIPTS,
-  files: { ...IGNORED, 'a.md': 'hello@example.com, astro@7.1.6, @scope/pkg@4.2.0, user@site.test\n' },
+  files: {
+    ...IGNORED,
+    'a.md':
+      'hello@example.com, astro@7.1.6, @scope/pkg@4.2.0, user@site.test\n' +
+      /* What a squash merge of a Dependabot PR leaves in the message on master. */
+      'Signed-off-by: dependabot[bot] <support@github.com>\n',
+  },
   setup: privacyRepo(),
   env: NO_ENV,
   expect: 0,
