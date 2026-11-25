@@ -1,6 +1,7 @@
 # How to start
 
-Installing the kit is in [getting-started.md](getting-started.md). This page is the **real
+Installing the kit is in [getting-started.md](getting-started.md), and connecting it to Claude Code,
+a browser or Claude Desktop step by step is in [connect.md](connect.md). This page is the **real
 project**: an actual client site, from the first message to a month after it is live.
 
 ---

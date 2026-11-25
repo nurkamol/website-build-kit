@@ -1,7 +1,8 @@
 # Getting started
 
 Installing the kit, and the mechanical setup of a new site. For running an actual project
-end to end, see [how-to-start.md](how-to-start.md).
+end to end, see [how-to-start.md](how-to-start.md). For the plugin, the build console in a
+browser and Claude Desktop, step by step, see [connect.md](connect.md).
 
 ## Install
 

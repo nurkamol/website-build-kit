@@ -6,6 +6,8 @@ nothing in it reaches a delivered site.
 
 ⚠ **Status:** working and tested, not yet used on a real build. See `docs/roadmap.md`.
 
+Step by step for Claude Code, the browser and Claude Desktop: [docs/connect.md](../docs/connect.md).
+
 ## Open the page
 
 ```bash

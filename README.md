@@ -59,6 +59,37 @@ works too if you want to be explicit.
 **→ [docs/how-to-start.md](docs/how-to-start.md)** — the three entry points, what to have
 ready before you begin, and what the first ten minutes should look like.
 
+## Connect it: Claude Code, the browser, Claude Desktop
+
+Three places to use it, all reading the same site. Step by step, with what to check at each one:
+**→ [docs/connect.md](docs/connect.md)**
+
+**Claude Code, in the terminal** ✅ — the only one that builds the site:
+
+1. In Claude Code: `/plugin marketplace add nurkamol/website-build-kit`, then
+   `/plugin install website-build@website-build-kit`
+2. Make a site, or use one you have: `npm create website-build-kit@latest my-site`
+3. `cd my-site && claude` — start it **in the site's folder**; that is the site the console reads
+4. `/mcp` lists the kit's server as connected
+5. Ask: *"Rebuild https://acmeplumbing.com on Astro"*, *"Where does this build stand?"*, *"Run the contact gate."*
+
+**The build console, in a browser** — the same state for a person, at http://127.0.0.1:4319:
+
+1. `git clone https://github.com/nurkamol/website-build-kit.git && cd website-build-kit/console`
+2. `npm ci`
+3. `npm start -- --site /path/to/your-site`, then open http://127.0.0.1:4319
+
+**Claude Desktop** — the console's tools in a Desktop chat; the skill stays in Claude Code:
+
+1. Download `website-build-kit-<version>.mcpb` from the
+   [latest release](https://github.com/nurkamol/website-build-kit/releases/latest)
+2. Double-click it and click **Install**
+3. Choose the site's folder when it asks for *Site folder*
+4. Ask in a new chat: *"Where does the build in my site stand?"*
+
+Running gates from Desktop needs Node and npm on the machine; nvm, Volta, Homebrew and the official
+installer are found even though Desktop does not pass your shell's PATH.
+
 ## New in 0.2.0: the build console
 
 A build spans weeks and more sessions than a context window holds. The console reads where it
@@ -93,17 +124,13 @@ cd console && npm ci
 npm start -- --site /path/to/client-site                     # the page, http://127.0.0.1:4319
 ```
 
-Claude Code gets the same state from the plugin install above. Without the plugin, from the site's
-directory:
+Claude Code gets the same state from the plugin install above, and Claude Desktop from the `.mcpb`
+on each release — both [above](#connect-it-claude-code-the-browser-claude-desktop). Without the
+plugin, from the site's directory:
 
 ```bash
 claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs
 ```
-
-**Claude Desktop:** download `website-build-kit-<version>.mcpb` from the
-[latest release](https://github.com/nurkamol/website-build-kit/releases/latest), double-click it, and
-choose the site's folder when it asks. Running gates needs Node and npm on the machine — nvm, Volta,
-Homebrew and the official installer are found even though Desktop does not pass your shell's PATH.
 
 Dark first, built with Cloudflare's [Kumo](https://github.com/cloudflare/kumo). The page and the MCP
 server are separate processes sharing one ledger on disk. **→ [console/README.md](console/README.md)**

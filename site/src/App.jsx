@@ -17,7 +17,10 @@ import {
 } from '@phosphor-icons/react';
 
 const REPO = 'https://github.com/nurkamol/website-build-kit';
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
+/* The console's eyebrow names the release it arrived in, not the current one. */
+const CONSOLE_SINCE = '0.2.0';
+const MCPB = `${REPO}/releases/download/v${VERSION}/website-build-kit-${VERSION}.mcpb`;
 /* ⚠ A PLAIN RELATIVE PATH, NOT import.meta.env.BASE_URL. The server-render build resolved the
    base to "/", so the prerendered page asked for /showcase/… — the domain root, not the project
    path GitHub Pages serves it under — and every screenshot 404'd on the live site while the gate,
@@ -161,7 +164,7 @@ function Command({ label, text }) {
   const hydrated = useHydrated();
   return (
     <div className="min-w-0">
-      <p className="mt-0 mb-2 text-xs font-medium text-kumo-subtle">{label}</p>
+      {label && <p className="mt-0 mb-2 text-xs font-medium text-kumo-subtle">{label}</p>}
       {!hydrated ? (
         <code className="block rounded-lg bg-kumo-base px-4 py-2 text-sm leading-snug break-all text-kumo-default ring ring-kumo-line">{text}</code>
       ) : (
@@ -171,6 +174,32 @@ function Command({ label, text }) {
         className="h-auto min-h-9 w-full items-stretch [&>span]:min-w-0 [&>span]:py-2 [&>span]:break-all [&>span]:whitespace-normal [&>span]:leading-snug"
       />
       )}
+    </div>
+  );
+}
+
+/* Numbered steps as a real <ol> with the browser's own markers. ⚠ Not a ::before badge: a
+   positioned pseudo-element with a background left axe unable to tell what sat behind the
+   <code> and <strong> beside it, and pa11y counts "needs review" as a failure. */
+function Steps({ children }) {
+  return <ol className="mt-5 mb-0 grid list-decimal gap-4 pl-5 marker:font-semibold marker:text-kumo-default">{children}</ol>;
+}
+
+function Step({ children }) {
+  return <li className="min-w-0 pl-1 text-sm leading-relaxed text-kumo-strong">{children}</li>;
+}
+
+function ConnectCard({ icon: Icon, title, lead, children }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-kumo-base p-6 ring-1 ring-kumo-hairline">
+      <div className="flex items-center gap-3">
+        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-kumo-elevated ring-1 ring-kumo-hairline">
+          <Icon size={20} className="text-kumo-default" aria-hidden="true" />
+        </div>
+        <h3 className="m-0 text-base font-semibold tracking-tight text-kumo-default">{title}</h3>
+      </div>
+      <p className="mt-3 mb-0 text-sm leading-relaxed text-kumo-strong">{lead}</p>
+      {children}
     </div>
   );
 }
@@ -198,7 +227,7 @@ export default function App() {
           <nav aria-label="Sections" className="hidden items-center gap-6 text-sm md:flex">
             <a href="#console" className="text-kumo-strong no-underline hover:text-kumo-default">The console</a>
             <a href="#failures" className="text-kumo-strong no-underline hover:text-kumo-default">The failures</a>
-            <a href="#install" className="text-kumo-strong no-underline hover:text-kumo-default">Install</a>
+            <a href="#install" className="text-kumo-strong no-underline hover:text-kumo-default">Connect</a>
             <a href="#ships" className="text-kumo-strong no-underline hover:text-kumo-default">What it ships</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -241,7 +270,7 @@ export default function App() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <SectionHead
               id="console"
-              eyebrow={`New in ${VERSION}`}
+              eyebrow={`New in ${CONSOLE_SINCE}`}
               title="A build you can see, and Claude can read"
               lead="A build spans weeks and more sessions than a context window holds. The console reads where it stands from the site itself — the phase, every gate, the blockers — so nobody resumes from memory, and no tick outlives the code it vouched for."
             />
@@ -321,29 +350,77 @@ export default function App() {
           </div>
         </section>
 
-        {/* ── Install ──────────────────────────────────────────────────── */}
+        {/* ── Connect ──────────────────────────────────────────────────── */}
         <section aria-labelledby="install" className="border-t border-kumo-hairline bg-kumo-elevated py-20 sm:py-28">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <SectionHead
               id="install"
               eyebrow="Get started"
-              title="Two halves, two commands"
-              lead="The template is the skeleton. The skill is the method that drives it — discovery, stack decisions, the build, then verification against the deployed thing."
+              title="Connect it where you work"
+              lead="Claude Code builds the site. The page in a browser and Claude Desktop watch the same build and run its checks. All three read the same site, and you can run them side by side."
             />
-            <div className="mt-12 grid gap-4 md:grid-cols-2">
-              <div className="min-w-0 rounded-xl bg-kumo-base p-6 ring-1 ring-kumo-hairline">
-                <h3 className="m-0 text-base font-semibold text-kumo-default">Scaffold a site</h3>
-                <p className="mt-2 mb-5 text-sm leading-relaxed text-kumo-strong">Astro, static, on Cloudflare Workers. Builds green immediately, with no content, no images and no secrets.</p>
-                <Command label="Terminal" text="npm create website-build-kit@latest my-site" />
-              </div>
-              <div className="min-w-0 rounded-xl bg-kumo-base p-6 ring-1 ring-kumo-hairline">
-                <h3 className="m-0 text-base font-semibold text-kumo-default">Install the skill</h3>
-                <p className="mt-2 mb-5 text-sm leading-relaxed text-kumo-strong">For Claude Code. Then just ask — it matches on description, so there is no command to remember.</p>
-                <div className="grid gap-4">
-                  <Command label="In Claude Code" text="/plugin marketplace add nurkamol/website-build-kit" />
-                  <Command label="Then" text="/plugin install website-build@website-build-kit" />
-                </div>
-              </div>
+            <div className="mt-12 grid gap-4 lg:grid-cols-3">
+              <ConnectCard icon={TerminalWindowIcon} title="Claude Code, in the terminal" lead="The skill and the console's tools in one install. Nothing to configure.">
+                <Steps>
+                  <Step>
+                    Install the plugin, inside Claude Code:
+                    <div className="mt-2 grid gap-2">
+                      <Command text="/plugin marketplace add nurkamol/website-build-kit" />
+                      <Command text="/plugin install website-build@website-build-kit" />
+                    </div>
+                  </Step>
+                  <Step>
+                    Make a site, or use one you have:
+                    <div className="mt-2"><Command text="npm create website-build-kit@latest my-site" /></div>
+                  </Step>
+                  <Step>
+                    Start Claude Code <strong className="text-kumo-default">in the site's folder</strong> — that is the site it reads:
+                    <div className="mt-2"><Command text="cd my-site && claude" /></div>
+                  </Step>
+                  <Step><code>/mcp</code> lists the kit's server as connected.</Step>
+                  <Step>Ask: <em>"Rebuild https://acmeplumbing.com on Astro"</em>, or <em>"Where does this build stand?"</em></Step>
+                </Steps>
+              </ConnectCard>
+
+              <ConnectCard icon={BrowsersIcon} title="The console, in a browser" lead="Phase, gates, blockers and match, for a person. On your machine only.">
+                <Steps>
+                  <Step>
+                    Get the kit:
+                    <div className="mt-2"><Command text="git clone https://github.com/nurkamol/website-build-kit.git" /></div>
+                  </Step>
+                  <Step>
+                    Install the console, once:
+                    <div className="mt-2"><Command text="cd website-build-kit/console && npm ci" /></div>
+                  </Step>
+                  <Step>
+                    Start it, pointed at a site:
+                    <div className="mt-2"><Command text="npm start -- --site /path/to/your-site" /></div>
+                  </Step>
+                  <Step>Open <code>http://127.0.0.1:4319</code>. Run a gate from its row; one Claude Code runs shows up live.</Step>
+                </Steps>
+              </ConnectCard>
+
+              <ConnectCard icon={PlugsConnectedIcon} title="Claude Desktop" lead="The console's three tools in a Desktop chat. One file, no terminal.">
+                <Steps>
+                  <Step>
+                    Download the extension:
+                    <div className="mt-2">
+                      <LinkButton href={MCPB} variant="secondary">website-build-kit-{VERSION}.mcpb</LinkButton>
+                    </div>
+                  </Step>
+                  <Step>Double-click it, and click <strong className="text-kumo-default">Install</strong> in Claude Desktop.</Step>
+                  <Step>Choose the site's folder when it asks for <em>Site folder</em>.</Step>
+                  <Step>Ask in a new chat: <em>"Where does the build in my site stand?"</em></Step>
+                </Steps>
+                <p className="mt-5 mb-0 text-xs leading-relaxed text-kumo-subtle">
+                  Running gates needs Node and npm on the machine. nvm, Volta, Homebrew and the official installer are found on their own.
+                </p>
+              </ConnectCard>
+            </div>
+            <div className="mt-10 flex justify-center">
+              <LinkButton href={`${REPO}/blob/master/docs/connect.md`} variant="secondary">
+                Every step, with what to check <ArrowRightIcon size={14} aria-hidden="true" />
+              </LinkButton>
             </div>
           </div>
         </section>

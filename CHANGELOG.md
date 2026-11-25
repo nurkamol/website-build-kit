@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **`docs/connect.md`: connecting the kit, step by step** — Claude Code in the terminal, the build
+  console in a browser, and Claude Desktop from the `.mcpb`, each with what to check after every step,
+  what to type first and how to update. The README has a short version of all three, and the landing
+  page's install section is now three numbered cards with the Desktop download one click away. The
+  page's footer said 0.2.0 after 0.2.1 shipped; it reads 0.2.1 now.
+
 ## 2026-11-25 — 0.2.1: the console connects itself, and a Node floor that was wrong
 
 - **Installing the plugin now connects the build console to Claude Code.** `.claude-plugin/plugin.json`
