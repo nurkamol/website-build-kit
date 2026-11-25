@@ -2883,18 +2883,25 @@ gate('match refuses an unknown flag instead of ignoring it', {
 
 /*
  * ⚠ A RUN MUST NEVER SILENTLY HANG. The new home page locks its renderer, and
- *   --timeout is a minute, so only the whole-run budget (6s here) can end it:
+ *   --timeout is a minute, so only the whole-run budget (30s here) can end it:
  *   it must stop, name what did not finish, still write the report — and exit
  *   1 even though nothing "failed", because an incomplete comparison is not a
  *   pass. The spawn is capped too, so a budget that does not fire fails this
  *   case instead of hanging the suite.
+ *
+ * ⚠ THE BUDGET MUST LEAVE /about/ ROOM TO FINISH, and 6s did not. It held while
+ *   each section was captured once; confirmed captures (two byte-identical
+ *   shots, up to four) took /about/ to 5.7s of 6 on a Mac, and a Windows runner
+ *   ran out first: "/about/, which did not hang, was not compared". The case
+ *   always runs for the whole budget — / never finishes — so this is the cost
+ *   of the case, paid for ~5x headroom.
  */
 againstTwoSites('a run past its --budget stops, names what did not finish, and exits 1', {
   newFaults: 'renderer-hang',
-  args: ['--viewports=mobile', '--timeout=60', '--budget=0.1', '--no-states'],
+  args: ['--viewports=mobile', '--timeout=60', '--budget=0.5', '--no-states'],
   expect: 1,
   timeout: 120000,
-  contains: 'run budget of 0.1 min used up',
+  contains: 'run budget of 0.5 min used up',
   then: (dir, out) => {
     const json = matchJson(dir);
     if (!json) return 'wrote no match.json — what finished was lost';
