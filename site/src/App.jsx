@@ -18,7 +18,12 @@ import {
 
 const REPO = 'https://github.com/nurkamol/website-build-kit';
 const VERSION = '0.2.0';
-const img = (name) => `${import.meta.env.BASE_URL}showcase/${name}.webp`;
+/* ⚠ A PLAIN RELATIVE PATH, NOT import.meta.env.BASE_URL. The server-render build resolved the
+   base to "/", so the prerendered page asked for /showcase/… — the domain root, not the project
+   path GitHub Pages serves it under — and every screenshot 404'd on the live site while the gate,
+   which fetched the files by their own path, passed. React keeps the server's attribute on
+   hydration, so it never corrected itself. pages.yml now resolves every src the page USES. */
+const img = (name) => `showcase/${name}.webp`;
 
 // ── Content ──────────────────────────────────────────────────────────────────
 

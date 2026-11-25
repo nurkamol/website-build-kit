@@ -122,6 +122,31 @@ jobs:
       # invisible on the page and breaks every share; a broken favicon or
       # sitemap is the same class of thing — declared, never fetched, never
       # noticed.
+      # ⚠ RESOLVE WHAT THE PAGE ASKS FOR, NOT WHAT WE EXPECT IT TO. The step below fetches each
+      #   asset by its known path, and passed while every screenshot 404'd live: the prerendered
+      #   page asked for /showcase/…, from the domain root, and Pages serves this project under
+      #   /website-build-kit/. Every src and href in the built HTML is resolved here exactly as a
+      #   browser would resolve it on the live URL, then mapped back to the local server.
+      - name: Every src and href the page uses resolves under the project path
+        run: |
+          node -e "
+          const html = require('fs').readFileSync('site/dist/index.html', 'utf8');
+          const live = 'https://nurkamol.github.io/website-build-kit/';
+          const refs = [...html.matchAll(/\\s(?:src|href)=\"([^\"#]+)\"/g)].map((m) => m[1])
+            .filter((r) => !/^(https?:|mailto:|data:)/.test(r) || r.startsWith(live));
+          (async () => {
+            let bad = 0;
+            for (const r of [...new Set(refs)]) {
+              const u = new URL(r, live);
+              if (!u.href.startsWith(live)) { console.error('  ✗ ' + r + ' resolves outside the project path: ' + u.href); bad++; continue; }
+              const local = 'http://localhost:8099/' + u.href.slice(live.length);
+              const code = (await fetch(local)).status;
+              console.log('  ' + code + '  ' + r);
+              if (code !== 200) bad++;
+            }
+            process.exit(bad ? 1 : 0);
+          })();"
+
       - name: SEO assets resolve
         run: |
           for f in brand/mark.svg brand/favicon-32.png brand/apple-touch-icon.png \

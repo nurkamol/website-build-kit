@@ -1119,11 +1119,27 @@ async function capture(page, url, viewport, states) {
       continue;
     }
     const height = Math.max(1, Math.min(s.height, MAX_SECTION, MAX_PAGE - s.y));
-    s.png = await page.screenshot({
+    const shot = () => page.screenshot({
       clip: { x: 0, y: s.y, width: viewport.width, height },
       captureBeyondViewport: true,
       type: 'png',
     });
+    /* ⚠ A CAPTURE CAN RETURN BEFORE CHROME HAS PAINTED IT. Outside the viewport, tiles are
+       painted on demand, and on a loaded machine the shot came back with part of the section
+       blank — the old side of an identical pair 30.59% "different", one run in six under load,
+       twice on an Ubuntu CI runner. Painting cannot be awaited directly, so the capture is
+       confirmed: shot until two in a row are byte-identical. Everything is frozen by now, so
+       the second shot normally matches the first; a section that never settles (a GIF, a
+       video) is used as last seen, and said so. */
+    let png = await shot();
+    let steady = false;
+    for (let tries = 0; tries < 3 && !steady; tries++) {
+      const again = await shot();
+      steady = Buffer.compare(png, again) === 0;
+      png = again;
+    }
+    s.png = png;
+    if (!steady) s.note = [s.note, 'still changing after four captures — compared as last seen'].filter(Boolean).join(' · ');
   }
   const html = await page.content();
   let stateShots = null;
