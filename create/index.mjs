@@ -75,7 +75,14 @@ if (!dir) {
 const dest = resolve(process.cwd(), dir);
 const name = dest.split('/').pop();
 
-if (existsSync(dest) && readdirSync(dest).length && !flag('force')) {
+/*
+ * ⚠ AN EMPTY FOLDER IS OFTEN NOT EMPTY. Opening a new folder in Finder writes a hidden .DS_Store
+ *   into it, and Explorer leaves Thumbs.db or desktop.ini — so a folder made a minute ago, with
+ *   nothing in it anybody put there, was refused as "not empty". Those three are ignored; anything
+ *   else still needs --force.
+ */
+const JUNK = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
+if (existsSync(dest) && readdirSync(dest).some((f) => !JUNK.has(f)) && !flag('force')) {
   console.error(
     `\n${RED}✗${RESET} ${dir} is not empty.\n` +
       `  ${DIM}Scaffolding over an existing project cannot be undone without git.\n` +

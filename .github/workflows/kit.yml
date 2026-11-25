@@ -238,3 +238,10 @@ jobs:
           test -f /tmp/scaffold/site/.gitignore || { echo "no .gitignore — .dev.vars would be committable"; exit 1; }
           grep -q '^\.dev\.vars$' /tmp/scaffold/site/.gitignore || { echo ".gitignore does not cover .dev.vars"; exit 1; }
           test ! -e /tmp/scaffold/site/gitignore || { echo "stray unrenamed gitignore"; exit 1; }
+          # A folder made in Finder carries a .DS_Store nobody put there. It must scaffold; a folder
+          # holding anything else must still be refused, or --force has stopped meaning anything.
+          mkdir -p /tmp/scaffold/finder && touch /tmp/scaffold/finder/.DS_Store
+          (cd /tmp/scaffold/finder && node /tmp/scaffold/package/index.mjs . --no-install --no-git) || { echo "refused a folder holding only .DS_Store"; exit 1; }
+          test -f /tmp/scaffold/finder/BUILD-STATE.md || { echo "scaffolding into . wrote no site"; exit 1; }
+          mkdir -p /tmp/scaffold/used && touch /tmp/scaffold/used/notes.txt
+          ! node /tmp/scaffold/package/index.mjs /tmp/scaffold/used --no-install --no-git || { echo "scaffolded over a folder with a file in it"; exit 1; }

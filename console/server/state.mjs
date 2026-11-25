@@ -9,7 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 // ── The gates ────────────────────────────────────────────────────────────────
@@ -242,12 +242,28 @@ export function parseBuildState(text) {
   return out;
 }
 
+/* What an OS leaves in a folder nobody has used: Finder's .DS_Store, Explorer's thumbnail cache. */
+const JUNK = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
+
 // ── Putting it together ──────────────────────────────────────────────────────
 
 export function readSite(site) {
   site = resolve(site);
   const pkgPath = join(site, 'package.json');
-  if (!existsSync(pkgPath)) return { error: `No package.json in ${site}. Point the server at a site built from the kit (--site <dir>).` };
+  if (!existsSync(pkgPath)) {
+    /* ⚠ SAY HOW TO MAKE ONE. The likeliest way here is an empty folder chosen as Claude Desktop's
+       Site folder before anything was scaffolded into it — and "--site <dir>" is a flag a Desktop
+       user never sees. An empty folder is a site waiting to be made, not a wrong pick. */
+    const empty = !existsSync(site) || readdirSync(site).every((f) => JUNK.has(f));
+    return {
+      error: empty
+        ? `${site} is empty — no site has been made in it yet. To make one there: cd "${site}" && npm create website-build-kit@latest . ` +
+          `(Node 22.19+). Then ask again; nothing needs reconnecting.`
+        : `No package.json in ${site}, so this is not a site built from the kit. Choose the site's own folder — the one holding ` +
+          `package.json and BUILD-STATE.md: Claude Desktop → Settings → Extensions → the kit → Configure; Claude Code → start it in that folder; ` +
+          `the page → --site <dir>.`,
+    };
+  }
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
   if (!pkg.scripts?.tells || !pkg.scripts?.verify) {
     return { error: `${site} does not look like a site built from the kit — no \`tells\` or \`verify\` script.` };

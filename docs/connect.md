@@ -145,8 +145,25 @@ from the release tag by `publish.yml`.
 | *Site folder (required)* | Click **Browse** and pick the site's folder: the one holding its `package.json` and `BUILD-STATE.md`, e.g. the `my-site` that `npm create website-build-kit@latest my-site` made. Or paste its full path into *Directory path* |
 | **Save** | Greyed out until a folder is chosen. Click it |
 
-No site yet? Make one first: `npm create website-build-kit@latest my-site` in a terminal. It needs
-Node 22.19+.
+**No site yet?** Claude Desktop cannot make one: its extension reads a site and runs its checks,
+and nothing more. Make it once in a terminal (Node 22.19+), then pick that folder here:
+
+```bash
+npm create website-build-kit@latest my-site      # makes my-site/
+```
+
+**Already made an empty folder for it?** Scaffold into it rather than beside it. The `.` means
+*here*:
+
+```bash
+cd /path/to/that-folder
+npm create website-build-kit@latest .
+```
+
+A folder that holds only what Finder or Explorer left in it (`.DS_Store`, `Thumbs.db`,
+`desktop.ini`) counts as empty. Anything else and it refuses, so it can never write over your work.
+If you chose the empty folder in *Configure* first, that is fine: the kit says the folder is empty and
+how to fill it, and once you have run the command above, ask again. Nothing needs reconnecting.
 
 ⚠ **Pick the site, not this kit's repository.** The kit's own folder has no `BUILD-STATE.md`, so the
 extension would install and connect, and then report that there is no build to read.

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **An empty folder made in Finder was refused as "not empty".** Opening a new folder in Finder writes a
+  hidden `.DS_Store`, so `npm create website-build-kit@latest .` refused a folder made a minute earlier.
+  `.DS_Store`, `Thumbs.db` and `desktop.ini` are ignored now; anything else is still refused without
+  `--force`. CI scaffolds into such a folder and asserts a folder with a real file in it is still refused
+- **The console says how to fill an empty site folder.** Pointed at one (likeliest in Claude Desktop,
+  where *Site folder* is often chosen first), `kit_status` answered "No package.json… (--site <dir>)",
+  a flag a Desktop user never sees. It now says the folder is empty and gives the command to scaffold
+  into it. A folder holding someone else's files gets told where each client sets the site instead
 - **`docs/connect.md`: connecting the kit, step by step** — Claude Code in the terminal, the build
   console in a browser, and Claude Desktop from the `.mcpb`, each with what to check after every step,
   what to type first and how to update. The README has a short version of all three, and the landing

@@ -248,6 +248,26 @@ describe('a site on disk', () => {
     writeFileSync(join(dir, 'package.json'), '{"name":"x","scripts":{}}');
     assert.match(kitStatus(dir).error, /does not look like a site/);
   });
+
+  // Desktop's Site folder is often chosen before anything is scaffolded into it. That folder must
+  // read as "make one here", not as a wrong pick — and a folder with other things in it, never so.
+  it('tells an empty folder how to become a site, Finder junk included', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kit-console-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, '.DS_Store'), '');
+    const { error } = kitStatus(dir);
+    assert.match(error, /is empty/);
+    assert.match(error, /npm create website-build-kit@latest \./);
+  });
+
+  it('does not call a folder with someone else\'s files in it empty', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kit-console-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'notes.txt'), 'x');
+    const { error } = kitStatus(dir);
+    assert.doesNotMatch(error, /is empty/);
+    assert.match(error, /BUILD-STATE\.md/);
+  });
 });
 
 describe('the page server', () => {
