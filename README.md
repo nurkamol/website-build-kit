@@ -83,8 +83,11 @@ Three places to use it, all reading the same site. Step by step, with what to ch
 
 1. Download `website-build-kit-<version>.mcpb` from the
    [latest release](https://github.com/nurkamol/website-build-kit/releases/latest)
-2. Double-click it and click **Install**
-3. Choose the site's folder when it asks for *Site folder*
+2. Double-click it and click **Install**. Desktop warns that it has not verified the extension; it
+   says that about every extension, and this one only reads the folder you give it and runs that
+   site's `npm run` checks
+3. Click **Configure** → *Site folder* → **Browse** → pick the **site's** folder (the one holding
+   `package.json` and `BUILD-STATE.md`, not this repo) → **Save**
 4. Ask in a new chat: *"Where does the build in my site stand?"*
 
 Running gates from Desktop needs Node and npm on the machine; nvm, Volta, Homebrew and the official

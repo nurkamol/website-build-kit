@@ -132,12 +132,27 @@ is a Claude Code skill and does not come with it.
 **1. Download** `website-build-kit-<version>.mcpb` from the
 [latest release](https://github.com/nurkamol/website-build-kit/releases/latest), under *Assets*.
 
-**2. Double-click it.** Claude Desktop opens and shows the extension. Click **Install**.
+**2. Double-click it.** Claude Desktop opens the extension's page. Read the warning, then click
+**Install**. Desktop shows that warning for every extension it has not verified: the extension runs
+on your machine with your permissions. This one reads the site folder you give it and runs that
+site's own `npm run` checks, nothing else. The source is this repository, and the file was built
+from the release tag by `publish.yml`.
 
-**3. Choose the site's folder** when it asks for *Site folder* — the one holding the site's
-`package.json` and `BUILD-STATE.md`.
+**3. Configure it.** The page now says the connector needs configuration. Click **Configure**:
 
-**4. Check it is on.** Settings → Extensions lists *Website Build Kit — build console*, enabled.
+| In the dialog | Do |
+| --- | --- |
+| *Site folder (required)* | Click **Browse** and pick the site's folder: the one holding its `package.json` and `BUILD-STATE.md`, e.g. the `my-site` that `npm create website-build-kit@latest my-site` made. Or paste its full path into *Directory path* |
+| **Save** | Greyed out until a folder is chosen. Click it |
+
+No site yet? Make one first: `npm create website-build-kit@latest my-site` in a terminal. It needs
+Node 22.19+.
+
+⚠ **Pick the site, not this kit's repository.** The kit's own folder has no `BUILD-STATE.md`, so the
+extension would install and connect, and then report that there is no build to read.
+
+**4. Check it is on.** The extension's page shows *All requirements met*, and Settings → Extensions
+lists *Website Build Kit — build console*, enabled. If it is off, switch it on there.
 
 **5. Ask in a new chat:**
 
@@ -146,7 +161,7 @@ Where does the build in my site stand?
 Run the contact gate and tell me what failed.
 ```
 
-**Another site:** Settings → Extensions → the kit → change *Site folder*. Desktop has no project
+**Another site:** Settings → Extensions → the kit → **Configure** → **Browse** to the other folder → **Save**. Desktop has no project
 folder of its own, so the site is a setting rather than where you opened it.
 
 **Running gates needs Node and npm on the machine.** Desktop starts the server without your

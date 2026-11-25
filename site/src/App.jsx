@@ -408,8 +408,8 @@ export default function App() {
                       <LinkButton href={MCPB} variant="secondary">website-build-kit-{VERSION}.mcpb</LinkButton>
                     </div>
                   </Step>
-                  <Step>Double-click it, and click <strong className="text-kumo-default">Install</strong> in Claude Desktop.</Step>
-                  <Step>Choose the site's folder when it asks for <em>Site folder</em>.</Step>
+                  <Step>Double-click it, and click <strong className="text-kumo-default">Install</strong> in Claude Desktop. Its unverified-extension warning appears for every extension.</Step>
+                  <Step>Click <strong className="text-kumo-default">Configure</strong>, then <strong className="text-kumo-default">Browse</strong> to the site's folder (the one holding <code>BUILD-STATE.md</code>), then <strong className="text-kumo-default">Save</strong>.</Step>
                   <Step>Ask in a new chat: <em>"Where does the build in my site stand?"</em></Step>
                 </Steps>
                 <p className="mt-5 mb-0 text-xs leading-relaxed text-kumo-subtle">
