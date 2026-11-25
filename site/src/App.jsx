@@ -266,7 +266,7 @@ export default function App() {
               <h3 className="m-0 text-base font-semibold text-kumo-default">Run it beside a build</h3>
               <div className="mt-5 grid gap-5">
                 <Command label="The page, at 127.0.0.1:4319" text="cd console && npm ci && npm start -- --site /path/to/client-site" />
-                <Command label="The same state, for Claude Code" text="claude mcp add kit -- node /path/to/website-build-kit/console/server/mcp.mjs --site ." />
+                <Command label="The same state, for Claude Code — already there with the plugin; without it" text="claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs" />
               </div>
               <p className="mt-5 mb-0 text-sm leading-relaxed text-kumo-subtle">
                 Deploys, search-engine submission and live-site crawls are not on its allowlist — they are absent, not

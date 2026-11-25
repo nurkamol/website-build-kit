@@ -2,11 +2,13 @@
 /**
  * Build-state MCP server for sites built from website-build-kit.
  *
- *   claude mcp add kit -- node /path/to/website-build-kit/console/server/mcp.mjs --site .
+ *   claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs
  *
- * --site defaults to the directory Claude Code was started in. stdio only:
+ * Start it through bin/kit-mcp.mjs, which installs this directory's
+ * dependencies on first run. --site defaults to the directory Claude Code was started in. stdio only:
  * nothing listens on a port, so nothing on the network can reach it.
  */
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -17,7 +19,8 @@ import { startGate, view, waitFor } from './runner.mjs';
 const flag = process.argv.indexOf('--site');
 const SITE = resolve(flag > -1 ? process.argv[flag + 1] : process.env.KIT_SITE ?? process.cwd());
 
-const server = new McpServer({ name: 'website-build-kit', version: '0.1.0' });
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const server = new McpServer({ name: 'website-build-kit', version });
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
 const refuse = (message) => ({ content: [{ type: 'text', text: message }], isError: true });

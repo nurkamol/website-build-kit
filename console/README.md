@@ -19,11 +19,22 @@ shows up on the page while it runs, and the page refuses to start a second one a
 
 ## Connect it to Claude Code
 
+**With the plugin, there is nothing to do.** `/plugin install website-build@website-build-kit`
+declares this server in `.claude-plugin/plugin.json`; open Claude Code in a site's directory and
+`kit_status` reads that site.
+
+**Without it**, from the site's directory — `--scope project` instead writes it to the site's
+`.mcp.json`, which carries this machine's path, so keep it out of a shared repository:
+
 ```bash
-cd console && npm ci
-cd /path/to/client-site
-claude mcp add kit -- node /path/to/website-build-kit/console/server/mcp.mjs --site .
+claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs
 ```
+
+Always start it through `bin/kit-mcp.mjs`, never `server/mcp.mjs` directly. The launcher installs
+this directory's dependencies on first run — a plugin install copies files and runs nothing here,
+so a bare `server/mcp.mjs` dies on its first import and Claude Code shows the server as *failed*
+with no reason — and finds the site from `--site`, `KIT_SITE`, `CLAUDE_PROJECT_DIR` or the working
+directory, in that order. ⚠ Stdout is the protocol: everything the install prints goes to stderr.
 
 stdio only — nothing listens on a port.
 

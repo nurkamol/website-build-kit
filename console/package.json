@@ -1,14 +1,14 @@
 {
   "name": "website-build-kit-console",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test server/state.test.mjs",
-    "mcp": "node server/mcp.mjs",
+    "mcp": "node bin/kit-mcp.mjs",
     "start": "vite build && node server/http.mjs",
     "serve": "node server/http.mjs"
   },

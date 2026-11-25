@@ -32,6 +32,10 @@ Not a theme. The value is the accumulated set of decisions and the list of thing
 /plugin install website-build@website-build-kit
 ```
 
+That is the skill **and** the build console's MCP server (`kit_status`, `run_gate`, `gate_result`)
+in one install — nothing to configure. Open Claude Code in a site's directory and the server reads
+that site; the first start installs the console's dependencies, once per version.
+
 Or clone and symlink, if you would rather not add a marketplace:
 
 ```bash
@@ -87,7 +91,13 @@ Claude Code over MCP, so nobody resumes from memory and no tick outlives the cod
 ```bash
 cd console && npm ci
 npm start -- --site /path/to/client-site                     # the page, http://127.0.0.1:4319
-claude mcp add kit -- node /path/to/website-build-kit/console/server/mcp.mjs --site .
+```
+
+Claude Code gets the same state from the plugin install above. Without the plugin, from the site's
+directory:
+
+```bash
+claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs
 ```
 
 Dark first, built with Cloudflare's [Kumo](https://github.com/cloudflare/kumo). The page and the MCP

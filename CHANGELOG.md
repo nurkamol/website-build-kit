@@ -1,7 +1,22 @@
 # Changelog
 
-## Unreleased
+## 2026-11-25 — 0.2.1: the console connects itself, and a Node floor that was wrong
 
+- **Installing the plugin now connects the build console to Claude Code.** `.claude-plugin/plugin.json`
+  declares its MCP server, so `/plugin install website-build@website-build-kit` brings `kit_status`,
+  `run_gate` and `gate_result` with the skill — no `claude mcp add`, no path to type. It starts
+  through `console/bin/kit-mcp.mjs`, new, which installs the console's dependencies on first run
+  (a plugin install runs nothing in a subdirectory, so the bare server died on its first import and
+  Claude Code showed it as *failed* with no reason) and finds the site from `CLAUDE_PROJECT_DIR`.
+  Every byte npm prints goes to stderr: stdout is the protocol, and one stray line corrupts the
+  handshake. Tested from a copy with no `node_modules`, and from a real Claude Code session.
+- **Dependencies:** puppeteer 25 and pa11y-ci 5 (#15), astro 7.4.13 (#14), fast-xml-parser 5.12.0
+  (#13), fast-uri 3.1.9 (#12). Zero open Dependabot alerts — puppeteer 25 dropped `extract-zip`,
+  whose two highs had no patched version, and the astro bump took undici 6 out of the tree.
+- **`test:gates`: the `--budget` case gave `match` 6s,** and confirmed captures (0.2.0) took the
+  route it must finish to 5.7s of it; a Windows runner ran out first. 30s now.
+- **`check:privacy` refused Dependabot's own sign-off.** A squash merge copies its `Signed-off-by`
+  trailer — GitHub's support address — into the message on master. That one address is allowed.
 - **The Node floor was 22.12 on paper and 22.19 in the lockfile.** Every doc, both `engines`
   fields and the scaffolder's pre-flight check said 22.12+ — Astro's own floor. Astro pulls in
   undici 8 through `unifont`, and undici 8 declares `>=22.19.0`, so a site on 22.12–22.18

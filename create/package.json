@@ -1,6 +1,6 @@
 {
   "name": "create-website-build-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Scaffold a production marketing site — Astro on Cloudflare Workers, with the gates, the migration playbook and the accessibility work already wired.",
   "keywords": [
     "astro",
