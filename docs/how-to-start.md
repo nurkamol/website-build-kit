@@ -37,7 +37,7 @@ template does the mechanical half, and the rest is in `stacks.md` §1, §1c and 
 
 | | Why |
 | --- | --- |
-| **Node 22.12+** | The template requires it. `.node-version` pins what it was built against |
+| **Node 22.19+** | The template requires it. `.node-version` pins what it was built against |
 | **Google Chrome + the Claude extension** | **Recommended.** `curl` returns markup; a browser returns the page. Required for JS-rendered sources (Wix, Framer), and the only way to check that a page *looks* right, read its console, or capture before/after screenshots. It uses your existing Chrome session, so it can also read Search Console, GA4 and the old WordPress admin |
 | **A Cloudflare account, and `wrangler login`** | Everything else assumes you are authenticated. `npx wrangler whoami` should name you |
 | **`git` and a repo** | Deployment is a push. The repo is also the content backup |
@@ -153,7 +153,7 @@ npx degit nurkamol/website-build-kit/template my-site
 cd my-site && npm install && npm run dev
 ```
 
-Node **22.12+**. Fill in `src/data/business.ts` first — the header, footer, every CTA, the
+Node **22.19+**. Fill in `src/data/business.ts` first — the header, footer, every CTA, the
 emails and the structured data all read from it. Full checklist in
 [the-template.md](the-template.md); setup commands in `docs/runbook.md` inside the template.
 

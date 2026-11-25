@@ -88,7 +88,7 @@ If the stack is the default one, start from the template. **It does not ship wit
 npx degit nurkamol/website-build-kit/template .     # empty dir; use my-site to make one
 ```
 
-Then follow `docs/runbook.md` §1 inside it — Node 22.12+, KV namespaces, secrets, and the
+Then follow `docs/runbook.md` §1 inside it — Node 22.19+, KV namespaces, secrets, and the
 fill-in order. Never copy a previous project's `src/data/` across; that is how another
 client's analytics IDs travel.
 

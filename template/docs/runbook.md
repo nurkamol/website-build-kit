@@ -14,7 +14,7 @@ export STAGING=new.example.com
 
 ## 1. First-time setup
 
-Node **22.12+** is required (`.node-version` pins the version this was built against).
+Node **22.19+** is required (`.node-version` pins the version this was built against).
 
 ```bash
 npm install

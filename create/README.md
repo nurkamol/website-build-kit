@@ -13,7 +13,7 @@ npm create website-build-kit@latest my-site
 Scaffold a production marketing site: **Astro, static, on Cloudflare Workers** — with the
 gates, the migration playbook and the accessibility work already wired.
 
-Node 22.12+. It builds green immediately, with no content, no images and no secrets.
+Node 22.19+. It builds green immediately, with no content, no images and no secrets.
 
 **[The method, the traps and the docs →](https://nurkamol.github.io/website-build-kit/)**
 

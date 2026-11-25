@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **The Node floor was 22.12 on paper and 22.19 in the lockfile.** Every doc, both `engines`
+  fields and the scaffolder's pre-flight check said 22.12+ — Astro's own floor. Astro pulls in
+  undici 8 through `unifont`, and undici 8 declares `>=22.19.0`, so a site on 22.12–22.18
+  installed with an engine warning nobody reads and ran on a version its dependencies do not
+  support. Found reading the engines in the lockfile while checking that pa11y-ci 5 (`^22.13`) fit
+  under the stated floor — it did, and the floor was already wrong. Now 22.19 everywhere it is
+  stated; `create` refuses anything older before writing a file. `.node-version` (24.19.0) and CI
+  are unchanged.
+
 ## 2026-11-25 — 0.2.0: the build console, and silent failures from a WordPress → Astro + Pages CMS rebuild
 
 - **The build console** — `console/`, new. An MCP server for Claude Code (`kit_status`, `run_gate`,

@@ -50,7 +50,7 @@ npx degit nurkamol/website-build-kit/template my-site
 cd my-site && npm install
 ```
 
-**Node 22.12+ is required** — `.node-version` pins the version this was built against.
+**Node 22.19+ is required** — `.node-version` pins the version this was built against.
 
 Then, in order. Each step is read by everything after it:
 

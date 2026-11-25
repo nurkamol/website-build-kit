@@ -385,7 +385,7 @@ published packages, names the project after the directory, and installs. `npx de
 nurkamol/website-build-kit/template my-site` still works if you would rather not run a
 scaffolder.
 
-Node 22.12+. It builds green with no content, no images and no secrets. Fill in
+Node 22.19+. It builds green with no content, no images and no secrets. Fill in
 `src/data/business.ts` first — everything else reads from it. Then `npm run tells` will tell
 you what is still undecided.
 

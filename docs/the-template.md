@@ -3,7 +3,7 @@
 An Astro + Cloudflare Workers skeleton. It builds green with no content, no images and no
 secrets — then you fill it in.
 
-Node **22.12+** (Astro's floor). `.node-version` pins **24.19.0** — the active LTS, the version it is tested on
+Node **22.19+** — the strictest engine in the lockfile: undici 8, which Astro pulls in through `unifont` (Astro's own is 22.12). `.node-version` pins **24.19.0** — the active LTS, the version it is tested on
 and the one CI reads.
 
 ## The command arc

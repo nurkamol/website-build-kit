@@ -47,15 +47,17 @@ ${BOLD}create-website-build-kit${RESET}
 }
 
 /*
- * Astro's floor is 22.12. On anything older the build dies with a version
- * notice inside a wall of build output, which is a confusing way to learn it —
- * so it is checked before a single file is written.
+ * The template's floor is 22.19: undici 8, which Astro pulls in through
+ * unifont — not Astro's own 22.12, which is what this said until it was read
+ * off the lockfile rather than off Astro's docs. On anything older a dependency
+ * fails with a version notice inside a wall of build output, which is a confusing way to learn it — so it is
+ * checked before a single file is written.
  */
-const MIN = [22, 12];
+const MIN = [22, 19];
 const current = process.versions.node.split('.').map(Number);
 if (current[0] < MIN[0] || (current[0] === MIN[0] && current[1] < MIN[1])) {
   console.error(
-    `\n${RED}✗${RESET} Node ${process.versions.node} is too old — Astro needs ${MIN.join('.')}+.\n` +
+    `\n${RED}✗${RESET} Node ${process.versions.node} is too old — the template needs ${MIN.join('.')}+.\n` +
       `  ${DIM}nvm install 24 && nvm use 24${RESET}\n`,
   );
   process.exit(1);

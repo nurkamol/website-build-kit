@@ -33,7 +33,7 @@
     "template"
   ],
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "prepack": "node prepack.mjs",

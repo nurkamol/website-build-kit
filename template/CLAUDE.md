@@ -43,7 +43,7 @@ npm run forms:import -- export.json          # a Fluent / CF7 / Gravity form →
 npm run deploy:staging                       # or deploy:production
 ```
 
-Node **22.12+**. `.node-version` pins the version this was built against.
+Node **22.19+**. `.node-version` pins the version this was built against.
 
 **Use `wrangler dev` for anything touching `/api/*`, redirects, or 404 status codes.** The
 Astro dev server models none of them, and they are exactly where things break.
