@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2026-11-25 — 0.2.2: Claude Desktop makes the site, and an empty folder counts as empty
 
 - **`make_site`: Claude Desktop can make the site.** A fourth console tool scaffolds a new site into the
   configured folder and installs it: `npm create website-build-kit` without a terminal. It runs the

@@ -17,7 +17,7 @@ import {
 } from '@phosphor-icons/react';
 
 const REPO = 'https://github.com/nurkamol/website-build-kit';
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 /* The console's eyebrow names the release it arrived in, not the current one. */
 const CONSOLE_SINCE = '0.2.0';
 const MCPB = `${REPO}/releases/download/v${VERSION}/website-build-kit-${VERSION}.mcpb`;

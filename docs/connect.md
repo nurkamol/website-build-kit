@@ -134,9 +134,9 @@ Desktop chat. The skill is a Claude Code skill and does not come with it.
 
 ### Before you start: a one-time setup in a terminal
 
-Desktop runs the extension for you every time after this. It cannot install Node for you, and on
-0.2.1 it cannot make the site either, so the first time needs a terminal (Terminal on a Mac,
-PowerShell on Windows):
+Desktop runs the extension for you every time after this. It cannot install Node for you, and an
+extension from before 0.2.2 cannot make the site either, so the first time needs a terminal
+(Terminal on a Mac, PowerShell on Windows):
 
 **a. Check Node.** It must say v22.19 or later:
 
