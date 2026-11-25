@@ -104,6 +104,10 @@ A build outlives a context window, and a decision that lives only in chat gets r
 handover it folds into `docs/handover.md` — the one document the **client** reads — and is
 deleted.
 
+**Resuming a build? If the `kit` MCP server is connected, call `kit_status` first** and run gates
+with `run_gate` — a gate that passed on another tree comes back **stale**, and stale is not
+passed (`references/build.md` §3).
+
 ## Defaults
 
 Astro static → Cloudflare Workers → assets on the worker (R2 past ~15 MB) → PagesCMS →

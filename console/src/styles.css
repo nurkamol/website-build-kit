@@ -5,6 +5,14 @@
 @import "@cloudflare/kumo/styles";
 @import "tailwindcss";
 
+/* ⚠ KUMO'S SUBTLE GREY FAILS AA ON KUMO'S OWN LIGHT SURFACES. neutral-500 (#737373) measured
+   4.46:1 on the elevated surface and 4.27:1 on the tab track — the inactive labels of Kumo's own
+   Tabs among them. One step darker in light mode only; dark mode already clears it. Found by
+   the landing page's pa11y gate; the console reads the same tokens. */
+:root {
+  --text-color-kumo-subtle: light-dark(var(--color-neutral-600), var(--color-neutral-400));
+}
+
 /* System faces only: a local tool should not phone a font CDN on every open,
    and SF / Segoe are the faces the rest of the desktop is set in. */
 :root {

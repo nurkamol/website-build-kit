@@ -238,6 +238,22 @@ Four rules make it worth keeping:
 It is also the answer to "where did we get to?" after a week away, which is otherwise a
 re-read of the whole repo.
 
+**The build console reads it back, with the gates beside it.** `console/` in the kit is an MCP
+server (`kit_status`, `run_gate`, `gate_result`) and a local page over the same state: the phase
+and blockers from this file, and every gate's last result **against the tree as it is now**. A
+gate run is recorded against the site's committed tree plus every uncommitted change, so a pass
+from before the last edit comes back **stale** — not passed — with how many commits behind. Two
+rules when it is connected:
+
+- **Call `kit_status` before trusting anything you remember about the build.** A tick in chat
+  history, or in this file, is what was true when it was written
+- **Close a phase on green at this tree, never on green somewhere in the scrollback.** The
+  console reports `phaseGate.ready` for the phases that have script gates; the early phases
+  close on a judgement, and it says so rather than reporting an empty list as ready
+
+Setup is in `console/README.md`. It runs nothing that ships: deploys, `indexnow`, `dns` and the
+crawls that copy a client's site to disk are not on its allowlist.
+
 ### 0 · Recon
 ```bash
 npm run recon -- https://old-site.com     # → recon/urls.txt, preserved.md, integrations.md

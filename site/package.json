@@ -1,0 +1,26 @@
+{
+  "name": "website-build-kit-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The kit's landing page. Kumo + React, prerendered at build so every word is in the HTML.",
+  "scripts": {
+    "dev": "node scripts/hex-palette.mjs && vite",
+    "build": "node scripts/hex-palette.mjs && vite build && vite build --ssr src/entry-server.jsx --outDir dist-ssr && node prerender.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@cloudflare/kumo": "2.19.1",
+    "@phosphor-icons/react": "2.1.10",
+    "echarts": "6.1.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "@vitejs/plugin-react": "6.3.0",
+    "tailwindcss": "4.3.5",
+    "vite": "8.3.8"
+  }
+}

@@ -99,7 +99,9 @@ failure this method exists to prevent.
 ## The arc of a real project
 
 Ten phases, each with a gate. `BUILD-STATE.md` in the project root carries what is settled and
-what is blocking, so a context reset or a week away does not lose it.
+what is blocking, so a context reset or a week away does not lose it. The build console
+(`console/README.md`) reads it back with every gate beside it — for you at `127.0.0.1:4319`, for
+Claude over MCP — and a gate that passed before the last edit shows as **stale**, not passed.
 
 | Phase | Done when |
 | --- | --- |

@@ -221,8 +221,9 @@ const prose = proseDocs.map((f) => readFileSync(f, 'utf8')).join('\n');
     (traps.match(/^### /gm) ?? []).length + (section8.match(/^\*\*/gm) ?? []).length;
 
   /* Checked in the landing page too, not only markdown — that is where most of
-     the copies live, and it is the one file a reader sees. */
-  const claimants = [...proseDocs, join(ROOT, 'site/index.html')].filter(existsSync);
+     the copies live, and it is the one file a reader sees. The <head> (meta, og,
+     JSON-LD) is site/index.html; the body copy is site/src/App.jsx. */
+  const claimants = [...proseDocs, join(ROOT, 'site/index.html'), join(ROOT, 'site/src/App.jsx')].filter(existsSync);
 
   for (const file of claimants) {
     const body = readFileSync(file, 'utf8');

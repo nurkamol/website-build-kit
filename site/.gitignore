@@ -1,0 +1,3 @@
+# Generated on every build by scripts/hex-palette.mjs
+src/palette-hex.css
+dist-ssr/

@@ -5,7 +5,7 @@
     "url": "https://github.com/nurkamol"
   },
   "description": "A method for building production marketing sites: discovery, stack decisions, the build, and verification against the deployed thing.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "plugins": [
     {
       "name": "website-build",

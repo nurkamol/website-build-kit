@@ -373,7 +373,7 @@ function GateRow({ gate, now, onOpen, onRun, running, selected }) {
       <button type="button" onClick={() => onOpen(gate.script)} className="min-w-0 flex-1 text-left focus-visible:outline-2 focus-visible:outline-kumo-focus">
         <div className="flex items-baseline gap-2">
           <Kbd>{gate.script}</Kbd>
-          <span className={`text-xs ${STATUS[s.key].text}`}>{busy ? 'Running…' : STATUS[s.key].label}</span>
+          <span className={`text-xs ${busy ? 'text-kumo-info' : STATUS[s.key].text}`}>{busy ? 'Running…' : STATUS[s.key].label}</span>
           {s.key === 'stale' && s.behind > 0 && <span className="tabular text-xs text-kumo-subtle">· {s.behind} commit{s.behind === 1 ? '' : 's'} behind</span>}
         </div>
         <div className="mt-0.5 truncate text-xs text-kumo-subtle">{gate.summary}</div>

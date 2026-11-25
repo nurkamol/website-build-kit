@@ -367,15 +367,17 @@ issue needs write permission and a bot identity, and an inbox on a Monday is eno
 ## After changing the landing page
 
 ```bash
-npm run audit:docs      # includes the failure count claimed on the page
-npm run cards:brand     # regenerate both share cards if that count moved
+cd site && npm ci && npm run build   # hex palette → client build → SSR build → prerender
+npm run audit:docs                   # includes the failure count claimed on the page
+npm run cards:brand                  # regenerate both share cards if that count moved
 ```
 
-**The number in the headline is not decorative.** `site/index.html` claims a count of documented
-silent failures in five places — meta description, `og:description`, `twitter:description`, the
-JSON-LD and the body — and both share cards bake it into pixels. It is defined as **`traps.md`
-entries + `compliance.md` §8 entries**, `audit:docs` fails when the prose disagrees, and
-`cards:brand` reads the same two files rather than restating the number.
+**The number in the headline is not decorative.** The page claims a count of documented silent
+failures in five places — meta description, `og:description`, `twitter:description` and the
+JSON-LD in `site/index.html`, and the body copy in `site/src/App.jsx` — and both share cards bake
+it into pixels. It is defined as **`traps.md` entries + `compliance.md` §8 entries**, `audit:docs`
+fails when any of them disagrees, and `cards:brand` reads the same two files rather than
+restating the number.
 
 That definition exists because the previous number, 46, could not be reproduced from anything:
 the plausible sources gave 30, 35, 49 and 57 at the commit that introduced it. Nothing goes stale
@@ -384,41 +386,56 @@ as quietly as a number — it stays plausible forever and no reader can tell.
 ⚠ **GitHub's social preview has no API.** `cards:brand` writes the file; uploading it is
 Settings → General → Social preview, by hand.
 
+`site/` is **React and Cloudflare's Kumo, prerendered at build** — every word is in
+`dist/index.html`, so crawlers read it and it works with JavaScript off; React hydrates the same
+markup. It is not built with the template, which targets Cloudflare Workers — KV bindings,
+`_headers`, `_redirects`, an SSR adapter — none of which GitHub Pages serves. The showcase
+screenshots in `site/public/showcase/` are the build console running against an **invented**
+demo site; a screenshot of a real client's build would publish their state, so retake them the
+same way. `site/brand/` stays where it is rather than in `public/`: the README packaged with every
+published npm version loads the logo from that path on `master`, and those READMEs cannot be
+edited.
 
-`site/` is hand-written, self-contained HTML, and **not** built with the template. The template
-targets Cloudflare Workers — KV bindings, `_headers`, `_redirects`, an SSR adapter — none of
-which GitHub Pages serves, so dogfooding it there would mean fighting the adapter to publish one
-static page.
+It is held to the kit's own bar, and `.github/workflows/pages.yml` gates on all of it before
+deploying: **pa11y-ci at WCAG 2.2 AA in both palettes**, **no second scroll axis at 320px**, every
+asset the `<head>` promises resolving, and page text present in the built HTML. Things that got
+through review and were caught only by running those:
 
-It is still held to the kit's own bar, and `.github/workflows/pages.yml` gates on both before
-deploying: **pa11y-ci at WCAG 2.2 AA**, and **no second scroll axis at 320px**. Two things that
-got through review and were caught only by running those:
-
+- **92 "errors" per palette that were not contrast failures** — and two behind them that were.
+  Chrome reports a neutral oklch colour as `oklch(0.97 0 none)`; axe cannot read the `none` hue,
+  files every text element as *needs further review*, and pa11y counts that as an error. White on
+  black at ~18:1, failing. `site/scripts/hex-palette.mjs` rewrites Kumo's and Tailwind's palette as
+  hex on every build — same colours, readable by every checker. Switching the check off would have
+  hidden what it then found: **Kumo's subtle grey at 4.27:1 on its own light surfaces** (the
+  inactive labels of its `Tabs` among them), now one step darker in light mode only, and a
+  headline sitting on a gradient, which no checker can measure — the glow moved behind the
+  screenshot, where no text sits
+- **The palette is chosen by URL, not by forcing the system scheme.** The page is dark first, so
+  the system scheme never reaches the light palette; forcing it would measure dark twice. The gate
+  loads `?mode=light` and `?mode=dark`. ⚠ Forcing the scheme had already failed once: for a year
+  the old page's workflow passed `--force-prefers-color-scheme`, which is not a Chrome switch —
+  Chrome ignores unknown flags in silence, so both runs measured the runner's own scheme while
+  the step said it measured two. A URL has no flag to go quiet
+- a muted grey passed contrast locally and failed in CI, because local Chrome was in dark mode
+  and the runner in light: 4.83:1 dark, **3.91:1 light**. A palette with two schemes has two sets
+  of contrast pairs, and testing one proves nothing about the other
+- **a flex item's minimum width is its content's.** Kumo's copy-to-clipboard field truncates its
+  text, but the text is a flex item, so truncation never engaged and a 768px page scrolled to
+  870px. The commands now wrap — a truncated install command hides the part you need to read
+- `minmax(21rem, 1fr)` in a `repeat(auto-fit, …)` track is wider than a 320px viewport;
+  `minmax(min(21rem, 100%), 1fr)` is the form that shrinks
 - a decorative glyph in an `aria-hidden` `<span>` made axe report `color-contrast` as *needing
   review* on every row. The fix was to stop making a decorative marker a DOM text node at all
-- `minmax(21rem, 1fr)` in a `repeat(auto-fit, …)` track is wider than a 320px viewport, so the
-  page gained a second scroll axis. `minmax(min(21rem, 100%), 1fr)` is the form that shrinks
-- a muted grey passed contrast locally and failed in CI, because local Chrome was in **dark**
-  mode and the runner was in light: 4.83:1 dark, **3.91:1 light**. A palette with two schemes
-  has two sets of contrast pairs, and testing one proves nothing about the other. The workflow
-  runs pa11y twice, once per scheme — ⚠ **and for a year it forced that scheme with
-  `--force-prefers-color-scheme`, which is not a Chrome switch.** Chrome ignores unknown flags
-  in silence, so both runs measured the runner's own scheme and this page's dark palette was
-  never tested by the step that said it was. The reflow step four lines below it was using
-  `emulateMediaFeatures` and doing it properly the whole time. It is now
-  `--blink-settings=preferredColorScheme=<ordinal>`, with a probe that reads the media query
-  back and fails the step if the forcing did not take — an ordinal can go quiet the same way a
-  flag name can
 
-The copy buttons follow the same two rules the template does. They are **created by the
-script**, never present in the markup and revealed by CSS — a control that looks live with
-JavaScript off is worse than no control. And the live region they announce into is **in the DOM
-from first paint**, because a region injected at announce time is not observed and announces
-nothing (`traps.md` has the entry).
+**No control that looks live with JavaScript off.** Prerendering puts the server's markup on
+screen before — and without — React, so the copy buttons, the mode toggle and the showcase tabs
+render only once hydrated; until then a command is plain text and the showcase shows its first
+picture. The same rule the template follows, for the same reason: a control that does nothing is
+worse than no control.
 
-And one that only **looking** caught, after both gates were green: `display: grid` on a list
-item makes every inline child its own grid item, so an `<em>` mid-sentence is torn out of the
-text flow and the words render overlapping.
+And one that only **looking** caught, on the old page, after both gates were green: `display:
+grid` on a list item makes every inline child its own grid item, so an `<em>` mid-sentence is
+torn out of the text flow and the words render overlapping.
 
 ## After changing a skill
 

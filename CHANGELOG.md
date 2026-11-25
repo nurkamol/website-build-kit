@@ -1,6 +1,58 @@
 # Changelog
 
-## Unreleased — silent failures from a WordPress → Astro + Pages CMS rebuild
+## 2026-11-25 — 0.2.0: the build console, and silent failures from a WordPress → Astro + Pages CMS rebuild
+
+- **The build console** — `console/`, new. An MCP server for Claude Code (`kit_status`, `run_gate`,
+  `gate_result`) and a local page over the same state, built with Cloudflare's Kumo, dark first.
+  It reads the phase, blockers and integrations from `BUILD-STATE.md` and records every gate run
+  against a fingerprint of the site as it is — its committed tree plus every uncommitted change —
+  so **a pass on any other tree reads stale, never passed**, with how many commits behind. A
+  failure stays a failure on a newer tree. Gates that read `dist/` rebuild first unless a staging
+  build passed on the same tree, because `dist/` is gitignored and no fingerprint can see it. The
+  page and the MCP server share a ledger, a lock and a live log on disk: a gate Claude runs streams
+  onto the page, and the page will not start a second one beside it. Deploys, `indexnow`, `dns` and
+  the crawls that copy a client's site to disk are absent from the allowlist. The page server binds
+  to loopback, refuses any other `Host` (DNS rebinding) and any POST without its header (a
+  cross-origin request carrying one needs a preflight it never gets). 28 refusal cases, in
+  `kit.yml` on both runners. Not yet used on a real build — `docs/roadmap.md` keeps it Open
+- **`match` as a console gate** — old and new urls, a parity summary from the run's own
+  `match.json` (worst routes first, never an older report presented as this run's), and the
+  old | new | diff report served from the site's `shots/match/`
+- **`match` measured the toggle, not the mega-menu.** `[class*="submenu"]` also matches the item's
+  own `<button class="submenu-toggle">`, which most block themes put before the panel and hide on
+  desktop — so a hovered mega-menu was never the thing photographed. Both sides "did not open",
+  the clip was the closed header, and a menu that lost a whole column compared at 0%. The panel is
+  now the first child that is not a link, a button or a toggle; the same rebuild fails at 35.89%
+- **`match` read a headline that rewrites its own words at whatever second each side finished.**
+  A rotator that sets `textContent` — typed effects, counters, custom scripts — is untouched by
+  the freeze's `first-word` rule, which hides child elements. On a slow Windows runner the two
+  sides read different words and the heading was "missing": two CI runs in five, never on a Mac
+  under full load. Short text that is *replaced* (not filled in once on load) is now pinned to its
+  first value after parsing; once-changed text gets 1.6s more watching. ⚠ The first version
+  observed from the first byte and counted the HTML parser — every heading "changed once", every
+  capture waited the extra 1.6s, and the `--budget` case ran out on both runners
+- **State screenshots wait for visible images to decode.** A scrolled header that swaps to a
+  second logo, or a mega-menu holding a picture, could be photographed on one side before its
+  image painted
+- **`recon` names the platform and asks the owner for what a crawl cannot see.** WordPress (and
+  its page builder), Squarespace, Wix, Webflow, Shopify, Ghost, Drupal, Joomla and Framer, each
+  with the evidence. `recon/ask-client.md` carries the optional asks per platform with the reason
+  on every line, every WordPress plugin visible in the markup with what it holds and the export to
+  ask for (SEO, redirects, forms, snippets, ACF, translations), and questions about what changed
+  recently. Handling rules for a backup — it carries the database password and the users table —
+  and never an admin password
+- **`client-files/`** — where what the owner sends goes: inside the project so the build can read
+  it, gitignored, not watched by `astro dev`. `recon` creates it only where git will ignore it; on
+  a site copied from an older template it refuses and says which line to add. The template's
+  `.gitignore` also refuses `*.wpress` and `*.sql` dumps anywhere
+- **`test:gates` prints why a case exited wrong** — the lines the script flagged, not only "exit 1,
+  wanted 0". That is what found the Windows `match` failure on its first CI run. `KIT_SLOW=6`
+  slows the lightbox driver's page (script and animations) and reproduced its CI-only failure
+  every time: a click 300ms after a client-side navigation landed on the view transition's overlay
+- **The landing page is Kumo + React, prerendered**, with the console as its showcase. Its gate
+  found 92 "errors" per palette that were axe unable to read Chrome's `oklch(… none)` neutrals, and
+  behind them two real failures — Kumo's subtle grey at 4.27:1 on its own light surfaces, and a
+  headline over a gradient. `CLAUDE.md` has the detail
 
 - **Pages the Worker renders shipped with no security headers, and on staging without noindex.**
   `public/_headers` applies to static assets only; the contact page (`prerender = false`) and

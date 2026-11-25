@@ -55,6 +55,50 @@ works too if you want to be explicit.
 **→ [docs/how-to-start.md](docs/how-to-start.md)** — the three entry points, what to have
 ready before you begin, and what the first ten minutes should look like.
 
+## New in 0.2.0: the build console
+
+A build spans weeks and more sessions than a context window holds. The console reads where it
+stands **from the site itself** — the phase, every gate, the blockers — for you in a browser and for
+Claude Code over MCP, so nobody resumes from memory and no tick outlives the code it vouched for.
+
+<p align="center">
+  <img src="site/public/showcase/overview-hero.webp" alt="The build console overview: phase 7 of 10 in progress, 10 of 17 gates green on this tree, a failed contact check and a stale form check needing attention, and the blockers from BUILD-STATE.md." width="900">
+</p>
+
+- **Stale is not passed.** Every gate run is recorded against a fingerprint of the site as it is —
+  its committed tree plus every uncommitted change. A pass on any other tree reads **stale**, with
+  how many commits behind, and the phase cannot close on it. A failure stays a failure
+- **Visual parity, worst first.** `match` runs as a gate: the rebuild against the live old site,
+  section by section in pixels and in words, the open menu and hover dropdowns included. The
+  worst routes come first against the tolerance line, with the old | new | diff report a click away
+- **Paired with Claude Code.** An MCP server — `kit_status`, `run_gate`, `gate_result` — gives
+  Claude the same state the page shows. A gate Claude runs streams onto the page live, and the
+  page will not start a second one beside it
+- **Gates that read `dist/` rebuild first** when `dist/` was not built from this tree — it is
+  gitignored, so no fingerprint can tell a stale one from a fresh one
+- **Nothing that ships.** Deploys, `indexnow`, `dns` and the crawls that copy a client's site to
+  disk are absent from its allowlist, not hidden behind a confirmation. Bound to loopback; a
+  request from any other origin is refused
+
+<p align="center">
+  <img src="site/public/showcase/match.webp" alt="The match gate in the console: seven routes compared against the old site, worst first, /services/ 7.8% of a section different, past the 3% tolerance, with a link to the old, new and diff report." width="900">
+</p>
+
+```bash
+cd console && npm ci
+npm start -- --site /path/to/client-site                     # the page, http://127.0.0.1:4319
+claude mcp add kit -- node /path/to/website-build-kit/console/server/mcp.mjs --site .
+```
+
+Dark first, built with Cloudflare's [Kumo](https://github.com/cloudflare/kumo). The page and the MCP
+server are separate processes sharing one ledger on disk. **→ [console/README.md](console/README.md)**
+
+Also new — **`recon` now asks the owner for what a crawl cannot see.** It names the platform with the
+evidence (WordPress and its page builder, Squarespace, Wix, Webflow, Shopify, Ghost, Drupal, Joomla,
+Framer), lists every WordPress plugin visible in the markup with the export it holds, asks what
+changed recently, and gives what they send a home: `client-files/`, gitignored, and refused outright
+on a site whose `.gitignore` would let a backup through.
+
 ## What's in it
 
 | | |
@@ -66,7 +110,8 @@ ready before you begin, and what the first ten minutes should look like.
 | `docs/` | How to use it, and how to extend it |
 | `install.sh` | Symlinks skills and commands into `~/.claude` |
 | `.claude-plugin/` | Plugin and marketplace manifests, so `/plugin install` works |
-| `site/` | The landing page. Hand-written HTML — see the note in `pages.yml` |
+| `console/` | The build console — an MCP server for Claude Code and a local page over the same state |
+| `site/` | The landing page. Kumo + React, prerendered — see the note in `pages.yml` |
 | `create/` | The `npm create website-build-kit` scaffolder. Packs `template/` at publish time |
 | `CLAUDE.md` | Applies when working **on the kit** — house style, where things go |
 | `template/CLAUDE.md` | Ships with each new site — that site's conventions |
@@ -143,7 +188,11 @@ does ship is the skeleton of the parts that take longest to get right:
   stopped would read as a finished audit
 - **`npm run recon`** — inventory the OLD site before designing routes: URLs from the sitemap
   plus the ones only the Wayback Machine remembers, which sitemap filename is canonical,
-  preserved paths, and the integrations in the markup
+  preserved paths, and the integrations in the markup. It names the platform with the evidence
+  that gave it away and writes `recon/ask-client.md` — what to ask the owner for on that platform
+  (a backup or WXR export, the SEO and redirect exports, the plugin list with what each plugin
+  holds, what changed recently), each with the reason — and creates `client-files/` for what they
+  send, only where git will ignore it. A backup carries the database password and the users table
 - **`npm run design`** — measures the OLD site's design in a real browser at three widths: the
   faces actually used, colours by use, computed type per heading level, buttons, container,
   radii, header height, and the menu opened at each width. Writes a proposal as a filled-in
@@ -284,7 +333,11 @@ does ship is the skeleton of the parts that take longest to get right:
   passes a skimming eye, and it is the thing a client finds after launch. Both sides are frozen
   the same way first — parallax, scroll marquees, reveal-on-scroll and rotating words included —
   the scrolled header, the open menu and each desktop dropdown are compared too, the old side is
-  cached for a week, and `--watch` re-measures one page on every save beside `astro dev`
+  cached for a week, and `--watch` re-measures one page on every save beside `astro dev`. A
+  dropdown is measured with its **panel** open — it used to find the submenu-toggle button first,
+  and a mega-menu that lost a column compared closed against closed at 0% — and a headline that
+  rewrites its own words is read at its first word on both sides, not at whichever second each
+  side finished
 - **Legal pages as content** — `src/content/legal/*.md` served through one route, with the
   footer links derived from the collection itself. A footer link to a page nobody has written
   yet is a 404 on every page of the site, and nothing reports it

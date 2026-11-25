@@ -1,0 +1,45 @@
+/* Order matters: Kumo's @theme tokens must register before Tailwind, and without the
+   @source line Tailwind never scans Kumo's compiled JS — its components render unstyled
+   and nothing reports an error. */
+@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+@import "@cloudflare/kumo/styles";
+@import "tailwindcss";
+/* After Tailwind, so it wins: the same palette as hex. scripts/hex-palette.mjs has why. */
+@import "./palette-hex.css";
+
+/* ⚠ KUMO'S SUBTLE GREY FAILS AA ON KUMO'S OWN LIGHT SURFACES. neutral-500 (#737373) measured
+   4.46:1 on the elevated surface and 4.27:1 on the tab track — the inactive labels of Kumo's own
+   Tabs among them. One step darker in light mode only; dark mode already clears it. Found by
+   the page's pa11y gate once the colours were readable (scripts/hex-palette.mjs). */
+:root {
+  --text-color-kumo-subtle: light-dark(var(--color-neutral-600), var(--color-neutral-400));
+}
+
+:root {
+  --site-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --site-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+}
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+html, body { margin: 0; background: var(--color-kumo-canvas); }
+body {
+  font-family: var(--site-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.font-mono, code, pre, kbd { font-family: var(--site-mono); }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* A soft light behind the hero shot — never behind text. Over a gradient no checker can
+   compute contrast, so the headline above it would be unmeasurable rather than measured. */
+.glow {
+  background:
+    radial-gradient(60% 50% at 50% 0%, color-mix(in oklch, var(--color-kumo-brand) 22%, transparent), transparent 70%),
+    radial-gradient(40% 40% at 85% 20%, color-mix(in oklch, #f6821f 14%, transparent), transparent 70%);
+}
+
+/* The screenshot frame: a window, so a picture of a UI reads as one. */
+.shot { border-radius: 14px; overflow: hidden; }
+.shot img { display: block; width: 100%; height: auto; }
+
+.skip:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
