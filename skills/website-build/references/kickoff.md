@@ -60,12 +60,27 @@ is the URL-mappings list and the source images. Send it as one message with the 
 line — a client agrees to *"so your unpublished drafts are not lost"*, not to *"send me a
 backup"*. The crawl stays the source of truth for pages (`stacks.md` §1).
 
+**On WordPress the plugin list is the map.** Each plugin holds data a crawl cannot reach — the SEO
+plugin's titles and redirect table, the form plugin's fields and entries, a snippet plugin's
+tracking and schema that nobody remembers adding, ACF's content model. `recon` lists every plugin
+that leaves a mark in the markup with the export to ask for, and lists the ones it does not know
+as questions. Ask for the full plugin list as well: the plugins that leave no mark are usually the
+ones nobody remembers installing. **Then ask what changed recently** — forms, SEO, snippets,
+drafts — because the crawl sees today, not what somebody is halfway through, and `npm run
+changes` only watches from the day it starts.
+
+**Everything they send goes in `client-files/`** — `recon` creates it, the template's
+`.gitignore` ignores it, and `astro dev` does not watch it. Inside the project so the build can
+read it where it lies; ignored so nothing in it is ever committed. A download link to a zip is
+the easy ask: unpack it there.
+
 ⚠ **A full backup is credentials and other people's personal data, not content.** The config file
 holds the database password and the secrets that sign every login cookie; the users table holds
-every account's email and password hash; form entries are the client's customers. Keep it
-**outside the repository** — never in `recon/`, which is meant to be committed — take what you
-need, and delete your copy at handover. The template's `.gitignore` refuses the usual dump
-extensions as a belt, not as the plan. **Never ask for an admin password**: ask for the export,
+every account's email and password hash; form entries are the client's customers. Only ever in
+`client-files/` — never in `recon/`, which is meant to be committed. Take what you need, never
+open the users table, and delete it at handover. **On a site copied from an older template the
+folder is not ignored**: `recon` refuses to create it and says so, and that line goes into
+`.gitignore` before anything else does. **Never ask for an admin password**: ask for the export,
 or for a separate editor account they delete after launch.
 
 "I found 15 URLs, 5 template families, a contact form posting to Brevo, and 3 of 5 template

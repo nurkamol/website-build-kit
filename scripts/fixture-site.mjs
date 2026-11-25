@@ -62,7 +62,7 @@ const KNOWN_FAULTS = [
   'redirect-blocked', // a page that 302s somewhere recon must refuse to follow
   'vendor-words', // vendor NAMES as ordinary words and a WordPress style preset — no vendor loaded
   'vendor-real', // a vendor actually loaded: Crisp chat's script
-  'platform-wp', // a WordPress + Elementor site: the generator meta and a builder class, as rendered
+  'platform-wp', // a WordPress + Elementor site with Yoast, Contact Form 7 and one plugin the kit does not know, as rendered
 
   /* ── Faults only a browser can see ───────────────────────────────────────
    * Everything above is visible to `fetch`. These five are not: the response
@@ -128,6 +128,7 @@ const KNOWN_FAULTS = [
   'parallax-split',
   'parallax-misplaced',
   'no-menu', // with `branded`: no menu toggle and no submenu — the rebuild lost both interactions
+  'mega-changed', // with `branded`: the mega-menu panel lost its Featured column — only an OPENED panel shows it
   /* ── Not a fault: a site WITH a design, for `npm run design` ─────────────
    * The default fixture is deliberately unstyled, which gives a design capture
    * nothing to find — and a capture that finds nothing on a site with nothing
@@ -285,7 +286,7 @@ ${FAULTS.has('no-stylesheet') ? '' : `<style>${STYLE}</style>`}
 ${FAULTS.has('own-css-404') ? '<link rel="stylesheet" href="/wp-content/cache/min/1/site.min.css?ver=3">' : ''}
 ${FAULTS.has('vendor-words') ? '<style id="global-styles-inline-css">:root{--wp--preset--shadow--crisp: 6px 6px 0 #000;}</style>' : ''}
 ${FAULTS.has('vendor-real') ? '<script src="https://client.crisp.chat/l.js" async></script>' : ''}
-${FAULTS.has('platform-wp') ? '<meta name="generator" content="WordPress 6.6.2">' : ''}
+${FAULTS.has('platform-wp') ? '<meta name="generator" content="WordPress 6.6.2"><!-- This site is optimized with the Yoast SEO plugin v23.1 -->' : ''}
 </head>
 <body>
 ${FAULTS.has('wp-api') ? `<nav><a href="/">Home</a> <a href="/about/">About us</a>${FAULTS.has('wp-edited') ? ' <a href="/pricing/">Pricing</a>' : ''}</nav>` : ''}
@@ -298,7 +299,7 @@ by anything measuring content length. It links onward to <a href="/about/">about
 and back to <a href="/">home</a>.</p>
 <img src="/hero.png" width="800" height="600" alt="A hero image">
 ${FAULTS.has('vendor-words') ? '<p>We drift downriver, stripe the lawn and value clarity over noise.</p>' : ''}
-${FAULTS.has('platform-wp') ? '<div class="elementor-element elementor-widget-text-editor"><p>Built with a page builder.</p></div>' : ''}
+${FAULTS.has('platform-wp') ? '<div class="elementor-element elementor-widget-text-editor"><p>Built with a page builder.</p></div><div class="wpcf7 js"><p>A contact form.</p></div><img src="/wp-content/plugins/acme-booking-widget/badge.png" width="1" height="1" alt="">' : ''}
 ${FAULTS.has('asset-404') ? '<img src="/gone.png" width="80" height="60" alt="An asset the server does not have">' : ''}
 ${FAULTS.has('overflow-320') ? '<div style="width: 480px">Wider than a 320px viewport.</div>' : ''}
 ${FAULTS.has('turnstile-widget') && path === '/about/' ? '<form method="post" action="/api/contact/"><div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div></form>' : ''}
@@ -544,7 +545,7 @@ function brandedPage({ path, title, description }) {
         <div class="mega-panel">
           <div class="mega-col"><h4>Column one</h4><ul><li><a href="/programs/a/">Program A</a></li><li><a href="/programs/b/">Program B</a></li></ul></div>
           <div class="mega-col"><h4>Column two</h4><ul><li><a href="/programs/c/">Program C</a></li><li><a href="/programs/d/">Program D</a></li></ul></div>
-          <div class="mega-col"><h4>Featured</h4><img src="/hero.png" width="240" height="140" alt="A featured program"><a href="/programs/featured/">Featured program</a></div>
+          ${FAULTS.has('mega-changed') ? '' : '<div class="mega-col"><h4>Featured</h4><img src="/hero.png" width="240" height="140" alt="A featured program"><a href="/programs/featured/">Featured program</a></div>'}
         </div>`}
       </li>
       <li><a href="/work/">Work</a></li>

@@ -16,6 +16,7 @@ npm run tells                                # what is undecided, and the design
 npm run check:copy                           # author notes that reached the rendered page
 npm run recon -- https://old-site.com        # inventory the old site BEFORE designing routes
 #                                            # → recon/ask-client.md: optional asks for its owner
+#                                            # → client-files/: where what they send goes (gitignored)
 #   --allow-internal                         # ...if the old site is on a VPN or a private address
 npm run changes -- https://old-site.com      # what the client changed since the last run. Weekly
 #                                            # until go-live; reports, never applies

@@ -37,7 +37,7 @@ const walk = (dir) =>
     /* `recon/` is a migration's captured output, not this kit's documentation.
        Running recon+extract inside template/ while developing the kit put 18
        extracted pages into the audit and took it from 26 files to 44. */
-    if (['node_modules', 'dist', '.astro', '.git', 'recon', 'shots'].includes(e.name)) return [];
+    if (['node_modules', 'dist', '.astro', '.git', 'recon', 'shots', 'client-files'].includes(e.name)) return [];
     const full = join(dir, e.name);
     return e.isDirectory() ? walk(full) : [full];
   });

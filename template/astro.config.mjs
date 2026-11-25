@@ -146,5 +146,9 @@ export default defineConfig({
   },
   vite: {
     build: { cssMinify: 'lightningcss' },
+    /* client-files/ holds what the old site's owner handed over — an unpacked WordPress
+       backup is tens of thousands of files. Vite watches the whole project root, so
+       `astro dev` would open a watcher on every one of them. */
+    server: { watch: { ignored: ['**/client-files/**'] } },
   },
 });

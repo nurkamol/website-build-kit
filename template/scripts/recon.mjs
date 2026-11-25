@@ -25,9 +25,10 @@
  * replace it — see the three questions in stacks.md §1b.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-import { askClientMarkdown, detectPlatform } from './lib/platform.mjs';
+import { CLIENT_DIR, CLIENT_DIR_README, askClientMarkdown, detectPlatform, detectPlugins } from './lib/platform.mjs';
 import { blockedReason } from './lib/hosts.mjs';
 import { GONE_TAG } from './lib/inventory.mjs';
 import { PRESERVED } from './lib/preserved.mjs';
@@ -598,11 +599,32 @@ console.log(`\n  ${GREEN}✓${RESET} ${OUT}/integrations.md`);
  * agrees to "so your unpublished drafts are not lost" and not to "send me a
  * backup". lib/platform.mjs carries the asks and the handling rules. */
 const platform = detectPlatform(corpus, headRes?.headers ?? null);
-writeFileSync(`${OUT}/ask-client.md`, askClientMarkdown(platform, ORIGIN));
+/* The owner's files go in client-files/ — but only if git ignores it HERE. A site
+   copied from an older template has no such line, and a backup dropped into an
+   unignored folder is committed by the next `git add -A`: database password,
+   users table and all. Not a git repository yet? Read .gitignore instead, because
+   `git init && git add -A` is exactly what comes next. */
+const probe = spawnSync('git', ['check-ignore', '-q', `${CLIENT_DIR}/probe`], { stdio: 'ignore' });
+const clientDirIgnored = probe.status === 0
+  || (probe.status !== 1 && existsSync('.gitignore') && new RegExp(`^/?${CLIENT_DIR}/?$`, 'm').test(readFileSync('.gitignore', 'utf8')));
+if (clientDirIgnored) {
+  mkdirSync(CLIENT_DIR, { recursive: true });
+  if (!existsSync(`${CLIENT_DIR}/README.md`)) writeFileSync(`${CLIENT_DIR}/README.md`, CLIENT_DIR_README);
+}
+const plugins = platform.id === 'wordpress' ? detectPlugins(corpus) : { known: [], unknown: [] };
+writeFileSync(`${OUT}/ask-client.md`, askClientMarkdown(platform, ORIGIN, { ignored: clientDirIgnored }, plugins));
+if (plugins.known.length || plugins.unknown.length) {
+  console.log(`  ${BOLD}Plugins in markup${RESET} ${[...plugins.known.map((p) => p.name), ...plugins.unknown].join(', ')}`);
+}
 console.log(
   `\n  ${BOLD}Platform${RESET} ${platform.name ? `${platform.name}${platform.builder ? ` + ${platform.builder}` : ''} ${DIM}(${platform.evidence.join('; ')})${RESET}` : `${DIM}not identified — ask${RESET}`}`,
 );
 console.log(`  ${GREEN}✓${RESET} ${OUT}/ask-client.md ${DIM}— optional asks for the owner, with the reason for each${RESET}`);
+console.log(
+  clientDirIgnored
+    ? `  ${GREEN}✓${RESET} ${CLIENT_DIR}/ ${DIM}— where what they send goes. Ignored by git${RESET}`
+    : `  ${YELLOW}⚠${RESET} ${CLIENT_DIR}/ is NOT ignored by git here — not created. Add it to .gitignore before anything goes in`,
+);
 
 /* ── 5. The old site's own files ─────────────────────────────────────────
  *

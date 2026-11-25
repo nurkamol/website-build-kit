@@ -122,12 +122,13 @@ a plausible wrong time nobody re-reads.
 **Then check for a client's data as a *directory*, not a string.** Every grep above reads
 `src` and `scripts`. Testing `recon` or `shots` means running them, and both write a real
 client's material into `template/` — 18 crawled pages carrying a postal address, a phone
-number and a contact email were committed to this public repo and published that way. No
-pattern above looks where they landed.
+number and a contact email were committed to this public repo and published that way. `recon`
+now also creates `client-files/`, where an owner's whole backup is meant to land. No pattern
+above looks where any of them landed.
 
 ```bash
-git ls-files template/ | grep -E '^template/(recon|shots)/' | head   # must print nothing
-git status --porcelain --ignored template/ | grep -E 'recon|shots'   # ignored, not tracked
+git ls-files template/ | grep -E '^template/(recon|shots|client-files)/' | head   # must print nothing
+git status --porcelain --ignored template/ | grep -E 'recon|shots|client-files'   # ignored, not tracked
 ```
 
 The lesson is the method, not the list: **a denylist tests for the mistakes you already made.**

@@ -851,12 +851,18 @@ function findDropdownsInPage(headerSel, max) {
   const header = [...document.querySelectorAll(headerSel)].find(shown);
   const scope = header ?? document.querySelector('nav');
   if (!scope) return [];
-  const SUB = ':scope > ul, :scope > .sub-menu, :scope > [class*="sub-menu"], :scope > [class*="submenu"], :scope > [class*="dropdown"], :scope > [class*="mega"]';
+  /* ⚠ THE TOGGLE IS NOT THE PANEL. `[class*="submenu"]` also matches the item's own
+     `<button class="submenu-toggle">` — Twenty Twenty-One and most block themes put one
+     beside every submenu, BEFORE it — and that button is display:none on desktop. So the
+     hovered panel was never the one measured: both sides "did not open", the clip was the
+     closed header, and a mega-menu compared at 0% however different it was. */
+  const SUB = 'ul, .sub-menu, [class*="sub-menu"], [class*="submenu"], [class*="dropdown"], [class*="mega"]';
+  const panelOf = (li) => [...li.children].find((el) => el.matches(SUB) && !el.matches('a, button, [role="button"]') && !/toggle/i.test(el.getAttribute('class') ?? ''));
   const out = [];
   for (const li of scope.querySelectorAll('li')) {
     if (out.length >= max) break;
     if (li.parentElement?.closest('li') && scope.contains(li.parentElement.closest('li'))) continue; // not top level
-    if (!shown(li) || !li.querySelector(SUB)) continue;
+    if (!shown(li) || !panelOf(li)) continue;
     const trigger = li.querySelector(':scope > a, :scope > button, :scope > span > a, :scope > div > a') ?? li.querySelector('a, button');
     if (!trigger || !shown(trigger)) continue;
     const label = (trigger.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
@@ -877,14 +883,45 @@ function dropdownRectInPage(headerSel, index) {
   const trigger = document.querySelector(`[data-wbk-dd="${index}"]`);
   const li = trigger?.closest('li');
   const header = [...document.querySelectorAll(headerSel)].find(shown);
-  const SUB = ':scope > ul, :scope > .sub-menu, :scope > [class*="sub-menu"], :scope > [class*="submenu"], :scope > [class*="dropdown"], :scope > [class*="mega"]';
-  const panel = li?.querySelector(SUB);
+  /* ⚠ THE TOGGLE IS NOT THE PANEL. `[class*="submenu"]` also matches the item's own
+     `<button class="submenu-toggle">` — Twenty Twenty-One and most block themes put one
+     beside every submenu, BEFORE it — and that button is display:none on desktop. So the
+     hovered panel was never the one measured: both sides "did not open", the clip was the
+     closed header, and a mega-menu compared at 0% however different it was. */
+  const SUB = 'ul, .sub-menu, [class*="sub-menu"], [class*="submenu"], [class*="dropdown"], [class*="mega"]';
+  const panelOf = (li) => [...li.children].find((el) => el.matches(SUB) && !el.matches('a, button, [role="button"]') && !/toggle/i.test(el.getAttribute('class') ?? ''));
+  const panel = li ? panelOf(li) : null;
   const open = !!panel && shown(panel);
   const rects = [header, open ? panel : li].filter(Boolean).map((el) => el.getBoundingClientRect());
   if (!rects.length) return null;
   const top = Math.max(0, Math.min(...rects.map((r) => r.top)));
   const bottom = Math.min(innerHeight, Math.max(...rects.map((r) => r.bottom)));
   return { open, y: Math.floor(top), height: Math.max(1, Math.ceil(bottom - top)) };
+}
+
+/*
+ * Runs in the page. Two frames, then every VISIBLE image decoded. A state reveals images
+ * the load-time settle could not finish for it: a scrolled header swaps to a second logo
+ * that was display:none, and a mega-menu holds a picture. Chrome may drop the decoded copy
+ * of a hidden image and decode it again on reveal, off the main thread — so a slow machine
+ * photographs one side before its image paints, and an identical pair differs.
+ */
+function stillInPage(ms) {
+  const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+  const visible = (img) => {
+    const r = img.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(img).visibility !== 'hidden';
+  };
+  return Promise.race([
+    (async () => {
+      await frame();
+      await frame();
+      await Promise.all([...document.images].filter(visible).map((img) => (img.complete ? img.decode() : new Promise((r) => img.addEventListener('load', r, { once: true })).then(() => img.decode())).catch(() => null)));
+      await frame();
+      return true;
+    })(),
+    new Promise((r) => setTimeout(() => r(false), ms)),
+  ]);
 }
 
 /* Runs in the page. Resolves when the running finite animations end, or after `ms`. */
@@ -913,6 +950,7 @@ async function captureStates(page, viewport) {
   const settled = async (ms = 400) => {
     await page.evaluate(animationsDoneInPage, 3000).catch(() => {});
     await pause(ms);
+    await page.evaluate(stillInPage, 3000).catch(() => {});
   };
   const failed = (key, label, e) => states.push({ key, label, error: e.message.split('\n')[0] });
 

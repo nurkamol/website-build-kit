@@ -34,10 +34,15 @@ shots/
 # when recon/ is: it is a cache, re-measured with --refresh.
 recon/.cache/
 
-# A client's backup or database dump, unpacked inside the project. It carries the
-# config file (database password, cookie-signing secrets) and the users table.
-# recon/ask-client.md says keep it outside the repository; this is the belt for the
-# day somebody does not — `recon/` is meant to be committed, so it is the likely spot.
+# What the old site's owner hands over: a backup, exports, original images.
+# `npm run recon` creates the folder and recon/ask-client.md tells them to put
+# everything here. ⚠ A backup carries the config file (database password,
+# cookie-signing secrets) and the users table — it is never committed, and it is
+# deleted at handover. recon refuses to create the folder if this line is missing.
+client-files/
+
+# The same files dropped anywhere else in the project. `recon/` is meant to be
+# committed, so it is the likely wrong place. A belt, not the plan.
 *.wpress
 *.sql
 *.sql.gz

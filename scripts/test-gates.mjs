@@ -110,12 +110,17 @@ function gate(label, { script, files, env = {}, args = [], expect, contains, the
        per-row verdict while exiting 1 for the total — so the exit code cannot
        tell you WHICH row fired. Returns null when satisfied, else why not. */
     const thenErr = codeOk && textOk && then ? then(dir, out) : null;
+    /* ⚠ "exit 1, wanted 0" IS NOT A DIAGNOSIS. A case that fails only on a CI runner — match's
+       interaction states failed 2 in 5 Windows runs and never on a Mac under full load — can only be
+       read from the log, and the log held nothing but the exit code. So a wrong exit carries the
+       lines the script itself said were wrong. */
+    const why = codeOk ? [] : out.replace(/\u001b\[[0-9;]*m/g, '').split(/\r?\n/).filter((l) => /✗|Error|visual: |words: |timed out|killed/i.test(l)).slice(0, 8);
     results.push({
       gate: currentGate,
       label,
       ok: codeOk && textOk && !thenErr,
       detail: !codeOk
-        ? `exit ${run.status}, wanted ${expect}`
+        ? `exit ${run.status ?? run.signal}, wanted ${expect}${why.length ? `\n        ${why.map((l) => l.trim()).join('\n        ')}` : ''}`
         : !textOk
           ? `exit ${expect} but did not mention ${JSON.stringify(contains)}`
           : thenErr
@@ -2015,14 +2020,19 @@ for (const [label, faults, check] of [
    and is never guessed at — a wrong platform sends the client looking for an export that does
    not exist. */
 for (const [label, faults, check] of [
-  ['names WordPress + Elementor and writes the backup-handling rules', 'platform-wp', (md) =>
+  ['names WordPress + Elementor, its plugins, and writes the backup-handling rules', 'platform-wp', (md) =>
     !/Detected \*\*WordPress \+ Elementor\*\*/.test(md) ? 'did not name WordPress + Elementor'
       : !/generator meta names WordPress/.test(md) ? 'named it without the evidence'
         : !/Handling a backup/.test(md) ? 'asked for a backup without the handling rules'
-          : !/Never ask for their admin password/.test(md) ? 'dropped the no-passwords rule' : null],
+          : !/Never ask for their admin password/.test(md) ? 'dropped the no-passwords rule'
+            : !/\| Yoast SEO \|/.test(md) ? 'did not list Yoast from its signature comment'
+              : !/\| Contact Form 7 \|.*forms:import/.test(md) ? 'did not list Contact Form 7 with the forms:import ask'
+                : !/`acme-booking-widget` \| Not one the kit knows/.test(md) ? 'dropped a plugin the kit does not know instead of asking about it'
+                  : !/Ask what changed recently/.test(md) ? 'did not ask about recent work' : null],
   ['does not guess a platform it cannot see', '', (md) =>
     !/not identified/.test(md) ? 'claimed a platform on a site with no tell'
-      : /WordPress/.test(md) ? 'mentioned WordPress on a site with no tell' : null],
+      : /WordPress|Plugins seen/.test(md) ? 'mentioned WordPress or its plugins on a site with no tell'
+        : !/Ask what changed recently/.test(md) ? 'skipped the recent-work questions off WordPress' : null],
 ]) {
   let fixture;
   try {
@@ -2041,6 +2051,41 @@ for (const [label, faults, check] of [
         const file = join(dir, 'recon/ask-client.md');
         if (!existsSync(file)) return 'wrote no recon/ask-client.md';
         return check(readFileSync(file, 'utf8'));
+      },
+    });
+  } finally {
+    fixture.child.kill('SIGKILL');
+  }
+}
+
+/* Where the owner's files go. client-files/ is created only where git will ignore it: a site
+   copied from an older template has no such line, and a backup dropped into an unignored folder
+   is committed by the next `git add -A`. Paired — the refusal is the case that matters. */
+for (const [label, files, check] of [
+  ['creates client-files/ where .gitignore covers it, and says to put everything there', { '.gitignore': 'node_modules/\nclient-files/\n' }, (dir, md) =>
+    !existsSync(join(dir, 'client-files/README.md')) ? 'did not create client-files/ with its README'
+      : !/Where it goes: `client-files\/`/.test(md) ? 'did not tell the client where to put things' : null],
+  ['refuses to create client-files/ where nothing ignores it, and says so first', { '.gitignore': 'node_modules/\n' }, (dir, md) =>
+    existsSync(join(dir, 'client-files')) ? 'created client-files/ where git would commit it'
+      : !/IS NOT IGNORED BY GIT/.test(md) ? 'did not warn that client-files/ would be committed' : null],
+]) {
+  let fixture;
+  try {
+    fixture = startFixture('');
+  } catch (err) {
+    results.push({ gate: currentGate, label: `recon ${label}`, ok: false, detail: String(err.message) });
+    continue;
+  }
+  try {
+    gate(`recon ${label}`, {
+      script: 'recon.mjs',
+      files,
+      args: [fixture.origin, '--no-wayback', '--allow-internal'],
+      expect: 0,
+      then: (dir) => {
+        const file = join(dir, 'recon/ask-client.md');
+        if (!existsSync(file)) return 'wrote no recon/ask-client.md';
+        return check(dir, readFileSync(file, 'utf8'));
       },
     });
   } finally {
@@ -2653,12 +2698,26 @@ againstTwoSites('the open menu and a hover dropdown are compared as states, and 
     const menu = vp('mobile')?.sections.find((s) => s.label === 'state: menu open');
     const dropdown = vp('desktop')?.sections.find((s) => s.label === 'state: dropdown "Services"');
     const scrolled = vp('desktop')?.sections.find((s) => s.label === 'state: header scrolled');
+    const mega = vp('desktop')?.sections.find((s) => s.label === 'state: dropdown "Programs"');
     if (!menu) return 'no "state: menu open" at mobile';
     if (!dropdown) return 'no "state: dropdown "Services"" at desktop';
     if (!scrolled) return 'no "state: header scrolled" at desktop';
-    for (const s of [menu, dropdown, scrolled]) if (s.percent === null || s.percent > 0.5) return `${s.label} measured ${s.percent}%`;
+    if (!mega) return 'no "state: dropdown "Programs"" at desktop';
+    /* Found is not opened. The mega-menu's panel was never measured — its submenu-toggle button
+       was taken for the panel — and two closed headers compare at 0%, so it passed here for months. */
+    if (/did not open/.test(mega.note ?? '')) return `the Programs mega-menu did not open: ${mega.note}`;
+    for (const s of [menu, dropdown, scrolled, mega]) if (s.percent === null || s.percent > 0.5) return `${s.label} measured ${s.percent}%`;
     return null;
   },
+});
+
+againstTwoSites('a mega-menu that lost a column is refused — the panel is opened, not its toggle', {
+  oldFaults: 'branded',
+  newFaults: 'branded,mega-changed',
+  args: ['--only=/about/', '--viewports=desktop'],
+  expect: 1,
+  timeout: 300000,
+  contains: 'state: dropdown "Programs"',
 });
 
 againstTwoSites('a rebuild without the menu and the dropdown is refused, state by state', {
