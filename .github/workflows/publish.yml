@@ -79,3 +79,27 @@ jobs:
       - name: Publish
         working-directory: create
         run: npm publish
+
+  # The Claude Desktop bundle, built from the tag and attached to the release.
+  # After the npm publish, so a version that failed its gates gets no bundle
+  # either; never from a dispatch, which has no release to attach to.
+  desktop-bundle:
+    needs: publish
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release upload
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.node-version
+
+      - name: Build the bundle
+        run: npm run build:mcpb
+
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist-mcpb/*.mcpb --clobber

@@ -10,6 +10,13 @@
   Claude Code showed it as *failed* with no reason) and finds the site from `CLAUDE_PROJECT_DIR`.
   Every byte npm prints goes to stderr: stdout is the protocol, and one stray line corrupts the
   handshake. Tested from a copy with no `node_modules`, and from a real Claude Code session.
+- **Claude Desktop: a one-file install.** The release carries `website-build-kit-0.2.1.mcpb`,
+  built from the tag by `publish.yml` (`npm run build:mcpb` locally): double-click, pick the site's
+  folder. ⚠ Desktop launches the server on its built-in Node with the Dock's PATH —
+  `/usr/bin:/bin:/usr/sbin:/sbin` — so `kit_status` worked and every `run_gate` died at its first
+  `npm`. The launcher now appends nvm, Volta, fnm, Homebrew and the official installer's directories
+  when npm or git is missing. Tested by running the unpacked bundle with exactly that PATH: a real
+  gate ran and recorded.
 - **Dependencies:** puppeteer 25 and pa11y-ci 5 (#15), astro 7.4.13 (#14), fast-xml-parser 5.12.0
   (#13), fast-uri 3.1.9 (#12). Zero open Dependabot alerts — puppeteer 25 dropped `extract-zip`,
   whose two highs had no patched version, and the astro bump took undici 6 out of the tree.

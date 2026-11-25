@@ -32,3 +32,6 @@ template/shots/
 # Client names and domains for scripts/check-privacy.mjs — the list itself is
 # the leak it guards against, so it never enters this public repo.
 .privacy-patterns
+
+# Claude Desktop bundle — npm run build:mcpb; uploaded to the release, never committed
+dist-mcpb/

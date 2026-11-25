@@ -36,6 +36,16 @@ so a bare `server/mcp.mjs` dies on its first import and Claude Code shows the se
 with no reason — and finds the site from `--site`, `KIT_SITE`, `CLAUDE_PROJECT_DIR` or the working
 directory, in that order. ⚠ Stdout is the protocol: everything the install prints goes to stderr.
 
+**Claude Desktop:** the release carries `website-build-kit-<version>.mcpb` — double-click it and pick
+the site's folder. Desktop has no project directory, so the folder is a setting; another site means
+changing it. `npm run build:mcpb` at the kit's root builds the same file into `dist-mcpb/`, holding
+only the server and its two runtime dependencies (3.7 MB, not the page's React and Kumo).
+
+⚠ **An app launched from the Dock has no shell PATH.** Desktop runs the server on its built-in Node
+with `/usr/bin:/bin:/usr/sbin:/sbin` — so `kit_status` worked and every `run_gate` died at its first
+`npm`. The launcher appends nvm's default, Volta, fnm, Homebrew and the official installer's
+directories when npm or git is missing, never ahead of what the PATH already finds.
+
 stdio only — nothing listens on a port.
 
 | Tool | Does |

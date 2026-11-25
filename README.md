@@ -100,6 +100,11 @@ directory:
 claude mcp add kit -- node /path/to/website-build-kit/console/bin/kit-mcp.mjs
 ```
 
+**Claude Desktop:** download `website-build-kit-<version>.mcpb` from the
+[latest release](https://github.com/nurkamol/website-build-kit/releases/latest), double-click it, and
+choose the site's folder when it asks. Running gates needs Node and npm on the machine — nvm, Volta,
+Homebrew and the official installer are found even though Desktop does not pass your shell's PATH.
+
 Dark first, built with Cloudflare's [Kumo](https://github.com/cloudflare/kumo). The page and the MCP
 server are separate processes sharing one ledger on disk. **→ [console/README.md](console/README.md)**
 

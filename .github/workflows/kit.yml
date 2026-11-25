@@ -139,6 +139,17 @@ jobs:
         working-directory: console
         run: npm ci && npm test
 
+      # The Desktop bundle is built for the first time by publish.yml — after the
+      # npm publish, which cannot be taken back. So it is built and spoken to here,
+      # on every push: a handshake with the packed launcher, on a bare PATH.
+      - name: Claude Desktop bundle builds and answers
+        if: runner.os == 'Linux'
+        run: |
+          npm run build:mcpb
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | timeout 30 env -i HOME="$HOME" PATH=/usr/bin:/bin KIT_SITE="$PWD/template" "$(command -v node)" dist-mcpb/stage/bin/kit-mcp.mjs \
+            | grep -q '"name":"website-build-kit"' || { echo "the packed server did not answer initialize"; exit 1; }
+
       # workerd ships as a per-platform optional dependency. npm reports success
       # when an optional dep fails to install, so a missing binary surfaces much
       # later as a confusing wrangler error.

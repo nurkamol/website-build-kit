@@ -8,7 +8,8 @@
     "check:binary": "node scripts/check-binary.mjs",
     "check:privacy": "node scripts/check-privacy.mjs",
     "check:refs": "node scripts/check-refs.mjs",
-    "test:gates": "node scripts/test-gates.mjs"
+    "test:gates": "node scripts/test-gates.mjs",
+    "build:mcpb": "node scripts/build-mcpb.mjs"
   },
   "license": "MIT"
 }
