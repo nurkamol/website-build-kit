@@ -7,13 +7,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cacheDir, kitStatus, parseBuildState, runningPath } from './state.mjs';
 import { classify, startGate, waitFor } from './runner.mjs';
+import { makeSite, waitMake } from './make.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const kit = join(here, '..', '..');
@@ -267,6 +268,45 @@ describe('a site on disk', () => {
     const { error } = kitStatus(dir);
     assert.doesNotMatch(error, /is empty/);
     assert.match(error, /BUILD-STATE\.md/);
+  });
+});
+
+// make_site writes a whole template into a folder someone chose once, in a settings dialog. Each
+// refusal is the case that matters: a template landing on real work cannot be undone without git.
+describe('make_site', () => {
+  const dirs = [];
+  after(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
+  const fresh = () => { const d = mkdtempSync(join(tmpdir(), 'kit-make-')); dirs.push(d); return d; };
+
+  it('refuses a folder with someone\'s files in it, and writes nothing', () => {
+    const dir = fresh();
+    writeFileSync(join(dir, 'notes.txt'), 'mine');
+    assert.match(makeSite(dir, { spec: 'never-run' }).error, /not empty/);
+    assert.deepEqual(readdirSync(dir), ['notes.txt']);
+  });
+
+  it('refuses a folder that is already a site', () => {
+    const dir = fresh();
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 's', scripts: { tells: 'x', verify: 'x' } }));
+    assert.match(makeSite(dir, { spec: 'never-run' }).error, /already a site/);
+  });
+
+  // Offline: the scaffolder packed from this checkout, so the case runs without the registry.
+  it('scaffolds into a Finder folder holding only .DS_Store, from the packed scaffolder', { timeout: 120_000 }, async () => {
+    const pack = fresh();
+    const tgz = execFileSync('npm', ['pack', '--silent', '--pack-destination', pack], {
+      cwd: join(kit, 'create'), encoding: 'utf8', shell: process.platform === 'win32',
+    }).trim().split(/\r?\n/).at(-1);
+    const dir = fresh();
+    writeFileSync(join(dir, '.DS_Store'), '');
+    const { job } = makeSite(dir, { spec: join(pack, tgz), install: false });
+    const done = await waitMake(job, 110);
+    assert.equal(done.state, 'done', done.output);
+    assert.ok(done.made, done.output);
+    assert.ok(!kitStatus(dir).error, kitStatus(dir).error);
+    // The finished job is reported once — to the call that comes back for it — then the folder speaks for itself.
+    assert.equal(makeSite(dir, { spec: 'never-run' }).job, done);
+    assert.match(makeSite(dir, { spec: 'never-run' }).error, /already a site/);
   });
 });
 

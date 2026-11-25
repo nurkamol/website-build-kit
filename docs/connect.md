@@ -7,7 +7,7 @@ same site, and you can run all three at once.
 | --- | --- | --- |
 | ✅ **[Claude Code](#1-claude-code-in-the-terminal)** | The skill that runs the build, and the build console's tools | Claude Code, Node 22.19+ |
 | **[The page in a browser](#2-the-build-console-in-a-browser)** | The build console for you to look at: phase, gates, blockers, `match` | Node 22.19+, a clone of this repo |
-| **[Claude Desktop](#3-claude-desktop)** | The build console's tools in a Desktop chat — not the skill | Claude Desktop, Node and npm for running gates |
+| **[Claude Desktop](#3-claude-desktop)** | The build console's tools in a Desktop chat — not the skill | Claude Desktop, Node 22.19+, and a terminal once for the first setup |
 
 Claude Code is the default because it is the only one that **builds** the site. The other two
 watch a build and run its checks.
@@ -37,6 +37,9 @@ That installs the skill **and** the build console's MCP server. There is nothing
 npm create website-build-kit@latest my-site
 cd my-site
 ```
+
+Already made an empty folder? `cd` into it and use `.` instead of `my-site`. From 0.2.2 you can also
+start Claude Code in the empty folder and ask it to *make the site here*.
 
 **3. Start Claude Code in the site's folder.** The folder matters: the console reads the site
 Claude Code was started in.
@@ -126,47 +129,65 @@ nothing on your network can reach it.
 
 ## 3. Claude Desktop
 
-The console's three tools — `kit_status`, `run_gate`, `gate_result` — in a Desktop chat. The skill
-is a Claude Code skill and does not come with it.
+The console's tools — `kit_status`, `run_gate`, `gate_result`, and from 0.2.2 `make_site` — in a
+Desktop chat. The skill is a Claude Code skill and does not come with it.
 
-**1. Download** `website-build-kit-<version>.mcpb` from the
-[latest release](https://github.com/nurkamol/website-build-kit/releases/latest), under *Assets*.
+### Before you start: a one-time setup in a terminal
 
-**2. Double-click it.** Claude Desktop opens the extension's page. Read the warning, then click
-**Install**. Desktop shows that warning for every extension it has not verified: the extension runs
-on your machine with your permissions. This one reads the site folder you give it and runs that
-site's own `npm run` checks, nothing else. The source is this repository, and the file was built
-from the release tag by `publish.yml`.
+Desktop runs the extension for you every time after this. It cannot install Node for you, and on
+0.2.1 it cannot make the site either, so the first time needs a terminal (Terminal on a Mac,
+PowerShell on Windows):
 
-**3. Configure it.** The page now says the connector needs configuration. Click **Configure**:
+**a. Check Node.** It must say v22.19 or later:
 
-| In the dialog | Do |
-| --- | --- |
-| *Site folder (required)* | Click **Browse** and pick the site's folder: the one holding its `package.json` and `BUILD-STATE.md`, e.g. the `my-site` that `npm create website-build-kit@latest my-site` made. Or paste its full path into *Directory path* |
-| **Save** | Greyed out until a folder is chosen. Click it |
+```bash
+node --version
+```
 
-**No site yet?** Claude Desktop cannot make one: its extension reads a site and runs its checks,
-and nothing more. Make it once in a terminal (Node 22.19+), then pick that folder here:
+No Node, or older? Install the LTS from [nodejs.org](https://nodejs.org/) (an installer, no
+commands) or with `nvm install 24`, then open a new terminal and check again.
+
+**b. Make the site**, if there is not one yet. Into a new folder:
 
 ```bash
 npm create website-build-kit@latest my-site      # makes my-site/
 ```
 
-**Already made an empty folder for it?** Scaffold into it rather than beside it. The `.` means
-*here*:
+Or into an empty folder you already made. The `.` means *here*:
 
 ```bash
 cd /path/to/that-folder
 npm create website-build-kit@latest .
 ```
 
-A folder that holds only what Finder or Explorer left in it (`.DS_Store`, `Thumbs.db`,
-`desktop.ini`) counts as empty. Anything else and it refuses, so it can never write over your work.
-If you chose the empty folder in *Configure* first, that is fine: the kit says the folder is empty and
-how to fill it, and once you have run the command above, ask again. Nothing needs reconnecting.
+A folder holding only what Finder or Explorer left in it (`.DS_Store`, `Thumbs.db`, `desktop.ini`)
+counts as empty. Anything else and it refuses, so it never writes over your work.
+
+**From 0.2.2 you can skip b.** Choose the empty folder in step 3 below, then ask Claude in a chat to
+*make the site here*: the `make_site` tool scaffolds it and installs its dependencies, the same as
+the command above. The first install downloads a few hundred packages and takes a few minutes; Claude reports
+progress and keeps waiting. Step a still applies, because the tool runs on your Node.
+
+### Install the extension
+
+**1. Download** `website-build-kit-<version>.mcpb` from the
+[latest release](https://github.com/nurkamol/website-build-kit/releases/latest), under *Assets*.
+
+**2. Double-click it.** Claude Desktop opens the extension's page. Read the warning, then click
+**Install**. Desktop shows that warning for every extension it has not verified: the extension runs
+on your machine with your permissions. This one reads the site folder you give it, runs that site's
+own `npm run` checks, and (from 0.2.2) makes a site only in an empty folder. The source is this
+repository, and the file was built from the release tag by `publish.yml`.
+
+**3. Configure it.** The page now says the connector needs configuration. Click **Configure**:
+
+| In the dialog | Do |
+| --- | --- |
+| *Site folder (required)* | Click **Browse** and pick the site's folder: the one holding its `package.json` and `BUILD-STATE.md`, e.g. the `my-site` from step b. Or paste its full path into *Directory path* |
+| **Save** | Greyed out until a folder is chosen. Click it |
 
 ⚠ **Pick the site, not this kit's repository.** The kit's own folder has no `BUILD-STATE.md`, so the
-extension would install and connect, and then report that there is no build to read.
+extension would install and connect, then report there is no build to read.
 
 **4. Check it is on.** The extension's page shows *All requirements met*, and Settings → Extensions
 lists *Website Build Kit — build console*, enabled. If it is off, switch it on there.
@@ -176,14 +197,19 @@ lists *Website Build Kit — build console*, enabled. If it is off, switch it on
 ```text
 Where does the build in my site stand?
 Run the contact gate and tell me what failed.
+Make the site here.            ← from 0.2.2, when the folder is still empty
 ```
 
-**Another site:** Settings → Extensions → the kit → **Configure** → **Browse** to the other folder → **Save**. Desktop has no project
-folder of its own, so the site is a setting rather than where you opened it.
+If the folder is empty, Claude says so and how to fill it. Run step b (or, from 0.2.2, ask it to
+make the site), then ask again. Nothing needs reconnecting.
 
-**Running gates needs Node and npm on the machine.** Desktop starts the server without your
-shell's PATH, so the launcher looks in the usual places itself — nvm, Volta, fnm, Homebrew and the
-official installer. `kit_status` works without npm; `run_gate` does not.
+**Another site:** Settings → Extensions → the kit → **Configure** → **Browse** to the other folder →
+**Save**. Desktop has no project folder of its own, so the site is a setting rather than where you
+opened it.
+
+**Node and npm must stay installed.** Desktop starts the server without your shell's PATH, so the
+launcher looks in the usual places itself: nvm, Volta, fnm, Homebrew and the official installer.
+`kit_status` works without npm; `run_gate` and `make_site` do not.
 
 **claude.ai in a browser cannot use this.** The server runs on your machine and reads files on
 disk; only Claude Desktop and Claude Code can start it.

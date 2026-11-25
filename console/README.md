@@ -39,7 +39,9 @@ with no reason — and finds the site from `--site`, `KIT_SITE`, `CLAUDE_PROJECT
 directory, in that order. ⚠ Stdout is the protocol: everything the install prints goes to stderr.
 
 **Claude Desktop:** the release carries `website-build-kit-<version>.mcpb` — double-click it and pick
-the site's folder. Desktop has no project directory, so the folder is a setting; another site means
+the site's folder. The first time needs a terminal for Node 22.19+ and, before 0.2.2, for
+`npm create website-build-kit` — from 0.2.2 `make_site` makes the site in an empty folder instead. Step
+by step: [docs/connect.md](../docs/connect.md) §3. Desktop has no project directory, so the folder is a setting; another site means
 changing it. `npm run build:mcpb` at the kit's root builds the same file into `dist-mcpb/`, holding
 only the server and its two runtime dependencies (3.7 MB, not the page's React and Kumo).
 
@@ -55,6 +57,7 @@ stdio only — nothing listens on a port.
 | `kit_status` | Phase from `BUILD-STATE.md`, every gate's last result **and whether it still holds**, blockers, integrations. Read-only. Call it first when resuming |
 | `run_gate` | Runs the site's own `npm run <gate>` and records the result against the current tree. Waits up to 40s, then hands back a job id |
 | `gate_result` | Polls a job from `run_gate` |
+| `make_site` | Scaffolds a new site into the configured folder and installs it: `npm create website-build-kit` without a terminal, at this server's own version, never `@latest`. **Only into an empty folder**: `.DS_Store`, `Thumbs.db` and `desktop.ini` do not count, anything else is refused, and so is a folder that is already a site. The install takes minutes, so it runs in the background; calling it again reports progress and never starts a second |
 
 ## What a status means
 

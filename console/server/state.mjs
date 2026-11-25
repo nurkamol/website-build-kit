@@ -245,6 +245,11 @@ export function parseBuildState(text) {
 /* What an OS leaves in a folder nobody has used: Finder's .DS_Store, Explorer's thumbnail cache. */
 const JUNK = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
+/** True for a folder that does not exist yet or holds only what an OS left in it. */
+export function isEmptyFolder(dir) {
+  return !existsSync(dir) || readdirSync(dir).every((f) => JUNK.has(f));
+}
+
 // ── Putting it together ──────────────────────────────────────────────────────
 
 export function readSite(site) {
@@ -254,11 +259,11 @@ export function readSite(site) {
     /* ⚠ SAY HOW TO MAKE ONE. The likeliest way here is an empty folder chosen as Claude Desktop's
        Site folder before anything was scaffolded into it — and "--site <dir>" is a flag a Desktop
        user never sees. An empty folder is a site waiting to be made, not a wrong pick. */
-    const empty = !existsSync(site) || readdirSync(site).every((f) => JUNK.has(f));
+    const empty = isEmptyFolder(site);
     return {
       error: empty
-        ? `${site} is empty — no site has been made in it yet. To make one there: cd "${site}" && npm create website-build-kit@latest . ` +
-          `(Node 22.19+). Then ask again; nothing needs reconnecting.`
+        ? `${site} is empty — no site has been made in it yet. Ask Claude to make it (the make_site tool), or in a terminal: ` +
+          `cd "${site}" && npm create website-build-kit@latest .  Either needs Node 22.19+. Then ask again; nothing needs reconnecting.`
         : `No package.json in ${site}, so this is not a site built from the kit. Choose the site's own folder — the one holding ` +
           `package.json and BUILD-STATE.md: Claude Desktop → Settings → Extensions → the kit → Configure; Claude Code → start it in that folder; ` +
           `the page → --site <dir>.`,

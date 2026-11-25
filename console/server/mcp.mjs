@@ -15,6 +15,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { GATES, kitStatus } from './state.mjs';
 import { startGate, view, waitFor } from './runner.mjs';
+import { makeSite, viewMake, waitMake } from './make.mjs';
 
 const flag = process.argv.indexOf('--site');
 const SITE = resolve(flag > -1 ? process.argv[flag + 1] : process.env.KIT_SITE ?? process.cwd());
@@ -85,6 +86,30 @@ server.registerTool(
   async ({ job: id, wait_seconds, tail }) => {
     const r = await waitFor(id, wait_seconds);
     return r.error ? refuse(r.error) : json(view(r.job, { tail }));
+  },
+);
+
+server.registerTool(
+  'make_site',
+  {
+    title: 'Make the site',
+    description:
+      'Creates a new site from the website-build-kit template in the configured site folder, then installs its ' +
+      'dependencies — the same as `npm create website-build-kit` in a terminal, so nobody needs one. Only into an EMPTY ' +
+      'folder: it refuses a folder with anything in it, and refuses a folder that is already a site. Use it when kit_status ' +
+      'says the folder is empty and the user wants a new site there. The install takes a few minutes; if it is not done ' +
+      'within wait_seconds, call make_site again to keep waiting — it never starts a second one. Needs Node 22.19+ and npm.',
+    inputSchema: {
+      wait_seconds: z.number().min(0).max(50).default(45).describe('How long to wait before reporting progress'),
+    },
+    annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ wait_seconds }) => {
+    const started = makeSite(SITE, { spec: process.env.KIT_CREATE_SPEC || `create-website-build-kit@${version}` });
+    if (started.error) return refuse(started.error);
+    const made = await waitMake(started.job, wait_seconds);
+    const out = viewMake(made);
+    return made.state === 'done' && !made.made ? { ...json(out), isError: true } : json(out);
   },
 );
 

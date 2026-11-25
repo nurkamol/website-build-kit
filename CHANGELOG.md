@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **`make_site`: Claude Desktop can make the site.** A fourth console tool scaffolds a new site into the
+  configured folder and installs it: `npm create website-build-kit` without a terminal. It runs the
+  published scaffolder at the console's own version, never `@latest`, so the site and the console that
+  reads it come from one release. **Only into an empty folder** (Finder and Explorer leftovers do not
+  count). It refuses anything else and refuses a folder that is already a site, because a template
+  written over someone's work cannot be undone without git. The install takes minutes, so it runs in the
+  background, and a second call reports progress rather than starting another. Tested offline from the
+  packed scaffolder, and end to end from the packed Desktop bundle on Desktop's bare PATH against the
+  registry: 308 packages installed, and `kit_status` read 17 gates on the new site
+- **The first setup's terminal step is written down.** `docs/connect.md`, the README and the landing
+  page say what Desktop cannot do: install Node, and before 0.2.2 make the site. The landing page's
+  Desktop card said "no terminal", which was true for every use after the first and false for the first
 - **An empty folder made in Finder was refused as "not empty".** Opening a new folder in Finder writes a
   hidden `.DS_Store`, so `npm create website-build-kit@latest .` refused a folder made a minute earlier.
   `.DS_Store`, `Thumbs.db` and `desktop.ini` are ignored now; anything else is still refused without

@@ -84,8 +84,9 @@ const manifest = {
     'The build console of [website-build-kit](https://github.com/nurkamol/website-build-kit), for a site built from its template. ' +
     '`kit_status` reads the phase, blockers and integrations from BUILD-STATE.md and every gate run recorded against the site as it is now — ' +
     'a pass on an older tree reads stale, never passed. `run_gate` runs one of the site\'s own checks (npm run …) and records it; ' +
-    '`match` compares the rebuild with the live old site section by section. Deploys, search-engine submission and live-site crawls are not available, by design.\n\n' +
-    'Needs Node.js and npm installed on this machine for running gates (nvm, Volta, Homebrew and the official installer are found automatically).',
+    '`match` compares the rebuild with the live old site section by section. `make_site` scaffolds a new site into an empty Site folder, ' +
+    'so no terminal is needed for that. Deploys, search-engine submission and live-site crawls are not available, by design.\n\n' +
+    'Needs Node.js 22.19+ and npm installed on this machine for running gates and making a site (nvm, Volta, Homebrew and the official installer are found automatically).',
   author: { name: 'Nurkamol Vakhidov', url: 'https://github.com/nurkamol' },
   repository: { type: 'git', url: 'https://github.com/nurkamol/website-build-kit' },
   homepage: 'https://nurkamol.github.io/website-build-kit/',
@@ -107,6 +108,7 @@ const manifest = {
     { name: 'kit_status', description: 'Where the build stands: phase, gates and whether each result still holds, blockers, integrations. Read-only.' },
     { name: 'run_gate', description: "Runs one of the site's own gate scripts and records the result against the current tree." },
     { name: 'gate_result', description: 'The result of a gate started with run_gate.' },
+    { name: 'make_site', description: 'Makes a new site from the template in the Site folder, then installs it. Only into an empty folder.' },
   ],
   user_config: {
     site: {

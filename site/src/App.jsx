@@ -52,7 +52,7 @@ const SHOTS = [
 const CONSOLE_FEATURES = [
   { icon: ClockCounterClockwiseIcon, title: 'Stale is not passed', body: 'Every gate is recorded against a fingerprint of the site as it is — committed and uncommitted. A pass on any other tree reads stale, with how many commits behind, and the phase cannot close on it.' },
   { icon: SquareSplitHorizontalIcon, title: 'Visual parity, worst first', body: 'match compares the rebuild with the live old site section by section, in pixels and in words, including the open menu, the hover dropdowns and the scrolled header. The worst routes come first, against the tolerance line.' },
-  { icon: TerminalWindowIcon, title: 'Paired with Claude Code', body: 'An MCP server gives Claude the same state the page shows — kit_status, run_gate, gate_result. A gate Claude runs streams onto the page live, and the page will not start a second one beside it.' },
+  { icon: TerminalWindowIcon, title: 'Paired with Claude Code', body: 'An MCP server gives Claude the same state the page shows — kit_status, run_gate, gate_result, and make_site for an empty folder. A gate Claude runs streams onto the page live, and the page will not start a second one beside it.' },
 ];
 
 const RECON_FEATURES = [
@@ -370,7 +370,7 @@ export default function App() {
                     </div>
                   </Step>
                   <Step>
-                    Make a site, or use one you have:
+                    Make a site, or use one you have. Inside an empty folder, use <code>.</code> for the name:
                     <div className="mt-2"><Command text="npm create website-build-kit@latest my-site" /></div>
                   </Step>
                   <Step>
@@ -400,7 +400,12 @@ export default function App() {
                 </Steps>
               </ConnectCard>
 
-              <ConnectCard icon={PlugsConnectedIcon} title="Claude Desktop" lead="The console's three tools in a Desktop chat. One file, no terminal.">
+              <ConnectCard icon={PlugsConnectedIcon} title="Claude Desktop" lead="The console's tools in a Desktop chat. One file — and a terminal once, for the first setup.">
+                <div className="mt-5 rounded-lg bg-kumo-elevated p-4 ring-1 ring-kumo-hairline">
+                  <p className="m-0 text-xs font-semibold text-kumo-default">First time only, in a terminal</p>
+                  <p className="mt-1 mb-2 text-xs leading-relaxed text-kumo-strong">Node 22.19+ (<code>node --version</code>), and the site itself — or an empty folder from 0.2.2, where Claude makes it for you.</p>
+                  <Command text="npm create website-build-kit@latest my-site" />
+                </div>
                 <Steps>
                   <Step>
                     Download the extension:
@@ -409,11 +414,11 @@ export default function App() {
                     </div>
                   </Step>
                   <Step>Double-click it, and click <strong className="text-kumo-default">Install</strong> in Claude Desktop. Its unverified-extension warning appears for every extension.</Step>
-                  <Step>Click <strong className="text-kumo-default">Configure</strong>, then <strong className="text-kumo-default">Browse</strong> to the site's folder (the one holding <code>BUILD-STATE.md</code>), then <strong className="text-kumo-default">Save</strong>.</Step>
-                  <Step>Ask in a new chat: <em>"Where does the build in my site stand?"</em></Step>
+                  <Step>Click <strong className="text-kumo-default">Configure</strong>, then <strong className="text-kumo-default">Browse</strong> to the site's folder (the one holding <code>BUILD-STATE.md</code>, not the kit's own), then <strong className="text-kumo-default">Save</strong>.</Step>
+                  <Step>Ask in a new chat: <em>"Where does the build in my site stand?"</em> From 0.2.2, in an empty folder: <em>"Make the site here."</em></Step>
                 </Steps>
                 <p className="mt-5 mb-0 text-xs leading-relaxed text-kumo-subtle">
-                  Running gates needs Node and npm on the machine. nvm, Volta, Homebrew and the official installer are found on their own.
+                  Node and npm must stay installed — gates and making a site use them. nvm, Volta, Homebrew and the official installer are found on their own.
                 </p>
               </ConnectCard>
             </div>

@@ -32,7 +32,7 @@ Not a theme. The value is the accumulated set of decisions and the list of thing
 /plugin install website-build@website-build-kit
 ```
 
-That is the skill **and** the build console's MCP server (`kit_status`, `run_gate`, `gate_result`)
+That is the skill **and** the build console's MCP server (`kit_status`, `run_gate`, `gate_result`, `make_site`)
 in one install — nothing to configure. Open Claude Code in a site's directory and the server reads
 that site; the first start installs the console's dependencies, once per version.
 
@@ -79,7 +79,13 @@ Three places to use it, all reading the same site. Step by step, with what to ch
 2. `npm ci`
 3. `npm start -- --site /path/to/your-site`, then open http://127.0.0.1:4319
 
-**Claude Desktop** — the console's tools in a Desktop chat; the skill stays in Claude Code:
+**Claude Desktop** — the console's tools in a Desktop chat; the skill stays in Claude Code.
+
+**First time only, in a terminal:** `node --version` must say v22.19 or later
+([nodejs.org](https://nodejs.org/) if not), and the site must exist:
+`npm create website-build-kit@latest my-site`, or `npm create website-build-kit@latest .` inside an empty
+folder you already made. From 0.2.2 Desktop can make the site itself: point it at the empty folder and
+ask it to *make the site here*. After that, Desktop runs everything.
 
 1. Download `website-build-kit-<version>.mcpb` from the
    [latest release](https://github.com/nurkamol/website-build-kit/releases/latest)
@@ -90,8 +96,8 @@ Three places to use it, all reading the same site. Step by step, with what to ch
    `package.json` and `BUILD-STATE.md`, not this repo) → **Save**
 4. Ask in a new chat: *"Where does the build in my site stand?"*
 
-Running gates from Desktop needs Node and npm on the machine; nvm, Volta, Homebrew and the official
-installer are found even though Desktop does not pass your shell's PATH.
+Node and npm must stay installed: running gates and making a site use them. nvm, Volta, Homebrew and
+the official installer are found even though Desktop does not pass your shell's PATH.
 
 ## New in 0.2.0: the build console
 
@@ -109,7 +115,7 @@ Claude Code over MCP, so nobody resumes from memory and no tick outlives the cod
 - **Visual parity, worst first.** `match` runs as a gate: the rebuild against the live old site,
   section by section in pixels and in words, the open menu and hover dropdowns included. The
   worst routes come first against the tolerance line, with the old | new | diff report a click away
-- **Paired with Claude Code.** An MCP server — `kit_status`, `run_gate`, `gate_result` — gives
+- **Paired with Claude Code.** An MCP server — `kit_status`, `run_gate`, `gate_result`, `make_site` — gives
   Claude the same state the page shows. A gate Claude runs streams onto the page live, and the
   page will not start a second one beside it
 - **Gates that read `dist/` rebuild first** when `dist/` was not built from this tree — it is

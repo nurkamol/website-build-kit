@@ -239,7 +239,7 @@ It is also the answer to "where did we get to?" after a week away, which is othe
 re-read of the whole repo.
 
 **The build console reads it back, with the gates beside it.** `console/` in the kit is an MCP
-server (`kit_status`, `run_gate`, `gate_result`) and a local page over the same state: the phase
+server (`kit_status`, `run_gate`, `gate_result`, and `make_site` for an empty folder) and a local page over the same state: the phase
 and blockers from this file, and every gate's last result **against the tree as it is now**. A
 gate run is recorded against the site's committed tree plus every uncommitted change, so a pass
 from before the last edit comes back **stale** — not passed — with how many commits behind. Two
